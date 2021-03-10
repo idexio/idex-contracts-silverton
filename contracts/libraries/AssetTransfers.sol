@@ -2,10 +2,6 @@
 
 pragma solidity 0.8.2;
 
-import {
-    SafeMath as SafeMath256
-} from '@openzeppelin/contracts/utils/math/SafeMath.sol';
-
 import { IERC20 } from './Interfaces.sol';
 
 /**
@@ -13,8 +9,6 @@ import { IERC20 } from './Interfaces.sol';
  * It further validates ERC-20 compliant balance updates in the case of token assets
  */
 library AssetTransfers {
-    using SafeMath256 for uint256;
-
     /**
      * @dev Transfers tokens from a wallet into a contract during deposits. `wallet` must already
      * have called `approve` on the token contract for at least `tokenQuantity`. Note this only
@@ -32,7 +26,7 @@ library AssetTransfers {
 
         uint256 balanceAfter = tokenAddress.balanceOf(address(this));
         require(
-            balanceAfter.sub(balanceBefore) == quantityInAssetUnits,
+            balanceAfter - balanceBefore == quantityInAssetUnits,
             'Token contract returned transferFrom success without expected balance change'
         );
     }
@@ -59,7 +53,7 @@ library AssetTransfers {
 
             uint256 balanceAfter = IERC20(asset).balanceOf(walletOrContract);
             require(
-                balanceAfter.sub(balanceBefore) == quantityInAssetUnits,
+                balanceAfter - balanceBefore == quantityInAssetUnits,
                 'Token contract returned transfer success without expected balance change'
             );
         }

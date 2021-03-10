@@ -33,7 +33,7 @@ contract('Exchange (withdrawals)', (accounts) => {
   const tokenSymbol = 'TKN';
 
   describe('withdraw', () => {
-    it.only('should work by symbol for BNB', async () => {
+    it('should work by symbol for BNB', async () => {
       const { exchange } = await deployAndAssociateContracts();
       await exchange.setDispatcher(accounts[0]);
       await exchange.depositEther({
@@ -121,7 +121,7 @@ contract('Exchange (withdrawals)', (accounts) => {
       ).to.equal('0');
     });
 
-    it.only('should work by symbol for token', async () => {
+    it('should work by symbol for token', async () => {
       const { exchange } = await deployAndAssociateContracts();
       const token = await deployAndRegisterToken(exchange, tokenSymbol);
       await exchange.setDispatcher(accounts[0]);

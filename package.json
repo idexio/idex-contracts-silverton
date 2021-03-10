@@ -37,11 +37,8 @@
     "postbuild": "cp types/ethers-contracts/*.d.ts build/types/ethers-contracts",
     "lint:markdown": "markdownlint README.md",
     "prettier": "prettier --write **/*.sol",
-    "test": "yarn test:contracts:dist && yarn test:lib:dist",
+    "test": "yarn test:contracts:dist",
     "test:contracts:dist": "multi='spec=- json=./coverage/mocha-summary.json' truffle test ./build/tests/contracts/*.test.js",
-    "test:lib": "mocha --unhandled-rejections=strict -r ts-node/register 'tests/lib/**/*.test.ts'",
-    "test:lib:dist": "mocha --unhandled-rejections=strict 'build/tests/lib/**/*.test.js'",
-    "test:lib:watch": "yarn test:lib --watch --watch-files .",
     "verify": "truffle run verify"
   },
   "dependencies": {
@@ -53,7 +50,6 @@
     "@commitlint/cli": "^11.0.0",
     "@commitlint/config-conventional": "^11.0.0",
     "@openzeppelin/contracts": "4.0.0-rc.0",
-    "@openzeppelin/test-helpers": "^0.5.10",
     "@typechain/ethers-v5": "^6.0.2",
     "@typechain/truffle-v5": "^4.0.1",
     "@types/chai": "^4.2.14",

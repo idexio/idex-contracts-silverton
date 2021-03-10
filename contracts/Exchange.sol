@@ -4,15 +4,12 @@ pragma solidity 0.8.2;
 
 import { Address } from '@openzeppelin/contracts/utils/Address.sol';
 import { ECDSA } from '@openzeppelin/contracts/utils/cryptography/ECDSA.sol';
-import {
-    SafeMath as SafeMath256
-} from '@openzeppelin/contracts/utils/math/SafeMath.sol';
 
 import { AssetRegistry } from './libraries/AssetRegistry.sol';
+import { AssetRegistryAdmin } from './libraries/AssetRegistryAdmin.sol';
 import { AssetTransfers } from './libraries/AssetTransfers.sol';
 import { AssetUnitConversions } from './libraries/AssetUnitConversions.sol';
 import { Owned } from './Owned.sol';
-import { SafeMath64 } from './libraries/SafeMath64.sol';
 import { Signatures } from './libraries/Signatures.sol';
 import {
     Enums,
@@ -32,9 +29,8 @@ import { UUID } from './libraries/UUID.sol';
  * the un-indexed string parameter values in addition to the indexed values
  */
 contract Exchange is IExchange, Owned {
-    using SafeMath64 for uint64;
-    using SafeMath256 for uint256;
     using AssetRegistry for AssetRegistry.Storage;
+    using AssetRegistryAdmin for AssetRegistry.Storage;
 
     // Events //
 
@@ -476,7 +472,7 @@ contract Exchange is IExchange, Owned {
         );
 
         uint64 newExchangeBalanceInPips =
-            _balancesInPips[wallet][assetAddress].add(quantityInPips);
+            _balancesInPips[wallet][assetAddress] + quantityInPips;
         uint256 newExchangeBalanceInAssetUnits =
             AssetUnitConversions.pipsToAssetUnits(
                 newExchangeBalanceInPips,
@@ -586,16 +582,15 @@ contract Exchange is IExchange, Owned {
 
         // SafeMath reverts if balance is overdrawn
         uint64 netAssetQuantityInPips =
-            withdrawal.quantityInPips.sub(withdrawal.gasFeeInPips);
+            withdrawal.quantityInPips - withdrawal.gasFeeInPips;
         uint256 netAssetQuantityInAssetUnits =
             AssetUnitConversions.pipsToAssetUnits(
                 netAssetQuantityInPips,
                 asset.decimals
             );
         uint64 newExchangeBalanceInPips =
-            _balancesInPips[withdrawal.walletAddress][asset.assetAddress].sub(
-                withdrawal.quantityInPips
-            );
+            _balancesInPips[withdrawal.walletAddress][asset.assetAddress] -
+                withdrawal.quantityInPips;
         uint256 newExchangeBalanceInAssetUnits =
             AssetUnitConversions.pipsToAssetUnits(
                 newExchangeBalanceInPips,
@@ -605,10 +600,9 @@ contract Exchange is IExchange, Owned {
         _balancesInPips[withdrawal.walletAddress][
             asset.assetAddress
         ] = newExchangeBalanceInPips;
-        _balancesInPips[_feeWallet][asset.assetAddress] = _balancesInPips[
-            _feeWallet
-        ][asset.assetAddress]
-            .add(withdrawal.gasFeeInPips);
+        _balancesInPips[_feeWallet][asset.assetAddress] =
+            _balancesInPips[_feeWallet][asset.assetAddress] +
+            (withdrawal.gasFeeInPips);
 
         ICustodian(_custodian).withdraw(
             withdrawal.walletAddress,
@@ -766,42 +760,30 @@ contract Exchange is IExchange, Owned {
         Structs.Trade memory trade
     ) private {
         // Seller gives base asset including fees
-        _balancesInPips[sell.walletAddress][
-            trade.baseAssetAddress
-        ] = _balancesInPips[sell.walletAddress][trade.baseAssetAddress].sub(
-            trade.grossBaseQuantityInPips
-        );
+        _balancesInPips[sell.walletAddress][trade.baseAssetAddress] =
+            _balancesInPips[sell.walletAddress][trade.baseAssetAddress] -
+            trade.grossBaseQuantityInPips;
         // Buyer receives base asset minus fees
-        _balancesInPips[buy.walletAddress][
-            trade.baseAssetAddress
-        ] = _balancesInPips[buy.walletAddress][trade.baseAssetAddress].add(
-            trade.netBaseQuantityInPips
-        );
+        _balancesInPips[buy.walletAddress][trade.baseAssetAddress] =
+            _balancesInPips[buy.walletAddress][trade.baseAssetAddress] +
+            trade.netBaseQuantityInPips;
 
         // Buyer gives quote asset including fees
-        _balancesInPips[buy.walletAddress][
-            trade.quoteAssetAddress
-        ] = _balancesInPips[buy.walletAddress][trade.quoteAssetAddress].sub(
-            trade.grossQuoteQuantityInPips
-        );
+        _balancesInPips[buy.walletAddress][trade.quoteAssetAddress] =
+            _balancesInPips[buy.walletAddress][trade.quoteAssetAddress] -
+            trade.grossQuoteQuantityInPips;
         // Seller receives quote asset minus fees
-        _balancesInPips[sell.walletAddress][
-            trade.quoteAssetAddress
-        ] = _balancesInPips[sell.walletAddress][trade.quoteAssetAddress].add(
-            trade.netQuoteQuantityInPips
-        );
+        _balancesInPips[sell.walletAddress][trade.quoteAssetAddress] =
+            _balancesInPips[sell.walletAddress][trade.quoteAssetAddress] +
+            trade.netQuoteQuantityInPips;
 
         // Maker and taker fees to fee wallet
-        _balancesInPips[_feeWallet][
-            trade.makerFeeAssetAddress
-        ] = _balancesInPips[_feeWallet][trade.makerFeeAssetAddress].add(
-            trade.makerFeeQuantityInPips
-        );
-        _balancesInPips[_feeWallet][
-            trade.takerFeeAssetAddress
-        ] = _balancesInPips[_feeWallet][trade.takerFeeAssetAddress].add(
-            trade.takerFeeQuantityInPips
-        );
+        _balancesInPips[_feeWallet][trade.makerFeeAssetAddress] =
+            _balancesInPips[_feeWallet][trade.makerFeeAssetAddress] +
+            trade.makerFeeQuantityInPips;
+        _balancesInPips[_feeWallet][trade.takerFeeAssetAddress] =
+            _balancesInPips[_feeWallet][trade.takerFeeAssetAddress] +
+            trade.takerFeeQuantityInPips;
     }
 
     function updateOrderFilledQuantities(
@@ -834,14 +816,14 @@ contract Exchange is IExchange, Owned {
                 isMarketOrderType(order.orderType),
                 'Order quote quantity only valid for market orders'
             );
-            newFilledQuantityInPips = trade.grossQuoteQuantityInPips.add(
-                _partiallyFilledOrderQuantitiesInPips[orderHash]
-            );
+            newFilledQuantityInPips =
+                trade.grossQuoteQuantityInPips +
+                _partiallyFilledOrderQuantitiesInPips[orderHash];
         } else {
             // All other orders track partially filled quantities in base terms
-            newFilledQuantityInPips = trade.grossBaseQuantityInPips.add(
-                _partiallyFilledOrderQuantitiesInPips[orderHash]
-            );
+            newFilledQuantityInPips =
+                trade.grossBaseQuantityInPips +
+                _partiallyFilledOrderQuantitiesInPips[orderHash];
         }
 
         require(
@@ -986,19 +968,23 @@ contract Exchange is IExchange, Owned {
         );
 
         require(
-            trade.netBaseQuantityInPips.add(
-                trade.makerFeeAssetAddress == trade.baseAssetAddress
-                    ? trade.makerFeeQuantityInPips
-                    : trade.takerFeeQuantityInPips
-            ) == trade.grossBaseQuantityInPips,
+            trade.netBaseQuantityInPips +
+                (
+                    trade.makerFeeAssetAddress == trade.baseAssetAddress
+                        ? trade.makerFeeQuantityInPips
+                        : trade.takerFeeQuantityInPips
+                ) ==
+                trade.grossBaseQuantityInPips,
             'Net base plus fee is not equal to gross'
         );
         require(
-            trade.netQuoteQuantityInPips.add(
-                trade.makerFeeAssetAddress == trade.quoteAssetAddress
-                    ? trade.makerFeeQuantityInPips
-                    : trade.takerFeeQuantityInPips
-            ) == trade.grossQuoteQuantityInPips,
+            trade.netQuoteQuantityInPips +
+                (
+                    trade.makerFeeAssetAddress == trade.quoteAssetAddress
+                        ? trade.makerFeeQuantityInPips
+                        : trade.takerFeeQuantityInPips
+                ) ==
+                trade.grossQuoteQuantityInPips,
             'Net quote plus fee is not equal to gross'
         );
     }
@@ -1213,7 +1199,7 @@ contract Exchange is IExchange, Owned {
         returns (uint64)
     {
         uint64 basisPointsInTotal = 100 * 100; // 100 basis points/percent * 100 percent/total
-        return fee.mul(basisPointsInTotal).div(total);
+        return (fee * basisPointsInTotal) / total;
     }
 
     function getImpliedQuoteQuantityInPips(
@@ -1224,9 +1210,8 @@ contract Exchange is IExchange, Owned {
         uint256 pipsMultiplier = 10**8;
 
         uint256 impliedQuoteQuantityInPips =
-            uint256(baseQuantityInPips).mul(uint256(limitPriceInPips)).div(
-                pipsMultiplier
-            );
+            (uint256(baseQuantityInPips) * uint256(limitPriceInPips)) /
+                pipsMultiplier;
         require(
             impliedQuoteQuantityInPips < 2**64,
             'Implied quote pip quantity overflows uint64'

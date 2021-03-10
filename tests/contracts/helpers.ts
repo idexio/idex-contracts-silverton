@@ -84,5 +84,5 @@ export const withdraw = async (
     await getSignature(web3, getWithdrawalHash(withdrawal), wallet),
   );
 
-  console.log(await exchange.withdraw(withdrawalStruct));
+  await exchange.withdraw(withdrawalStruct);
 };

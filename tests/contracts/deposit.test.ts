@@ -33,15 +33,13 @@ contract('Exchange (deposits)', (accounts) => {
 
   // TODO Verify balances
   describe('depositEther', () => {
-    it.only('should work for minimum quantity', async () => {
+    it('should work for minimum quantity', async () => {
       const { exchange } = await deployAndAssociateContracts();
 
-      console.log(
-        await exchange.depositEther({
-          value: minimumTokenQuantity,
-          from: accounts[0],
-        }),
-      );
+      await exchange.depositEther({
+        value: minimumTokenQuantity,
+        from: accounts[0],
+      });
 
       const events = await exchange.getPastEvents('Deposited', {
         fromBlock: 0,
@@ -98,14 +96,12 @@ contract('Exchange (deposits)', (accounts) => {
   });
 
   describe('depositTokenBySymbol', () => {
-    it.only('should work for minimum quantity', async () => {
+    it('should work for minimum quantity', async () => {
       const { exchange } = await deployAndAssociateContracts();
       const token = await deployAndRegisterToken(exchange, tokenSymbol);
 
       await token.approve(exchange.address, minimumTokenQuantity);
-      console.log(
-        await exchange.depositTokenBySymbol(tokenSymbol, minimumTokenQuantity),
-      );
+      await exchange.depositTokenBySymbol(tokenSymbol, minimumTokenQuantity);
 
       const events = await exchange.getPastEvents('Deposited', {
         fromBlock: 0,

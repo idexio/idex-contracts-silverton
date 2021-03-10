@@ -2,16 +2,10 @@
 
 pragma solidity 0.8.2;
 
-import {
-    SafeMath as SafeMath256
-} from '@openzeppelin/contracts/utils/math/SafeMath.sol';
-
 /**
  * @notice Library helpers for converting asset quantities between asset units and pips
  */
 library AssetUnitConversions {
-    using SafeMath256 for uint256;
-
     function pipsToAssetUnits(uint64 quantityInPips, uint8 assetDecimals)
         internal
         pure
@@ -21,10 +15,9 @@ library AssetUnitConversions {
 
         // Exponents cannot be negative, so divide or multiply based on exponent signedness
         if (assetDecimals > 8) {
-            return
-                uint256(quantityInPips).mul(uint256(10)**(assetDecimals - 8));
+            return uint256(quantityInPips) * (uint256(10)**(assetDecimals - 8));
         }
-        return uint256(quantityInPips).div(uint256(10)**(8 - assetDecimals));
+        return uint256(quantityInPips) / (uint256(10)**(8 - assetDecimals));
     }
 
     function assetUnitsToPips(uint256 quantityInAssetUnits, uint8 assetDecimals)
@@ -37,13 +30,13 @@ library AssetUnitConversions {
         uint256 quantityInPips;
         // Exponents cannot be negative, so divide or multiply based on exponent signedness
         if (assetDecimals > 8) {
-            quantityInPips = quantityInAssetUnits.div(
-                uint256(10)**(assetDecimals - 8)
-            );
+            quantityInPips =
+                quantityInAssetUnits /
+                (uint256(10)**(assetDecimals - 8));
         } else {
-            quantityInPips = quantityInAssetUnits.mul(
-                uint256(10)**(8 - assetDecimals)
-            );
+            quantityInPips =
+                quantityInAssetUnits *
+                (uint256(10)**(8 - assetDecimals));
         }
         require(quantityInPips < 2**64, 'Pip quantity overflows uint64');
 

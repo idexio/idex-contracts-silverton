@@ -3,16 +3,11 @@
 pragma solidity 0.8.2;
 
 import { Address } from '@openzeppelin/contracts/utils/Address.sol';
-import {
-    SafeMath as SafeMath256
-} from '@openzeppelin/contracts/utils/math/SafeMath.sol';
 
 import { ICustodian } from './libraries/Interfaces.sol';
 import { Owned } from './Owned.sol';
 
 contract Governance is Owned {
-    using SafeMath256 for uint256;
-
     /**
      * @notice Emitted when admin initiates upgrade of `Exchange` contract address on `Custodian` via
      * `initiateExchangeUpgrade`
@@ -125,7 +120,7 @@ contract Governance is Owned {
         _currentExchangeUpgrade = ContractUpgrade(
             true,
             newExchange,
-            block.number.add(_blockDelay)
+            block.number + _blockDelay
         );
 
         emit ExchangeUpgradeInitiated(
@@ -204,7 +199,7 @@ contract Governance is Owned {
         _currentGovernanceUpgrade = ContractUpgrade(
             true,
             newGovernance,
-            block.number.add(_blockDelay)
+            block.number + _blockDelay
         );
 
         emit GovernanceUpgradeInitiated(

@@ -221,6 +221,11 @@ contract('Exchange (trades)', (accounts) => {
         price,
         'BASE-QUOTE',
       );
+      // Adjust quantities to not overflow ethers encoding
+      fill.grossQuoteQuantity = new BigNumber(quantity)
+        .multipliedBy(new BigNumber('1.00000000'))
+        .toFixed(8, BigNumber.ROUND_DOWN);
+      fill.netQuoteQuantity = fill.grossQuoteQuantity;
 
       let error;
       try {
