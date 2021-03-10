@@ -1,0 +1,8 @@
+.DS_Store
+.idea/
+build/
+coverage.json
+coverage/
+node_modules/
+types/
+yarn-error.log

@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "declaration": true,
+    "declarationMap": true,
+    "esModuleInterop": true,
+    "lib": [
+      "es2017",
+      "es2018",
+      "es2019",
+      "es2020"
+    ],
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "outDir": "build/",
+    "target": "es2019",
+    "sourceMap": true,
+    "strict": true,
+    "typeRoots": ["./types", "./node_modules/@types"],
+    "types": ["node", "mocha", "truffle-contracts"]
+  },
+  "include": ["**/*.ts"],
+  "exclude": ["node_modules", "build"]
+}
