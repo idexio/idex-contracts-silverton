@@ -1,6 +1,9 @@
 import { deployAndAssociateContracts } from './helpers';
 
 contract('Governance', (accounts) => {
+  const BalanceMigrationSourceMock = artifacts.require(
+    'BalanceMigrationSourceMock',
+  );
   const Exchange = artifacts.require('Exchange');
   const Governance = artifacts.require('Governance');
 
@@ -94,7 +97,9 @@ contract('Governance', (accounts) => {
         exchange: oldExchange,
         governance,
       } = await deployAndAssociateContracts();
-      const newExchange = await Exchange.new();
+      const newExchange = await Exchange.new(
+        (await BalanceMigrationSourceMock.new()).address,
+      );
 
       await governance.initiateExchangeUpgrade(newExchange.address);
 
@@ -156,7 +161,9 @@ contract('Governance', (accounts) => {
 
     it('should revert when upgrade already in progress', async () => {
       const { governance } = await deployAndAssociateContracts();
-      const newExchange = await Exchange.new();
+      const newExchange = await Exchange.new(
+        (await BalanceMigrationSourceMock.new()).address,
+      );
       await governance.initiateExchangeUpgrade(newExchange.address);
 
       let error;
@@ -176,7 +183,9 @@ contract('Governance', (accounts) => {
         exchange: oldExchange,
         governance,
       } = await deployAndAssociateContracts();
-      const newExchange = await Exchange.new();
+      const newExchange = await Exchange.new(
+        (await BalanceMigrationSourceMock.new()).address,
+      );
 
       await governance.initiateExchangeUpgrade(newExchange.address);
       await governance.cancelExchangeUpgrade();
@@ -207,7 +216,9 @@ contract('Governance', (accounts) => {
   describe('finalizeExchangeUpgrade', () => {
     it('should work when in progress and addresses match', async () => {
       const { custodian, governance } = await deployAndAssociateContracts();
-      const newExchange = await Exchange.new();
+      const newExchange = await Exchange.new(
+        (await BalanceMigrationSourceMock.new()).address,
+      );
 
       await governance.initiateExchangeUpgrade(newExchange.address);
       await governance.finalizeExchangeUpgrade(newExchange.address);
@@ -238,7 +249,9 @@ contract('Governance', (accounts) => {
 
     it('should revert on address mismatch', async () => {
       const { governance } = await deployAndAssociateContracts();
-      const newExchange = await Exchange.new();
+      const newExchange = await Exchange.new(
+        (await BalanceMigrationSourceMock.new()).address,
+      );
       await governance.initiateExchangeUpgrade(newExchange.address);
 
       let error;
@@ -254,7 +267,9 @@ contract('Governance', (accounts) => {
     it('should revert when block threshold not reached', async () => {
       const blockDelay = 10;
       const { governance } = await deployAndAssociateContracts(blockDelay);
-      const newExchange = await Exchange.new();
+      const newExchange = await Exchange.new(
+        (await BalanceMigrationSourceMock.new()).address,
+      );
       await governance.initiateExchangeUpgrade(newExchange.address);
 
       let error;

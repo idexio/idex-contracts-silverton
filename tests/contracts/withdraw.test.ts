@@ -23,6 +23,9 @@ import {
 
 // TODO Non-zero gas fees
 contract('Exchange (withdrawals)', (accounts) => {
+  const BalanceMigrationSourceMock = artifacts.require(
+    'BalanceMigrationSourceMock',
+  );
   const Custodian = artifacts.require('Custodian');
   const Exchange = artifacts.require('Exchange');
   const Governance = artifacts.require('Governance');
@@ -479,7 +482,7 @@ contract('Exchange (withdrawals)', (accounts) => {
     governance: GovernanceInstance;
   }> => {
     const [exchange, governance] = await Promise.all([
-      Exchange.new(),
+      Exchange.new((await BalanceMigrationSourceMock.new()).address),
       Governance.new(blockDelay),
     ]);
     const custodian = await Custodian.new(exchange.address, governance.address);

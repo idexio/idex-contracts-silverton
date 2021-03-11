@@ -1,12 +1,16 @@
+import BigNumber from 'bignumber.js';
+
 import { bnbAddress } from './helpers';
 import { CustodianInstance } from '../../types/truffle-contracts/Custodian';
 import { ExchangeInstance } from '../../types/truffle-contracts/Exchange';
 import { ExchangeMockInstance } from '../../types/truffle-contracts/ExchangeMock';
 import { GovernanceInstance } from '../../types/truffle-contracts/Governance';
 import { GovernanceMockInstance } from '../../types/truffle-contracts/GovernanceMock';
-import BigNumber from 'bignumber.js';
 
 contract('Custodian', (accounts) => {
+  const BalanceMigrationSourceMock = artifacts.require(
+    'BalanceMigrationSourceMock',
+  );
   const Custodian = artifacts.require('Custodian');
   const Exchange = artifacts.require('Exchange');
   const Governance = artifacts.require('Governance');
@@ -17,7 +21,9 @@ contract('Custodian', (accounts) => {
   let exchange: ExchangeInstance;
   let governance: GovernanceInstance;
   beforeEach(async () => {
-    exchange = await Exchange.new();
+    exchange = await Exchange.new(
+      (await BalanceMigrationSourceMock.new()).address,
+    );
     governance = await Governance.new(10);
   });
 
@@ -114,7 +120,9 @@ contract('Custodian', (accounts) => {
     });
 
     it('should work when sent from governance address', async () => {
-      const newExchange = await Exchange.new();
+      const newExchange = await Exchange.new(
+        (await BalanceMigrationSourceMock.new()).address,
+      );
 
       await governanceMock.setExchange(newExchange.address);
 

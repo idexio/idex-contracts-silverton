@@ -21,17 +21,24 @@ export const minimumTokenQuantity = decimalToAssetUnits(
 );
 export const deployAndAssociateContracts = async (
   blockDelay = 0,
+  balanceMigrationSource?: string,
 ): Promise<{
   custodian: CustodianInstance;
   exchange: ExchangeInstance;
   governance: GovernanceInstance;
 }> => {
+  const BalanceMigrationSourceMock = artifacts.require(
+    'BalanceMigrationSourceMock',
+  );
   const Custodian = artifacts.require('Custodian');
   const Exchange = artifacts.require('Exchange');
   const Governance = artifacts.require('Governance');
 
   const [exchange, governance] = await Promise.all([
-    Exchange.new(),
+    Exchange.new(
+      balanceMigrationSource ??
+        (await BalanceMigrationSourceMock.new()).address,
+    ),
     Governance.new(blockDelay),
   ]);
   const custodian = await Custodian.new(exchange.address, governance.address);

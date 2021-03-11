@@ -300,7 +300,7 @@ interface ICustodian {
 }
 
 /**
- * @notice Interface to Exchange contract. Provided only to document struct usage
+ * @notice Interface to Exchange contract
  */
 interface IExchange {
     /**
@@ -315,6 +315,19 @@ interface IExchange {
         Structs.Order calldata sell,
         Structs.Trade calldata trade
     ) external;
+
+    /**
+     * @notice Load a wallet's balance by asset address, in pips
+     *
+     * @param wallet The wallet address to load the balance for. Can be different from `msg.sender`
+     * @param assetAddress The asset address to load the wallet's balance for
+     *
+     * @return The quantity denominated in pips of asset at `assetAddress` currently deposited by `wallet`
+     */
+    function loadBalanceInPipsByAddress(address wallet, address assetAddress)
+        external
+        view
+        returns (uint64);
 
     /**
      * @notice Settles a user withdrawal submitted off-chain. Calls restricted to currently whitelisted Dispatcher wallet

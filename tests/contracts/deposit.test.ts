@@ -7,6 +7,9 @@ import {
 import { assetUnitsToPips, bnbAddress } from '../../lib';
 
 contract('Exchange (deposits)', (accounts) => {
+  const BalanceMigrationSourceMock = artifacts.require(
+    'BalanceMigrationSourceMock',
+  );
   const Exchange = artifacts.require('Exchange');
   const NonCompliantToken = artifacts.require('NonCompliantToken');
   const SkimmingToken = artifacts.require('SkimmingTestToken');
@@ -15,7 +18,9 @@ contract('Exchange (deposits)', (accounts) => {
   const tokenSymbol = 'TKN';
 
   it('should revert when receiving BNB directly', async () => {
-    const exchange = await Exchange.new();
+    const exchange = await Exchange.new(
+      (await BalanceMigrationSourceMock.new()).address,
+    );
 
     let error;
     try {
