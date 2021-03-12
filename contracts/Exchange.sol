@@ -885,22 +885,16 @@ contract Exchange is IExchange, Owned {
         address wallet,
         address assetAddress
     ) private returns (uint64) {
-        Balance memory balance = _balances[wallet][assetAddress];
+        Balance storage balance = _balances[wallet][assetAddress];
         if (balance.isMigrated) {
             return balance.balanceInPips;
         }
 
-        uint64 balanceInPips =
-            _balanceMigrationSource.loadBalanceInPipsByAddress(
-                wallet,
-                assetAddress
-            );
-        _balances[wallet][assetAddress] = Balance({
-            isMigrated: true,
-            balanceInPips: balanceInPips
-        });
+        balance.balanceInPips = _balanceMigrationSource
+            .loadBalanceInPipsByAddress(wallet, assetAddress);
+        balance.isMigrated = true;
 
-        return balanceInPips;
+        return balance.balanceInPips;
     }
 
     // Validations //
