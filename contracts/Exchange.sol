@@ -9,6 +9,7 @@ import { AssetRegistry } from './libraries/AssetRegistry.sol';
 import { AssetRegistryAdmin } from './libraries/AssetRegistryAdmin.sol';
 import { AssetTransfers } from './libraries/AssetTransfers.sol';
 import { AssetUnitConversions } from './libraries/AssetUnitConversions.sol';
+import { OrderValidations } from './libraries/OrderValidations.sol';
 import { Owned } from './Owned.sol';
 import { Signatures } from './libraries/Signatures.sol';
 import {
@@ -483,9 +484,10 @@ contract Exchange is IExchange, Owned {
             quantityInAssetUnitsWithoutFractionalPips
         );
 
+        Balance storage balance =
+            loadBalanceAndMigrateIfNeeded(wallet, assetAddress);
         uint64 newExchangeBalanceInPips =
-            loadBalanceInPipsAndMigrateIfNeeded(wallet, assetAddress) +
-                quantityInPips;
+            balance.balanceInPips + quantityInPips;
         uint256 newExchangeBalanceInAssetUnits =
             AssetUnitConversions.pipsToAssetUnits(
                 newExchangeBalanceInPips,
@@ -573,7 +575,7 @@ contract Exchange is IExchange, Owned {
             'Wallet exited'
         );
         require(
-            getFeeBasisPoints(
+            OrderValidations.getFeeBasisPoints(
                 withdrawal.gasFeeInPips,
                 withdrawal.quantityInPips
             ) <= _maxWithdrawalFeeBasisPoints,
@@ -603,10 +605,13 @@ contract Exchange is IExchange, Owned {
                 asset.decimals
             );
         uint64 newExchangeBalanceInPips =
-            loadBalanceInPipsAndMigrateIfNeeded(
-                withdrawal.walletAddress,
-                asset.assetAddress
-            ) - withdrawal.quantityInPips;
+            loadBalanceAndMigrateIfNeeded(
+                withdrawal
+                    .walletAddress,
+                asset
+                    .assetAddress
+            )
+                .balanceInPips - withdrawal.quantityInPips;
         uint256 newExchangeBalanceInAssetUnits =
             AssetUnitConversions.pipsToAssetUnits(
                 newExchangeBalanceInPips,
@@ -616,10 +621,8 @@ contract Exchange is IExchange, Owned {
         _balances[withdrawal.walletAddress][asset.assetAddress]
             .balanceInPips = newExchangeBalanceInPips;
         _balances[_feeWallet][asset.assetAddress].balanceInPips =
-            loadBalanceInPipsAndMigrateIfNeeded(
-                _feeWallet,
-                asset.assetAddress
-            ) +
+            loadBalanceAndMigrateIfNeeded(_feeWallet, asset.assetAddress)
+                .balanceInPips +
             (withdrawal.gasFeeInPips);
 
         ICustodian(_custodian).withdraw(
@@ -669,16 +672,16 @@ contract Exchange is IExchange, Owned {
 
         Structs.Asset memory asset =
             _assetRegistry.loadAssetByAddress(assetAddress);
-        uint64 balanceInPips =
-            loadBalanceInPipsAndMigrateIfNeeded(msg.sender, assetAddress);
+        Balance storage balance =
+            loadBalanceAndMigrateIfNeeded(msg.sender, assetAddress);
         uint256 balanceInAssetUnits =
             AssetUnitConversions.pipsToAssetUnits(
-                balanceInPips,
+                balance.balanceInPips,
                 asset.decimals
             );
 
         require(balanceInAssetUnits > 0, 'No balance for asset');
-        _balances[msg.sender][assetAddress].balanceInPips = 0;
+        balance.balanceInPips = 0;
         ICustodian(_custodian).withdraw(
             payable(msg.sender),
             assetAddress,
@@ -689,7 +692,7 @@ contract Exchange is IExchange, Owned {
             msg.sender,
             assetAddress,
             asset.symbol,
-            balanceInPips,
+            balance.balanceInPips,
             0,
             0
         );
@@ -747,12 +750,12 @@ contract Exchange is IExchange, Owned {
             'Self-trading not allowed'
         );
 
-        validateAssetPair(buy, sell, trade);
-        validateLimitPrices(buy, sell, trade);
+        OrderValidations.validateAssetPair(buy, sell, trade, _assetRegistry);
+        OrderValidations.validateLimitPrices(buy, sell, trade);
         validateOrderNonces(buy, sell);
         (bytes32 buyHash, bytes32 sellHash) =
-            validateOrderSignatures(buy, sell, trade);
-        validateTradeFees(trade);
+            OrderValidations.validateOrderSignatures(buy, sell, trade);
+        OrderValidations.validateTradeFees(trade, _maxTradeFeeBasisPoints);
 
         updateOrderFilledQuantities(buy, buyHash, sell, sellHash, trade);
         updateBalancesForTrade(buy, sell, trade);
@@ -778,48 +781,56 @@ contract Exchange is IExchange, Owned {
         Structs.Order memory sell,
         Structs.Trade memory trade
     ) private {
+        Balance storage balance;
+
         // Seller gives base asset including fees
-        _balances[sell.walletAddress][trade.baseAssetAddress].balanceInPips =
-            loadBalanceInPipsAndMigrateIfNeeded(
-                sell.walletAddress,
-                trade.baseAssetAddress
-            ) -
+        balance = loadBalanceAndMigrateIfNeeded(
+            sell.walletAddress,
+            trade.baseAssetAddress
+        );
+        balance.balanceInPips =
+            balance.balanceInPips -
             trade.grossBaseQuantityInPips;
         // Buyer receives base asset minus fees
-        _balances[buy.walletAddress][trade.baseAssetAddress].balanceInPips =
-            loadBalanceInPipsAndMigrateIfNeeded(
-                buy.walletAddress,
-                trade.baseAssetAddress
-            ) +
+        balance = loadBalanceAndMigrateIfNeeded(
+            buy.walletAddress,
+            trade.baseAssetAddress
+        );
+        balance.balanceInPips =
+            balance.balanceInPips +
             trade.netBaseQuantityInPips;
 
         // Buyer gives quote asset including fees
-        _balances[buy.walletAddress][trade.quoteAssetAddress].balanceInPips =
-            loadBalanceInPipsAndMigrateIfNeeded(
-                buy.walletAddress,
-                trade.quoteAssetAddress
-            ) -
+        balance = loadBalanceAndMigrateIfNeeded(
+            buy.walletAddress,
+            trade.quoteAssetAddress
+        );
+        balance.balanceInPips =
+            balance.balanceInPips -
             trade.grossQuoteQuantityInPips;
         // Seller receives quote asset minus fees
-        _balances[sell.walletAddress][trade.quoteAssetAddress].balanceInPips =
-            loadBalanceInPipsAndMigrateIfNeeded(
-                sell.walletAddress,
-                trade.quoteAssetAddress
-            ) +
+        balance = loadBalanceAndMigrateIfNeeded(
+            sell.walletAddress,
+            trade.quoteAssetAddress
+        );
+        balance.balanceInPips =
+            balance.balanceInPips +
             trade.netQuoteQuantityInPips;
 
         // Maker and taker fees to fee wallet
-        _balances[_feeWallet][trade.makerFeeAssetAddress].balanceInPips =
-            loadBalanceInPipsAndMigrateIfNeeded(
-                _feeWallet,
-                trade.makerFeeAssetAddress
-            ) +
+        balance = loadBalanceAndMigrateIfNeeded(
+            _feeWallet,
+            trade.makerFeeAssetAddress
+        );
+        balance.balanceInPips =
+            balance.balanceInPips +
             trade.makerFeeQuantityInPips;
-        _balances[_feeWallet][trade.takerFeeAssetAddress].balanceInPips =
-            loadBalanceInPipsAndMigrateIfNeeded(
-                _feeWallet,
-                trade.takerFeeAssetAddress
-            ) +
+        balance = loadBalanceAndMigrateIfNeeded(
+            _feeWallet,
+            trade.takerFeeAssetAddress
+        );
+        balance.balanceInPips =
+            balance.balanceInPips +
             trade.takerFeeQuantityInPips;
     }
 
@@ -881,202 +892,22 @@ contract Exchange is IExchange, Owned {
         }
     }
 
-    function loadBalanceInPipsAndMigrateIfNeeded(
-        address wallet,
-        address assetAddress
-    ) private returns (uint64) {
+    function loadBalanceAndMigrateIfNeeded(address wallet, address assetAddress)
+        private
+        returns (Balance storage)
+    {
         Balance storage balance = _balances[wallet][assetAddress];
-        if (balance.isMigrated) {
-            return balance.balanceInPips;
+
+        if (!balance.isMigrated) {
+            balance.balanceInPips = _balanceMigrationSource
+                .loadBalanceInPipsByAddress(wallet, assetAddress);
+            balance.isMigrated = true;
         }
 
-        balance.balanceInPips = _balanceMigrationSource
-            .loadBalanceInPipsByAddress(wallet, assetAddress);
-        balance.isMigrated = true;
-
-        return balance.balanceInPips;
+        return balance;
     }
 
     // Validations //
-
-    function validateAssetPair(
-        Structs.Order memory buy,
-        Structs.Order memory sell,
-        Structs.Trade memory trade
-    ) private view {
-        require(
-            trade.baseAssetAddress != trade.quoteAssetAddress,
-            'Base and quote assets must be different'
-        );
-
-        // Buy order market pair
-        Structs.Asset memory buyBaseAsset =
-            _assetRegistry.loadAssetBySymbol(
-                trade.baseAssetSymbol,
-                UUID.getTimestampInMsFromUuidV1(buy.nonce)
-            );
-        Structs.Asset memory buyQuoteAsset =
-            _assetRegistry.loadAssetBySymbol(
-                trade.quoteAssetSymbol,
-                UUID.getTimestampInMsFromUuidV1(buy.nonce)
-            );
-        require(
-            buyBaseAsset.assetAddress == trade.baseAssetAddress &&
-                buyQuoteAsset.assetAddress == trade.quoteAssetAddress,
-            'Buy order market symbol address resolution mismatch'
-        );
-
-        // Sell order market pair
-        Structs.Asset memory sellBaseAsset =
-            _assetRegistry.loadAssetBySymbol(
-                trade.baseAssetSymbol,
-                UUID.getTimestampInMsFromUuidV1(sell.nonce)
-            );
-        Structs.Asset memory sellQuoteAsset =
-            _assetRegistry.loadAssetBySymbol(
-                trade.quoteAssetSymbol,
-                UUID.getTimestampInMsFromUuidV1(sell.nonce)
-            );
-        require(
-            sellBaseAsset.assetAddress == trade.baseAssetAddress &&
-                sellQuoteAsset.assetAddress == trade.quoteAssetAddress,
-            'Sell order market symbol address resolution mismatch'
-        );
-
-        // Fee asset validation
-        require(
-            trade.makerFeeAssetAddress == trade.baseAssetAddress ||
-                trade.makerFeeAssetAddress == trade.quoteAssetAddress,
-            'Maker fee asset is not in trade pair'
-        );
-        require(
-            trade.takerFeeAssetAddress == trade.baseAssetAddress ||
-                trade.takerFeeAssetAddress == trade.quoteAssetAddress,
-            'Taker fee asset is not in trade pair'
-        );
-        require(
-            trade.makerFeeAssetAddress != trade.takerFeeAssetAddress,
-            'Maker and taker fee assets must be different'
-        );
-    }
-
-    function validateLimitPrices(
-        Structs.Order memory buy,
-        Structs.Order memory sell,
-        Structs.Trade memory trade
-    ) private pure {
-        require(
-            trade.grossBaseQuantityInPips > 0,
-            'Base quantity must be greater than zero'
-        );
-        require(
-            trade.grossQuoteQuantityInPips > 0,
-            'Quote quantity must be greater than zero'
-        );
-
-        if (isLimitOrderType(buy.orderType)) {
-            require(
-                getImpliedQuoteQuantityInPips(
-                    trade.grossBaseQuantityInPips,
-                    buy.limitPriceInPips
-                ) >= trade.grossQuoteQuantityInPips,
-                'Buy order limit price exceeded'
-            );
-        }
-
-        if (isLimitOrderType(sell.orderType)) {
-            require(
-                getImpliedQuoteQuantityInPips(
-                    trade.grossBaseQuantityInPips,
-                    sell.limitPriceInPips
-                ) <= trade.grossQuoteQuantityInPips,
-                'Sell order limit price exceeded'
-            );
-        }
-    }
-
-    function validateTradeFees(Structs.Trade memory trade) private pure {
-        uint64 makerTotalQuantityInPips =
-            trade.makerFeeAssetAddress == trade.baseAssetAddress
-                ? trade.grossBaseQuantityInPips
-                : trade.grossQuoteQuantityInPips;
-        require(
-            getFeeBasisPoints(
-                trade.makerFeeQuantityInPips,
-                makerTotalQuantityInPips
-            ) <= _maxTradeFeeBasisPoints,
-            'Excessive maker fee'
-        );
-
-        uint64 takerTotalQuantityInPips =
-            trade.takerFeeAssetAddress == trade.baseAssetAddress
-                ? trade.grossBaseQuantityInPips
-                : trade.grossQuoteQuantityInPips;
-        require(
-            getFeeBasisPoints(
-                trade.takerFeeQuantityInPips,
-                takerTotalQuantityInPips
-            ) <= _maxTradeFeeBasisPoints,
-            'Excessive taker fee'
-        );
-
-        require(
-            trade.netBaseQuantityInPips +
-                (
-                    trade.makerFeeAssetAddress == trade.baseAssetAddress
-                        ? trade.makerFeeQuantityInPips
-                        : trade.takerFeeQuantityInPips
-                ) ==
-                trade.grossBaseQuantityInPips,
-            'Net base plus fee is not equal to gross'
-        );
-        require(
-            trade.netQuoteQuantityInPips +
-                (
-                    trade.makerFeeAssetAddress == trade.quoteAssetAddress
-                        ? trade.makerFeeQuantityInPips
-                        : trade.takerFeeQuantityInPips
-                ) ==
-                trade.grossQuoteQuantityInPips,
-            'Net quote plus fee is not equal to gross'
-        );
-    }
-
-    function validateOrderSignatures(
-        Structs.Order memory buy,
-        Structs.Order memory sell,
-        Structs.Trade memory trade
-    ) private pure returns (bytes32, bytes32) {
-        bytes32 buyOrderHash = validateOrderSignature(buy, trade);
-        bytes32 sellOrderHash = validateOrderSignature(sell, trade);
-
-        return (buyOrderHash, sellOrderHash);
-    }
-
-    function validateOrderSignature(
-        Structs.Order memory order,
-        Structs.Trade memory trade
-    ) private pure returns (bytes32) {
-        bytes32 orderHash =
-            Signatures.getOrderWalletHash(
-                order,
-                trade.baseAssetSymbol,
-                trade.quoteAssetSymbol
-            );
-
-        require(
-            Signatures.isSignatureValid(
-                orderHash,
-                order.walletSignature,
-                order.walletAddress
-            ),
-            order.side == Enums.OrderSide.Buy
-                ? 'Invalid wallet signature for buy order'
-                : 'Invalid wallet signature for sell order'
-        );
-
-        return orderHash;
-    }
 
     function validateOrderNonces(
         Structs.Order memory buy,
@@ -1244,33 +1075,6 @@ contract Exchange is IExchange, Owned {
         uint64 msInOneSecond = 1000;
 
         return uint64(block.timestamp) * msInOneSecond;
-    }
-
-    function getFeeBasisPoints(uint64 fee, uint64 total)
-        private
-        pure
-        returns (uint64)
-    {
-        uint64 basisPointsInTotal = 100 * 100; // 100 basis points/percent * 100 percent/total
-        return (fee * basisPointsInTotal) / total;
-    }
-
-    function getImpliedQuoteQuantityInPips(
-        uint64 baseQuantityInPips,
-        uint64 limitPriceInPips
-    ) private pure returns (uint64) {
-        // To convert a fractional price to integer pips, shift right by the pip precision of 8 decimals
-        uint256 pipsMultiplier = 10**8;
-
-        uint256 impliedQuoteQuantityInPips =
-            (uint256(baseQuantityInPips) * uint256(limitPriceInPips)) /
-                pipsMultiplier;
-        require(
-            impliedQuoteQuantityInPips < 2**64,
-            'Implied quote pip quantity overflows uint64'
-        );
-
-        return uint64(impliedQuoteQuantityInPips);
     }
 
     function getLastInvalidatedTimestamp(address walletAddress)

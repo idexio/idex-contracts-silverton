@@ -32,12 +32,13 @@ contract('Exchange (trades)', (accounts) => {
   const Token = artifacts.require('TestToken');
 
   describe('executeTrade', () => {
-    it('should work for matching limit orders', async () => {
+    it.only('should work for matching limit orders', async () => {
       const { exchange } = await deployAndAssociateContracts();
       const token = await deployAndRegisterToken(exchange, tokenSymbol);
       await exchange.setDispatcher(accounts[0]);
       const [sellWallet, buyWallet] = accounts;
 
+      await depositAndTrade(exchange, token, buyWallet, sellWallet);
       const fill = await depositAndTrade(
         exchange,
         token,
@@ -1642,13 +1643,15 @@ export const executeTrade = async (
   ]);
 
   // https://github.com/microsoft/TypeScript/issues/28486
-  await (exchange.executeTrade as any)(
-    ...getTradeArguments(
-      buyOrder,
-      buySignature,
-      sellOrder,
-      sellSignature,
-      fill,
+  console.log(
+    await (exchange.executeTrade as any)(
+      ...getTradeArguments(
+        buyOrder,
+        buySignature,
+        sellOrder,
+        sellSignature,
+        fill,
+      ),
     ),
   );
 };
