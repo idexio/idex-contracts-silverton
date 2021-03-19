@@ -144,6 +144,10 @@ contract Exchange is IExchange, Owned {
 
     // Internally used structs //
 
+    struct Balance {
+        bool isMigrated;
+        uint64 balanceInPips;
+    }
     struct NonceInvalidation {
         bool exists;
         uint64 timestampInMs;
@@ -158,6 +162,7 @@ contract Exchange is IExchange, Owned {
 
     // Asset registry data
     AssetRegistry.Storage _assetRegistry;
+    IExchange _balanceMigrationSource;
     // Mapping of order wallet hash => isComplete
     mapping(bytes32 => bool) _completedOrderHashes;
     // Mapping of withdrawal wallet hash => isComplete
@@ -165,7 +170,7 @@ contract Exchange is IExchange, Owned {
     address payable _custodian;
     uint64 _depositIndex;
     // Mapping of wallet => asset => balance
-    mapping(address => mapping(address => uint64)) _balancesInPips;
+    mapping(address => mapping(address => Balance)) _balances;
     // Mapping of wallet => last invalidated timestampInMs
     mapping(address => NonceInvalidation) _nonceInvalidations;
     // Mapping of order hash => filled quantity in pips
@@ -185,8 +190,14 @@ contract Exchange is IExchange, Owned {
     /**
      * @notice Instantiate a new `Exchange` contract
      *
-     * @dev Sets `_owner` and `_admin` to `msg.sender` */
-    constructor() Owned() {}
+     * @dev Sets `_balanceMigrationSource` to first argument, and `_owner` and `_admin` to `msg.sender` */
+    constructor(IExchange balanceMigrationSource) Owned() {
+        require(
+            Address.isContract(address(balanceMigrationSource)),
+            'Invalid address'
+        );
+        _balanceMigrationSource = balanceMigrationSource;
+    }
 
     /**
      * @notice Sets the address of the `Custodian` contract
@@ -236,7 +247,7 @@ contract Exchange is IExchange, Owned {
     /**
      * @notice Sets the address of the Fee wallet
      *
-     * @dev Trade and Withdraw fees will accrue in the `_balancesInPips` mappings for this wallet
+     * @dev Trade and Withdraw fees will accrue in the `_balances` mappings for this wallet
      *
      * @param newFeeWallet The new Fee wallet. Must be different from the current one
      */
@@ -271,7 +282,7 @@ contract Exchange is IExchange, Owned {
             _assetRegistry.loadAssetByAddress(assetAddress);
         return
             AssetUnitConversions.pipsToAssetUnits(
-                _balancesInPips[wallet][assetAddress],
+                _balances[wallet][assetAddress].balanceInPips,
                 asset.decimals
             );
     }
@@ -298,7 +309,7 @@ contract Exchange is IExchange, Owned {
             );
         return
             AssetUnitConversions.pipsToAssetUnits(
-                _balancesInPips[wallet][asset.assetAddress],
+                _balances[wallet][asset.assetAddress].balanceInPips,
                 asset.decimals
             );
     }
@@ -314,11 +325,12 @@ contract Exchange is IExchange, Owned {
     function loadBalanceInPipsByAddress(address wallet, address assetAddress)
         external
         view
+        override
         returns (uint64)
     {
         require(wallet != address(0x0), 'Invalid wallet address');
 
-        return _balancesInPips[wallet][assetAddress];
+        return _balances[wallet][assetAddress].balanceInPips;
     }
 
     /**
@@ -339,7 +351,7 @@ contract Exchange is IExchange, Owned {
             _assetRegistry
                 .loadAssetBySymbol(assetSymbol, getCurrentTimestampInMs())
                 .assetAddress;
-        return _balancesInPips[wallet][assetAddress];
+        return _balances[wallet][assetAddress].balanceInPips;
     }
 
     /**
@@ -472,7 +484,8 @@ contract Exchange is IExchange, Owned {
         );
 
         uint64 newExchangeBalanceInPips =
-            _balancesInPips[wallet][assetAddress] + quantityInPips;
+            loadBalanceInPipsAndMigrateIfNeeded(wallet, assetAddress) +
+                quantityInPips;
         uint256 newExchangeBalanceInAssetUnits =
             AssetUnitConversions.pipsToAssetUnits(
                 newExchangeBalanceInPips,
@@ -480,7 +493,8 @@ contract Exchange is IExchange, Owned {
             );
 
         // Update balance with actual transferred quantity
-        _balancesInPips[wallet][assetAddress] = newExchangeBalanceInPips;
+        _balances[wallet][assetAddress]
+            .balanceInPips = newExchangeBalanceInPips;
         _depositIndex++;
 
         emit Deposited(
@@ -589,19 +603,23 @@ contract Exchange is IExchange, Owned {
                 asset.decimals
             );
         uint64 newExchangeBalanceInPips =
-            _balancesInPips[withdrawal.walletAddress][asset.assetAddress] -
-                withdrawal.quantityInPips;
+            loadBalanceInPipsAndMigrateIfNeeded(
+                withdrawal.walletAddress,
+                asset.assetAddress
+            ) - withdrawal.quantityInPips;
         uint256 newExchangeBalanceInAssetUnits =
             AssetUnitConversions.pipsToAssetUnits(
                 newExchangeBalanceInPips,
                 asset.decimals
             );
 
-        _balancesInPips[withdrawal.walletAddress][
-            asset.assetAddress
-        ] = newExchangeBalanceInPips;
-        _balancesInPips[_feeWallet][asset.assetAddress] =
-            _balancesInPips[_feeWallet][asset.assetAddress] +
+        _balances[withdrawal.walletAddress][asset.assetAddress]
+            .balanceInPips = newExchangeBalanceInPips;
+        _balances[_feeWallet][asset.assetAddress].balanceInPips =
+            loadBalanceInPipsAndMigrateIfNeeded(
+                _feeWallet,
+                asset.assetAddress
+            ) +
             (withdrawal.gasFeeInPips);
 
         ICustodian(_custodian).withdraw(
@@ -651,7 +669,8 @@ contract Exchange is IExchange, Owned {
 
         Structs.Asset memory asset =
             _assetRegistry.loadAssetByAddress(assetAddress);
-        uint64 balanceInPips = _balancesInPips[msg.sender][assetAddress];
+        uint64 balanceInPips =
+            loadBalanceInPipsAndMigrateIfNeeded(msg.sender, assetAddress);
         uint256 balanceInAssetUnits =
             AssetUnitConversions.pipsToAssetUnits(
                 balanceInPips,
@@ -659,7 +678,7 @@ contract Exchange is IExchange, Owned {
             );
 
         require(balanceInAssetUnits > 0, 'No balance for asset');
-        _balancesInPips[msg.sender][assetAddress] = 0;
+        _balances[msg.sender][assetAddress].balanceInPips = 0;
         ICustodian(_custodian).withdraw(
             payable(msg.sender),
             assetAddress,
@@ -760,29 +779,47 @@ contract Exchange is IExchange, Owned {
         Structs.Trade memory trade
     ) private {
         // Seller gives base asset including fees
-        _balancesInPips[sell.walletAddress][trade.baseAssetAddress] =
-            _balancesInPips[sell.walletAddress][trade.baseAssetAddress] -
+        _balances[sell.walletAddress][trade.baseAssetAddress].balanceInPips =
+            loadBalanceInPipsAndMigrateIfNeeded(
+                sell.walletAddress,
+                trade.baseAssetAddress
+            ) -
             trade.grossBaseQuantityInPips;
         // Buyer receives base asset minus fees
-        _balancesInPips[buy.walletAddress][trade.baseAssetAddress] =
-            _balancesInPips[buy.walletAddress][trade.baseAssetAddress] +
+        _balances[buy.walletAddress][trade.baseAssetAddress].balanceInPips =
+            loadBalanceInPipsAndMigrateIfNeeded(
+                buy.walletAddress,
+                trade.baseAssetAddress
+            ) +
             trade.netBaseQuantityInPips;
 
         // Buyer gives quote asset including fees
-        _balancesInPips[buy.walletAddress][trade.quoteAssetAddress] =
-            _balancesInPips[buy.walletAddress][trade.quoteAssetAddress] -
+        _balances[buy.walletAddress][trade.quoteAssetAddress].balanceInPips =
+            loadBalanceInPipsAndMigrateIfNeeded(
+                buy.walletAddress,
+                trade.quoteAssetAddress
+            ) -
             trade.grossQuoteQuantityInPips;
         // Seller receives quote asset minus fees
-        _balancesInPips[sell.walletAddress][trade.quoteAssetAddress] =
-            _balancesInPips[sell.walletAddress][trade.quoteAssetAddress] +
+        _balances[sell.walletAddress][trade.quoteAssetAddress].balanceInPips =
+            loadBalanceInPipsAndMigrateIfNeeded(
+                sell.walletAddress,
+                trade.quoteAssetAddress
+            ) +
             trade.netQuoteQuantityInPips;
 
         // Maker and taker fees to fee wallet
-        _balancesInPips[_feeWallet][trade.makerFeeAssetAddress] =
-            _balancesInPips[_feeWallet][trade.makerFeeAssetAddress] +
+        _balances[_feeWallet][trade.makerFeeAssetAddress].balanceInPips =
+            loadBalanceInPipsAndMigrateIfNeeded(
+                _feeWallet,
+                trade.makerFeeAssetAddress
+            ) +
             trade.makerFeeQuantityInPips;
-        _balancesInPips[_feeWallet][trade.takerFeeAssetAddress] =
-            _balancesInPips[_feeWallet][trade.takerFeeAssetAddress] +
+        _balances[_feeWallet][trade.takerFeeAssetAddress].balanceInPips =
+            loadBalanceInPipsAndMigrateIfNeeded(
+                _feeWallet,
+                trade.takerFeeAssetAddress
+            ) +
             trade.takerFeeQuantityInPips;
     }
 
@@ -842,6 +879,22 @@ contract Exchange is IExchange, Owned {
             delete _partiallyFilledOrderQuantitiesInPips[orderHash];
             _completedOrderHashes[orderHash] = true;
         }
+    }
+
+    function loadBalanceInPipsAndMigrateIfNeeded(
+        address wallet,
+        address assetAddress
+    ) private returns (uint64) {
+        Balance storage balance = _balances[wallet][assetAddress];
+        if (balance.isMigrated) {
+            return balance.balanceInPips;
+        }
+
+        balance.balanceInPips = _balanceMigrationSource
+            .loadBalanceInPipsByAddress(wallet, assetAddress);
+        balance.isMigrated = true;
+
+        return balance.balanceInPips;
     }
 
     // Validations //

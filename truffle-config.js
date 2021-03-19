@@ -74,7 +74,7 @@ module.exports = {
     // }
   },
 
-  plugins: ['solidity-coverage', 'truffle-security'],
+  plugins: ['solidity-coverage'],
 
   // Set default mocha options here, use special reporters etc.
   mocha: {
@@ -102,5 +102,5 @@ module.exports = {
     etherscan: '8CIU61YYN9EK561ITQ3F6312SWZS8JINF3',
   },
 
-  test_directory: 'build/tests/contracts',
+  test_directory: 'build/tests/contracts/*.test.js',
 };
