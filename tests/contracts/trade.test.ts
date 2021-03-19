@@ -31,7 +31,7 @@ const marketSymbol = `${tokenSymbol}-${ethSymbol}`;
 contract('Exchange (trades)', (accounts) => {
   const Token = artifacts.require('TestToken');
 
-  describe.only('executeTrade', () => {
+  describe('executeTrade', () => {
     it('should work for matching limit orders', async () => {
       const { exchange } = await deployAndAssociateContracts();
       const token = await deployAndRegisterToken(exchange, tokenSymbol);

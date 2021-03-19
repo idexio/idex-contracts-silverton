@@ -12,8 +12,8 @@ library LiquidityPoolRegistry {
     struct LiquidityPool {
         // Flag to distinguish from empty struct
         bool exists;
-        uint64 asset0ReserveInPips;
-        uint64 asset1ReserveInPips;
+        uint64 baseAssetReserveInPips;
+        uint64 quoteAssetReserveInPips;
         uint64 totalLiquidityShares;
         mapping(address => uint64) liquiditySharesByWallet;
     }
@@ -26,14 +26,11 @@ library LiquidityPoolRegistry {
 
     function addLiquidityPool(
         Storage storage self,
-        address asset0Address,
-        address asset1Address
+        address baseAssetAddress,
+        address quoteAssetAddress
     ) external {
-        (address sortedAsset0Address, address sortedAsset1Address) =
-            sortAssetAddresses(asset0Address, asset1Address);
-
         LiquidityPool storage pool =
-            self.poolsByAddresses[sortedAsset0Address][sortedAsset1Address];
+            self.poolsByAddresses[baseAssetAddress][quoteAssetAddress];
         require(!pool.exists, 'Pool already exists');
 
         pool.exists = true;
@@ -42,47 +39,51 @@ library LiquidityPoolRegistry {
     function addLiquidity(
         Storage storage self,
         AssetRegistry.Storage storage assetRegistry,
-        Structs.LiquidityDeposit calldata liquidityDeposit
+        Structs.LiquidityDeposit memory liquidityDeposit
     )
-        external
+        public
         returns (
-            address asset0Address,
-            address asset1Address,
-            uint64 asset0QuantityInPips,
-            uint64 asset1QuantityInPips,
+            address baseAssetAddress,
+            address quoteAssetAddress,
+            uint64 baseAssetQuantityInPips,
+            uint64 quoteAssetQuantityInPips,
             uint64 liquiditySharesMinted
         )
     {
         LiquidityPool storage pool;
-        (pool, asset0Address, asset1Address) = loadLiquidityPoolByAssetSymbols(
+        (
+            pool,
+            baseAssetAddress,
+            quoteAssetAddress
+        ) = loadLiquidityPoolByAssetSymbols(
             self,
             assetRegistry,
-            liquidityDeposit.asset0Symbol,
-            liquidityDeposit.asset1Symbol,
+            liquidityDeposit.baseAssetSymbol,
+            liquidityDeposit.quoteAssetSymbol,
             UUID.getTimestampInMsFromUuidV1(liquidityDeposit.nonce)
         );
 
         (
-            asset0QuantityInPips,
-            asset1QuantityInPips
+            baseAssetQuantityInPips,
+            quoteAssetQuantityInPips
         ) = getLiquidityDepositQuantities(
             liquidityDeposit,
-            pool.asset0ReserveInPips,
-            pool.asset1ReserveInPips
+            pool.baseAssetReserveInPips,
+            pool.quoteAssetReserveInPips
         );
 
         liquiditySharesMinted = getLiquiditySharesToMint(
             pool,
-            asset0QuantityInPips,
-            asset1QuantityInPips
+            baseAssetQuantityInPips,
+            quoteAssetQuantityInPips
         );
 
         pool.liquiditySharesByWallet[
             liquidityDeposit.walletAddress
         ] += liquiditySharesMinted;
         pool.totalLiquidityShares += liquiditySharesMinted;
-        pool.asset0ReserveInPips += asset0QuantityInPips;
-        pool.asset1ReserveInPips += asset1QuantityInPips;
+        pool.baseAssetReserveInPips += baseAssetQuantityInPips;
+        pool.quoteAssetReserveInPips += quoteAssetQuantityInPips;
     }
 
     function removeLiquidity(
@@ -92,24 +93,28 @@ library LiquidityPoolRegistry {
     )
         external
         returns (
-            address asset0Address,
-            address asset1Address,
-            uint64 asset0QuantityInPips,
-            uint64 asset1QuantityInPips
+            address baseAssetAddress,
+            address quoteAssetAddress,
+            uint64 baseAssetQuantityInPips,
+            uint64 quoteAssetQuantityInPips
         )
     {
         LiquidityPool storage pool;
-        (pool, asset0Address, asset1Address) = loadLiquidityPoolByAssetSymbols(
+        (
+            pool,
+            baseAssetAddress,
+            quoteAssetAddress
+        ) = loadLiquidityPoolByAssetSymbols(
             self,
             assetRegistry,
-            liquidityWithdrawal.asset0Symbol,
-            liquidityWithdrawal.asset1Symbol,
+            liquidityWithdrawal.baseAssetSymbol,
+            liquidityWithdrawal.quoteAssetSymbol,
             UUID.getTimestampInMsFromUuidV1(liquidityWithdrawal.nonce)
         );
 
         (
-            asset0QuantityInPips,
-            asset1QuantityInPips
+            baseAssetQuantityInPips,
+            quoteAssetQuantityInPips
         ) = getAssetQuantitiesToRemove(
             pool,
             liquidityWithdrawal.liquiditySharesToBurn
@@ -119,28 +124,31 @@ library LiquidityPoolRegistry {
             liquidityWithdrawal.walletAddress
         ] -= liquidityWithdrawal.liquiditySharesToBurn;
         pool.totalLiquidityShares -= liquidityWithdrawal.liquiditySharesToBurn;
-        pool.asset0ReserveInPips -= asset0QuantityInPips;
-        pool.asset1ReserveInPips -= asset1QuantityInPips;
+        pool.baseAssetReserveInPips -= baseAssetQuantityInPips;
+        pool.quoteAssetReserveInPips -= quoteAssetQuantityInPips;
     }
 
     function getLiquiditySharesToMint(
         LiquidityPool storage pool,
-        uint64 asset0QuantityInPips,
-        uint64 asset1QuantityInPips
+        uint64 baseAssetQuantityInPips,
+        uint64 quoteAssetQuantityInPips
     ) private returns (uint64 liquiditySharesMinted) {
         if (pool.totalLiquidityShares == 0) {
             // This will underflow if the minimum is not being added
             liquiditySharesMinted =
-                sqrt(asset0QuantityInPips * asset1QuantityInPips) -
+                sqrt(
+                    uint128(baseAssetQuantityInPips) *
+                        uint128(quoteAssetQuantityInPips)
+                ) -
                 MINIMUM_LIQUIDITY;
             // Permanently lock the first MINIMUM_LIQUIDITY tokens
             pool.totalLiquidityShares += MINIMUM_LIQUIDITY;
         } else {
             liquiditySharesMinted = min(
-                (asset0QuantityInPips * pool.totalLiquidityShares) /
-                    pool.asset0ReserveInPips,
-                (asset1QuantityInPips * pool.totalLiquidityShares) /
-                    pool.asset1ReserveInPips
+                (baseAssetQuantityInPips * pool.totalLiquidityShares) /
+                    pool.baseAssetReserveInPips,
+                (quoteAssetQuantityInPips * pool.totalLiquidityShares) /
+                    pool.quoteAssetReserveInPips
             );
         }
         require(liquiditySharesMinted > 0, 'Insufficient liquidity minted');
@@ -152,135 +160,137 @@ library LiquidityPoolRegistry {
     )
         private
         view
-        returns (uint64 asset0QuantityInPips, uint64 asset1QuantityInPips)
+        returns (
+            uint64 baseAssetQuantityInPips,
+            uint64 quoteAssetQuantityInPips
+        )
     {
-        asset0QuantityInPips =
-            (liquiditySharesToBurn * pool.asset0ReserveInPips) /
+        baseAssetQuantityInPips =
+            (liquiditySharesToBurn * pool.baseAssetReserveInPips) /
             pool.totalLiquidityShares;
-        asset1QuantityInPips =
-            (liquiditySharesToBurn * pool.asset1ReserveInPips) /
+        quoteAssetQuantityInPips =
+            (liquiditySharesToBurn * pool.quoteAssetReserveInPips) /
             pool.totalLiquidityShares;
         require(
-            asset0QuantityInPips > 0 && asset1QuantityInPips > 0,
+            baseAssetQuantityInPips > 0 && quoteAssetQuantityInPips > 0,
             'Insufficient liquidity burned'
         );
     }
 
     function getLiquidityDepositQuantities(
         Structs.LiquidityDeposit memory liquidityDeposit,
-        uint64 asset0ReserveInPips,
-        uint64 asset1ReserveInPips
+        uint64 baseAssetReserveInPips,
+        uint64 quoteAssetReserveInPips
     )
         private
         pure
-        returns (uint64 asset0QuantityInPips, uint64 asset1QuantityInPips)
+        returns (
+            uint64 baseAssetQuantityInPips,
+            uint64 quoteAssetQuantityInPips
+        )
     {
-        if (asset0ReserveInPips == 0 && asset1ReserveInPips == 0) {
-            (asset0QuantityInPips, asset1QuantityInPips) = (
-                liquidityDeposit.asset0DesiredQuantityInPips,
-                liquidityDeposit.asset1DesiredQuantityInPips
+        if (baseAssetReserveInPips == 0 && quoteAssetReserveInPips == 0) {
+            (baseAssetQuantityInPips, quoteAssetQuantityInPips) = (
+                liquidityDeposit.baseAssetDesiredQuantityInPips,
+                liquidityDeposit.quoteAssetDesiredQuantityInPips
             );
         } else {
-            uint64 asset1OptimalQuantityInPips =
+            uint64 quoteAssetOptimalQuantityInPips =
                 quote(
-                    liquidityDeposit.asset0DesiredQuantityInPips,
-                    asset0ReserveInPips,
-                    asset1ReserveInPips
+                    liquidityDeposit.baseAssetDesiredQuantityInPips,
+                    baseAssetReserveInPips,
+                    quoteAssetReserveInPips
                 );
             if (
-                asset1OptimalQuantityInPips <=
-                liquidityDeposit.asset1DesiredQuantityInPips
+                quoteAssetOptimalQuantityInPips <=
+                liquidityDeposit.quoteAssetDesiredQuantityInPips
             ) {
                 require(
-                    asset1OptimalQuantityInPips >=
-                        liquidityDeposit.asset1MinimumQuantityInPips,
-                    'Insufficient asset1 quantity'
+                    quoteAssetOptimalQuantityInPips >=
+                        liquidityDeposit.quoteAssetMinimumQuantityInPips,
+                    'Insufficient quoteAsset quantity'
                 );
-                (asset0QuantityInPips, asset1QuantityInPips) = (
-                    liquidityDeposit.asset0DesiredQuantityInPips,
-                    asset1OptimalQuantityInPips
+                (baseAssetQuantityInPips, quoteAssetQuantityInPips) = (
+                    liquidityDeposit.baseAssetDesiredQuantityInPips,
+                    quoteAssetOptimalQuantityInPips
                 );
             } else {
-                uint64 asset0OptimalQuantityInPips =
+                uint64 baseAssetOptimalQuantityInPips =
                     quote(
-                        liquidityDeposit.asset1DesiredQuantityInPips,
-                        asset1ReserveInPips,
-                        asset0ReserveInPips
+                        liquidityDeposit.quoteAssetDesiredQuantityInPips,
+                        quoteAssetReserveInPips,
+                        baseAssetReserveInPips
                     );
                 assert(
-                    asset0OptimalQuantityInPips <=
-                        liquidityDeposit.asset0DesiredQuantityInPips
+                    baseAssetOptimalQuantityInPips <=
+                        liquidityDeposit.baseAssetDesiredQuantityInPips
                 );
                 require(
-                    asset0OptimalQuantityInPips >=
-                        liquidityDeposit.asset0MinimumQuantityInPips,
-                    'Insufficient asset0 quantity'
+                    baseAssetOptimalQuantityInPips >=
+                        liquidityDeposit.baseAssetMinimumQuantityInPips,
+                    'Insufficient baseAsset quantity'
                 );
-                (asset0QuantityInPips, asset1QuantityInPips) = (
-                    asset0OptimalQuantityInPips,
-                    liquidityDeposit.asset1DesiredQuantityInPips
+                (baseAssetQuantityInPips, quoteAssetQuantityInPips) = (
+                    baseAssetOptimalQuantityInPips,
+                    liquidityDeposit.quoteAssetDesiredQuantityInPips
                 );
             }
         }
     }
 
+    function loadLiquidityPoolByAssetAddresses(
+        Storage storage self,
+        address baseAssetAddress,
+        address quoteAssetAddress
+    ) public view returns (LiquidityPool storage pool) {
+        pool = self.poolsByAddresses[baseAssetAddress][quoteAssetAddress];
+        require(pool.exists, 'No pool found for address pair');
+    }
+
     function loadLiquidityPoolByAssetSymbols(
         Storage storage self,
         AssetRegistry.Storage storage assetRegistry,
-        string memory asset0Symbol,
-        string memory asset1Symbol,
+        string memory baseAssetSymbol,
+        string memory quoteAssetSymbol,
         uint64 timestampInMs
     )
         private
         view
         returns (
             LiquidityPool storage pool,
-            address asset0Address,
-            address asset1Address
+            address baseAssetAddress,
+            address quoteAssetAddress
         )
     {
         // Resolve assets from symbols and timestamp
-        Structs.Asset memory asset0 =
-            assetRegistry.loadAssetBySymbol(asset0Symbol, timestampInMs);
-        Structs.Asset memory asset1 =
-            assetRegistry.loadAssetBySymbol(asset1Symbol, timestampInMs);
+        Structs.Asset memory baseAsset =
+            assetRegistry.loadAssetBySymbol(baseAssetSymbol, timestampInMs);
+        Structs.Asset memory quoteAsset =
+            assetRegistry.loadAssetBySymbol(quoteAssetSymbol, timestampInMs);
 
-        // Resolve pool by sorted addresses
-        (asset0Address, asset1Address) = sortAssetAddresses(
-            asset0.assetAddress,
-            asset1.assetAddress
+        baseAssetAddress = baseAsset.assetAddress;
+        quoteAssetAddress = quoteAsset.assetAddress;
+        pool = loadLiquidityPoolByAssetAddresses(
+            self,
+            baseAssetAddress,
+            quoteAssetAddress
         );
-        pool = self.poolsByAddresses[asset0Address][asset1Address];
-        require(pool.exists, 'No pool found for address pair');
     }
 
     // Given some amount of an asset and pair reserves, returns an equivalent amount of the other asset
     function quote(
-        uint64 asset0QuantityInPips,
-        uint64 asset0ReserveInPips,
-        uint64 asset1ReserveInPips
-    ) private pure returns (uint64 asset1QuantityInPips) {
-        require(asset0QuantityInPips > 0, 'Insufficiant quantity');
+        uint64 baseAssetQuantityInPips,
+        uint64 baseAssetReserveInPips,
+        uint64 quoteAssetReserveInPips
+    ) private pure returns (uint64 quoteAssetQuantityInPips) {
+        require(baseAssetQuantityInPips > 0, 'Insufficient quantity');
         require(
-            asset0ReserveInPips > 0 && asset1ReserveInPips > 0,
+            baseAssetReserveInPips > 0 && quoteAssetReserveInPips > 0,
             'Insufficient liquidity'
         );
-        asset1QuantityInPips =
-            (asset0QuantityInPips * asset1ReserveInPips) /
-            asset0ReserveInPips;
-    }
-
-    // Returns sorted token addresses, used to handle return values from pairs sorted in this order
-    function sortAssetAddresses(address asset0Address, address asset1Address)
-        private
-        pure
-        returns (address sortedAsset0Address, address sortedAsset1Address)
-    {
-        require(asset0Address != asset1Address, 'Identical asset addresses');
-        (sortedAsset0Address, sortedAsset1Address) = asset0Address <
-            asset1Address
-            ? (asset0Address, asset1Address)
-            : (asset1Address, asset0Address);
+        quoteAssetQuantityInPips =
+            (baseAssetQuantityInPips * quoteAssetReserveInPips) /
+            baseAssetReserveInPips;
     }
 
     function min(uint64 x, uint64 y) private pure returns (uint64 z) {
@@ -288,10 +298,11 @@ library LiquidityPoolRegistry {
     }
 
     // babylonian method (https://en.wikipedia.org/wiki/Methods_of_computing_square_roots#Babylonian_method)
-    function sqrt(uint64 y) private pure returns (uint64 z) {
+    function sqrt(uint128 y) private pure returns (uint64) {
+        uint128 z;
         if (y > 3) {
             z = y;
-            uint64 x = y / 2 + 1;
+            uint128 x = y / 2 + 1;
             while (x < z) {
                 z = x;
                 x = (y / x + x) / 2;
@@ -299,5 +310,7 @@ library LiquidityPoolRegistry {
         } else if (y != 0) {
             z = 1;
         }
+
+        return uint64(z);
     }
 }

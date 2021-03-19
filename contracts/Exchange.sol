@@ -70,10 +70,10 @@ contract Exchange is IExchange, Owned {
      */
     event LiquidityMint(
         address indexed sender,
-        address indexed asset0Address,
-        address indexed asset1Address,
-        uint64 asset0QuantityInPips,
-        uint64 asset1QuantityInPips,
+        address indexed baseAssetAddress,
+        address indexed quoteAssetAddress,
+        uint64 baseAssetQuantityInPips,
+        uint64 quoteAssetQuantityInPips,
         uint64 liquiditySharesMinted
     );
     /**
@@ -81,10 +81,10 @@ contract Exchange is IExchange, Owned {
      */
     event LiquidityBurn(
         address indexed sender,
-        address indexed asset0Address,
-        address indexed asset1Address,
-        uint64 asset0QuantityInPips,
-        uint64 asset1QuantityInPips,
+        address indexed baseAssetAddress,
+        address indexed quoteAssetAddress,
+        uint64 baseAssetQuantityInPips,
+        uint64 quoteAssetQuantityInPips,
         uint64 liquiditySharesBurned
     );
     /**
@@ -524,8 +524,7 @@ contract Exchange is IExchange, Owned {
             );
 
         // Update balance with actual transferred quantity
-        _balances[wallet][assetAddress]
-            .balanceInPips = newExchangeBalanceInPips;
+        balance.balanceInPips = newExchangeBalanceInPips;
         _depositIndex++;
 
         emit Deposited(
@@ -733,7 +732,7 @@ contract Exchange is IExchange, Owned {
             'Self-trading not allowed'
         );
 
-        OrderValidations.validateAssetPair(buy, sell, trade, _assetRegistry);
+        OrderValidations.validateAssetPair(_assetRegistry, buy, sell, trade);
         OrderValidations.validateLimitPrices(buy, sell, trade);
         validateOrderNonces(buy, sell);
         (bytes32 buyHash, bytes32 sellHash) =
@@ -756,6 +755,26 @@ contract Exchange is IExchange, Owned {
             buyHash,
             sellHash
         );
+    }
+
+    function executePoolTrade(
+        Structs.Order memory order,
+        Structs.Trade memory trade
+    ) public onlyDispatcher {
+        require(
+            !isWalletExitFinalized(order.walletAddress),
+            'Order wallet exit finalized'
+        );
+        // TODO Do not validate order twice
+        OrderValidations.validateAssetPair(_assetRegistry, order, order, trade);
+        OrderValidations.validateLimitPrice(order, trade);
+        validateOrderNonces(order, order);
+        bytes32 orderHash =
+            OrderValidations.validateOrderSignature(order, trade);
+        OrderValidations.validateTradeFees(trade, _maxTradeFeeBasisPoints);
+
+        updateOrderFilledQuantity(order, orderHash, trade);
+        updateBalancesForPoolTrade(order, trade);
     }
 
     // Invalidation //
@@ -925,11 +944,14 @@ contract Exchange is IExchange, Owned {
 
     // Liquidity pool registry //
 
-    function addLiquidityPool(address asset0Address, address asset1Address)
-        external
-        onlyAdmin
-    {
-        _liquidityPoolRegistry.addLiquidityPool(asset0Address, asset1Address);
+    function addLiquidityPool(
+        address baseAssetAddress,
+        address quoteAssetAddress
+    ) external onlyAdmin {
+        _liquidityPoolRegistry.addLiquidityPool(
+            baseAssetAddress,
+            quoteAssetAddress
+        );
     }
 
     function addLiquidity(Structs.LiquidityDeposit memory liquidityDeposit)
@@ -937,10 +959,10 @@ contract Exchange is IExchange, Owned {
         onlyDispatcher
     {
         (
-            address asset0Address,
-            address asset1Address,
-            uint64 asset0QuantityInPips,
-            uint64 asset1QuantityInPips,
+            address baseAssetAddress,
+            address quoteAssetAddress,
+            uint64 baseAssetQuantityInPips,
+            uint64 quoteAssetQuantityInPips,
             uint64 liquiditySharesMinted
         ) =
             _liquidityPoolRegistry.addLiquidity(
@@ -948,25 +970,24 @@ contract Exchange is IExchange, Owned {
                 liquidityDeposit
             );
 
-        Balance storage balance0 =
-            loadBalanceAndMigrateIfNeeded(
-                liquidityDeposit.walletAddress,
-                asset0Address
-            );
-        Balance storage balance1 =
-            loadBalanceAndMigrateIfNeeded(
-                liquidityDeposit.walletAddress,
-                asset1Address
-            );
-        balance0.balanceInPips -= asset0QuantityInPips;
-        balance1.balanceInPips -= asset1QuantityInPips;
+        Balance storage balance;
+        balance = loadBalanceAndMigrateIfNeeded(
+            liquidityDeposit.walletAddress,
+            baseAssetAddress
+        );
+        balance.balanceInPips -= baseAssetQuantityInPips;
+        balance = loadBalanceAndMigrateIfNeeded(
+            liquidityDeposit.walletAddress,
+            quoteAssetAddress
+        );
+        balance.balanceInPips -= quoteAssetQuantityInPips;
 
         emit LiquidityMint(
             liquidityDeposit.walletAddress,
-            asset0Address,
-            asset1Address,
-            asset0QuantityInPips,
-            asset1QuantityInPips,
+            baseAssetAddress,
+            quoteAssetAddress,
+            baseAssetQuantityInPips,
+            quoteAssetQuantityInPips,
             liquiditySharesMinted
         );
     }
@@ -975,35 +996,34 @@ contract Exchange is IExchange, Owned {
         Structs.LiquidityWithdrawal memory liquidityWithdrawal
     ) public onlyDispatcher {
         (
-            address asset0Address,
-            address asset1Address,
-            uint64 asset0QuantityInPips,
-            uint64 asset1QuantityInPips
+            address baseAssetAddress,
+            address quoteAssetAddress,
+            uint64 baseAssetQuantityInPips,
+            uint64 quoteAssetQuantityInPips
         ) =
             _liquidityPoolRegistry.removeLiquidity(
                 _assetRegistry,
                 liquidityWithdrawal
             );
 
-        Balance storage balance0 =
-            loadBalanceAndMigrateIfNeeded(
-                liquidityWithdrawal.walletAddress,
-                asset0Address
-            );
-        Balance storage balance1 =
-            loadBalanceAndMigrateIfNeeded(
-                liquidityWithdrawal.walletAddress,
-                asset1Address
-            );
-        balance0.balanceInPips += asset0QuantityInPips;
-        balance1.balanceInPips += asset1QuantityInPips;
+        Balance storage balance;
+        balance = loadBalanceAndMigrateIfNeeded(
+            liquidityWithdrawal.walletAddress,
+            baseAssetAddress
+        );
+        balance.balanceInPips += baseAssetQuantityInPips;
+        balance = loadBalanceAndMigrateIfNeeded(
+            liquidityWithdrawal.walletAddress,
+            quoteAssetAddress
+        );
+        balance.balanceInPips += quoteAssetQuantityInPips;
 
         emit LiquidityBurn(
             liquidityWithdrawal.walletAddress,
-            asset0Address,
-            asset1Address,
-            asset0QuantityInPips,
-            asset1QuantityInPips,
+            baseAssetAddress,
+            quoteAssetAddress,
+            baseAssetQuantityInPips,
+            quoteAssetQuantityInPips,
             liquidityWithdrawal.liquiditySharesToBurn
         );
     }
@@ -1055,6 +1075,97 @@ contract Exchange is IExchange, Owned {
             trade.takerFeeAssetAddress
         );
         balance.balanceInPips += trade.takerFeeQuantityInPips;
+    }
+
+    event Debug(
+        uint64 baseAssetReserveInPips1,
+        uint64 quoteAssetReserveInPips1,
+        uint128 product1,
+        uint64 baseAssetReserveInPips2,
+        uint64 quoteAssetReserveInPips2,
+        uint128 product2
+    );
+
+    function updateBalancesForPoolTrade(
+        Structs.Order memory order,
+        Structs.Trade memory trade
+    ) private {
+        LiquidityPoolRegistry.LiquidityPool storage pool =
+            _liquidityPoolRegistry.loadLiquidityPoolByAssetAddresses(
+                trade.baseAssetAddress,
+                trade.quoteAssetAddress
+            );
+
+        uint128 initialProduct =
+            uint128(pool.baseAssetReserveInPips) *
+                uint128(pool.quoteAssetReserveInPips);
+        uint64 initialBaseAssetReserveInPips = pool.baseAssetReserveInPips;
+        uint64 initialQuoteAssetReserveInPips = pool.quoteAssetReserveInPips;
+
+        Balance storage balance;
+        if (order.side == Enums.OrderSide.Buy) {
+            // Buyer receives base asset minus fees
+            balance = loadBalanceAndMigrateIfNeeded(
+                order.walletAddress,
+                trade.baseAssetAddress
+            );
+            balance.balanceInPips += trade.netBaseQuantityInPips;
+            // Buyer gives quote asset including fees
+            balance = loadBalanceAndMigrateIfNeeded(
+                order.walletAddress,
+                trade.quoteAssetAddress
+            );
+            balance.balanceInPips -= trade.grossQuoteQuantityInPips;
+
+            pool.baseAssetReserveInPips -= trade.grossBaseQuantityInPips;
+            pool.quoteAssetReserveInPips += trade.grossQuoteQuantityInPips;
+        } else {
+            // Seller gives base asset including fees
+            balance = loadBalanceAndMigrateIfNeeded(
+                order.walletAddress,
+                trade.baseAssetAddress
+            );
+            balance.balanceInPips -= trade.grossBaseQuantityInPips;
+            // Seller receives quote asset minus fees
+            balance = loadBalanceAndMigrateIfNeeded(
+                order.walletAddress,
+                trade.quoteAssetAddress
+            );
+            pool.baseAssetReserveInPips += trade.grossBaseQuantityInPips;
+            pool.quoteAssetReserveInPips -= trade.grossQuoteQuantityInPips;
+        }
+
+        (
+            uint64 adjustedBaseAssetReserveInPips,
+            uint64 adjustedQuoteAssetReserveInPips
+        ) =
+            trade.makerSide == Enums.OrderSide.Buy
+                ? (
+                    pool.baseAssetReserveInPips,
+                    pool.quoteAssetReserveInPips - trade.makerFeeQuantityInPips
+                )
+                : (
+                    pool.baseAssetReserveInPips - trade.makerFeeQuantityInPips,
+                    pool.quoteAssetReserveInPips
+                );
+
+        uint128 updatedProduct =
+            uint128(adjustedBaseAssetReserveInPips) *
+                uint128(adjustedQuoteAssetReserveInPips);
+
+        emit Debug(
+            initialBaseAssetReserveInPips,
+            initialQuoteAssetReserveInPips,
+            initialProduct,
+            pool.baseAssetReserveInPips,
+            pool.quoteAssetReserveInPips,
+            updatedProduct
+        );
+
+        require(
+            updatedProduct >= initialProduct,
+            'Constant product cannot decrease'
+        );
     }
 
     function updateOrderFilledQuantities(

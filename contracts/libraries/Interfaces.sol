@@ -50,12 +50,12 @@ contract Structs {
         // UUIDv1 unique to wallet
         uint128 nonce;
         address walletAddress;
-        string asset0Symbol;
-        string asset1Symbol;
-        uint64 asset0DesiredQuantityInPips;
-        uint64 asset1DesiredQuantityInPips;
-        uint64 asset0MinimumQuantityInPips;
-        uint64 asset1MinimumQuantityInPips;
+        string baseAssetSymbol;
+        string quoteAssetSymbol;
+        uint64 baseAssetDesiredQuantityInPips;
+        uint64 quoteAssetDesiredQuantityInPips;
+        uint64 baseAssetMinimumQuantityInPips;
+        uint64 quoteAssetMinimumQuantityInPips;
         bytes walletSignature;
     }
     /**
@@ -66,10 +66,10 @@ contract Structs {
         uint128 nonce;
         address walletAddress;
         uint64 liquiditySharesToBurn;
-        string asset0Symbol;
-        string asset1Symbol;
-        uint64 asset0MinimumQuantityInPips;
-        uint64 asset1MinimumQuantityInPips;
+        string baseAssetSymbol;
+        string quoteAssetSymbol;
+        uint64 baseAssetMinimumQuantityInPips;
+        uint64 quoteAssetMinimumQuantityInPips;
         bytes walletSignature;
     }
 

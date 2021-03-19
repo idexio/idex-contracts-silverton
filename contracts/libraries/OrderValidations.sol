@@ -20,64 +20,48 @@ library OrderValidations {
     }
 
     function validateAssetPair(
+        AssetRegistry.Storage storage assetRegistry,
         Structs.Order memory buy,
         Structs.Order memory sell,
-        Structs.Trade memory trade,
-        AssetRegistry.Storage storage assetRegistry
+        Structs.Trade memory trade
     ) internal view {
         require(
             trade.baseAssetAddress != trade.quoteAssetAddress,
-            'Base and quote assets must be different'
+            'Trade assets must be different'
         );
 
-        // Buy order market pair
-        Structs.Asset memory buyBaseAsset =
-            assetRegistry.loadAssetBySymbol(
-                trade.baseAssetSymbol,
-                UUID.getTimestampInMsFromUuidV1(buy.nonce)
-            );
-        Structs.Asset memory buyQuoteAsset =
-            assetRegistry.loadAssetBySymbol(
-                trade.quoteAssetSymbol,
-                UUID.getTimestampInMsFromUuidV1(buy.nonce)
-            );
-        require(
-            buyBaseAsset.assetAddress == trade.baseAssetAddress &&
-                buyQuoteAsset.assetAddress == trade.quoteAssetAddress,
-            'Buy order market symbol address resolution mismatch'
-        );
-
-        // Sell order market pair
-        Structs.Asset memory sellBaseAsset =
-            assetRegistry.loadAssetBySymbol(
-                trade.baseAssetSymbol,
-                UUID.getTimestampInMsFromUuidV1(sell.nonce)
-            );
-        Structs.Asset memory sellQuoteAsset =
-            assetRegistry.loadAssetBySymbol(
-                trade.quoteAssetSymbol,
-                UUID.getTimestampInMsFromUuidV1(sell.nonce)
-            );
-        require(
-            sellBaseAsset.assetAddress == trade.baseAssetAddress &&
-                sellQuoteAsset.assetAddress == trade.quoteAssetAddress,
-            'Sell order market symbol address resolution mismatch'
-        );
+        validateAssetPair(assetRegistry, buy, trade);
+        validateAssetPair(assetRegistry, sell, trade);
 
         // Fee asset validation
         require(
-            trade.makerFeeAssetAddress == trade.baseAssetAddress ||
-                trade.makerFeeAssetAddress == trade.quoteAssetAddress,
-            'Maker fee asset is not in trade pair'
-        );
-        require(
-            trade.takerFeeAssetAddress == trade.baseAssetAddress ||
-                trade.takerFeeAssetAddress == trade.quoteAssetAddress,
-            'Taker fee asset is not in trade pair'
+            (trade.makerFeeAssetAddress == trade.baseAssetAddress &&
+                trade.takerFeeAssetAddress == trade.quoteAssetAddress) ||
+                (trade.makerFeeAssetAddress == trade.quoteAssetAddress &&
+                    trade.takerFeeAssetAddress == trade.baseAssetAddress),
+            'Fee asset is not in trade pair'
         );
         require(
             trade.makerFeeAssetAddress != trade.takerFeeAssetAddress,
-            'Maker and taker fee assets must be different'
+            'Fee assets must be different'
+        );
+    }
+
+    function validateAssetPair(
+        AssetRegistry.Storage storage assetRegistry,
+        Structs.Order memory order,
+        Structs.Trade memory trade
+    ) internal view {
+        uint64 nonce = UUID.getTimestampInMsFromUuidV1(order.nonce);
+        Structs.Asset memory baseAsset =
+            assetRegistry.loadAssetBySymbol(trade.baseAssetSymbol, nonce);
+        Structs.Asset memory quoteAsset =
+            assetRegistry.loadAssetBySymbol(trade.quoteAssetSymbol, nonce);
+
+        require(
+            baseAsset.assetAddress == trade.baseAssetAddress &&
+                quoteAsset.assetAddress == trade.quoteAssetAddress,
+            'Order symbol address mismatch'
         );
     }
 
@@ -110,6 +94,46 @@ library OrderValidations {
                 getImpliedQuoteQuantityInPips(
                     trade.grossBaseQuantityInPips,
                     sell.limitPriceInPips
+                ) <= trade.grossQuoteQuantityInPips,
+                'Sell order limit price exceeded'
+            );
+        }
+    }
+
+    function validateLimitPrice(
+        Structs.Order memory order,
+        Structs.Trade memory trade
+    ) internal pure {
+        require(
+            trade.grossBaseQuantityInPips > 0,
+            'Base quantity must be greater than zero'
+        );
+        require(
+            trade.grossQuoteQuantityInPips > 0,
+            'Quote quantity must be greater than zero'
+        );
+
+        if (
+            order.side == Enums.OrderSide.Buy &&
+            isLimitOrderType(order.orderType)
+        ) {
+            require(
+                getImpliedQuoteQuantityInPips(
+                    trade.grossBaseQuantityInPips,
+                    order.limitPriceInPips
+                ) >= trade.grossQuoteQuantityInPips,
+                'Buy order limit price exceeded'
+            );
+        }
+
+        if (
+            order.side == Enums.OrderSide.Sell &&
+            isLimitOrderType(order.orderType)
+        ) {
+            require(
+                getImpliedQuoteQuantityInPips(
+                    trade.grossBaseQuantityInPips,
+                    order.limitPriceInPips
                 ) <= trade.grossQuoteQuantityInPips,
                 'Sell order limit price exceeded'
             );
