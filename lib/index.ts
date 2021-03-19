@@ -125,46 +125,21 @@ export const getTradeArguments = (
   sellWalletSignature: string,
   trade: Trade,
 ): ExchangeInstance['executeTrade']['arguments'] => {
-  const orderToArgumentStruct = (o: Order, walletSignature: string) => {
-    return {
-      signatureHashVersion: o.signatureHashVersion,
-      nonce: uuidToHexString(o.nonce),
-      walletAddress: o.wallet,
-      orderType: o.type,
-      side: o.side,
-      quantityInPips: decimalToPips(o.quantity),
-      isQuantityInQuote: o.isQuantityInQuote,
-      limitPriceInPips: decimalToPips(o.price || '0'),
-      stopPriceInPips: decimalToPips(o.stopPrice || '0'),
-      clientOrderId: o.clientOrderId || '',
-      timeInForce: o.timeInForce || 0,
-      selfTradePrevention: o.selfTradePrevention || 0,
-      cancelAfter: o.cancelAfter || 0,
-      walletSignature,
-    };
-  };
-  const tradeToArgumentStruct = (t: Trade) => {
-    return {
-      baseAssetSymbol: buyOrder.market.split('-')[0],
-      quoteAssetSymbol: buyOrder.market.split('-')[1],
-      baseAssetAddress: t.baseAssetAddress,
-      quoteAssetAddress: t.quoteAssetAddress,
-      grossBaseQuantityInPips: decimalToPips(t.grossBaseQuantity),
-      grossQuoteQuantityInPips: decimalToPips(t.grossQuoteQuantity),
-      netBaseQuantityInPips: decimalToPips(t.netBaseQuantity),
-      netQuoteQuantityInPips: decimalToPips(t.netQuoteQuantity),
-      makerFeeAssetAddress: t.makerFeeAssetAddress,
-      takerFeeAssetAddress: t.takerFeeAssetAddress,
-      makerFeeQuantityInPips: decimalToPips(t.makerFeeQuantity),
-      takerFeeQuantityInPips: decimalToPips(t.takerFeeQuantity),
-      priceInPips: decimalToPips(t.price),
-      makerSide: t.makerSide,
-    };
-  };
   return [
     orderToArgumentStruct(buyOrder, buyWalletSignature),
     orderToArgumentStruct(sellOrder, sellWalletSignature),
-    tradeToArgumentStruct(trade),
+    tradeToArgumentStruct(trade, buyOrder),
+  ] as const;
+};
+
+export const getPoolTradeArguments = (
+  order: Order,
+  walletSignature: string,
+  trade: Trade,
+): ExchangeInstance['executePoolTrade']['arguments'] => {
+  return [
+    orderToArgumentStruct(order, walletSignature),
+    tradeToArgumentStruct(trade, order),
   ] as const;
 };
 
@@ -188,6 +163,44 @@ export const getWithdrawArguments = (
       walletSignature,
     },
   ];
+};
+
+const orderToArgumentStruct = (o: Order, walletSignature: string) => {
+  return {
+    signatureHashVersion: o.signatureHashVersion,
+    nonce: uuidToHexString(o.nonce),
+    walletAddress: o.wallet,
+    orderType: o.type,
+    side: o.side,
+    quantityInPips: decimalToPips(o.quantity),
+    isQuantityInQuote: o.isQuantityInQuote,
+    limitPriceInPips: decimalToPips(o.price || '0'),
+    stopPriceInPips: decimalToPips(o.stopPrice || '0'),
+    clientOrderId: o.clientOrderId || '',
+    timeInForce: o.timeInForce || 0,
+    selfTradePrevention: o.selfTradePrevention || 0,
+    cancelAfter: o.cancelAfter || 0,
+    walletSignature,
+  };
+};
+
+const tradeToArgumentStruct = (t: Trade, order: Order) => {
+  return {
+    baseAssetSymbol: order.market.split('-')[0],
+    quoteAssetSymbol: order.market.split('-')[1],
+    baseAssetAddress: t.baseAssetAddress,
+    quoteAssetAddress: t.quoteAssetAddress,
+    grossBaseQuantityInPips: decimalToPips(t.grossBaseQuantity),
+    grossQuoteQuantityInPips: decimalToPips(t.grossQuoteQuantity),
+    netBaseQuantityInPips: decimalToPips(t.netBaseQuantity),
+    netQuoteQuantityInPips: decimalToPips(t.netQuoteQuantity),
+    makerFeeAssetAddress: t.makerFeeAssetAddress,
+    takerFeeAssetAddress: t.takerFeeAssetAddress,
+    makerFeeQuantityInPips: decimalToPips(t.makerFeeQuantity),
+    takerFeeQuantityInPips: decimalToPips(t.takerFeeQuantity),
+    priceInPips: decimalToPips(t.price),
+    makerSide: t.makerSide,
+  };
 };
 
 type TypeValuePair =

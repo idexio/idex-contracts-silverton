@@ -44,6 +44,55 @@ contract Enums {
  */
 contract Structs {
     /**
+     * @notice TODO
+     */
+    struct LiquidityDeposit {
+        // UUIDv1 unique to wallet
+        uint128 nonce;
+        address walletAddress;
+        string baseAssetSymbol;
+        string quoteAssetSymbol;
+        uint64 baseAssetDesiredQuantityInPips;
+        uint64 quoteAssetDesiredQuantityInPips;
+        uint64 baseAssetMinimumQuantityInPips;
+        uint64 quoteAssetMinimumQuantityInPips;
+        bytes walletSignature;
+    }
+    /**
+     * @notice TODO
+     */
+    struct LiquidityWithdrawal {
+        // UUIDv1 unique to wallet
+        uint128 nonce;
+        address walletAddress;
+        uint64 liquiditySharesToBurn;
+        string baseAssetSymbol;
+        string quoteAssetSymbol;
+        uint64 baseAssetMinimumQuantityInPips;
+        uint64 quoteAssetMinimumQuantityInPips;
+        bytes walletSignature;
+    }
+
+    /**
+     * @notice Return type for `Exchange.loadAssetBySymbol`, and `Exchange.loadAssetByAddress`; also
+     * used internally by `AssetRegistry`
+     */
+    struct Asset {
+        // Flag to distinguish from empty struct
+        bool exists;
+        // The asset's address
+        address assetAddress;
+        // The asset's symbol
+        string symbol;
+        // The asset's decimal precision
+        uint8 decimals;
+        // Flag set when asset registration confirmed. Asset deposits, trades, or withdrawals only allowed if true
+        bool isConfirmed;
+        // Timestamp as ms since Unix epoch when isConfirmed was asserted
+        uint64 confirmedTimestampInMs;
+    }
+
+    /**
      * @notice Argument type for `Exchange.executeTrade` and `Signatures.getOrderWalletHash`
      */
     struct Order {
@@ -75,25 +124,6 @@ contract Structs {
         uint64 cancelAfter;
         // The ECDSA signature of the order hash as produced by Signatures.getOrderWalletHash
         bytes walletSignature;
-    }
-
-    /**
-     * @notice Return type for `Exchange.loadAssetBySymbol`, and `Exchange.loadAssetByAddress`; also
-     * used internally by `AssetRegistry`
-     */
-    struct Asset {
-        // Flag to distinguish from empty struct
-        bool exists;
-        // The asset's address
-        address assetAddress;
-        // The asset's symbol
-        string symbol;
-        // The asset's decimal precision
-        uint8 decimals;
-        // Flag set when asset registration confirmed. Asset deposits, trades, or withdrawals only allowed if true
-        bool isConfirmed;
-        // Timestamp as ms since Unix epoch when isConfirmed was asserted
-        uint64 confirmedTimestampInMs;
     }
 
     /**

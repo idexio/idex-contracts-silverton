@@ -24,7 +24,7 @@ library Signatures {
         Structs.Order memory order,
         string memory baseSymbol,
         string memory quoteSymbol
-    ) internal pure returns (bytes32) {
+    ) external pure returns (bytes32) {
         require(
             order.signatureHashVersion == 2,
             'Signature hash version must be 2'
@@ -61,7 +61,7 @@ library Signatures {
     }
 
     function getWithdrawalWalletHash(Structs.Withdrawal memory withdrawal)
-        internal
+        external
         pure
         returns (bytes32)
     {

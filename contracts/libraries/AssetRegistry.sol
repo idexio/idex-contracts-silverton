@@ -7,7 +7,7 @@ import { Address } from '@openzeppelin/contracts/utils/Address.sol';
 import { IERC20, Structs } from './Interfaces.sol';
 
 /**
- * @notice Library helper functions for managing a registry of asset descriptors indexed by address and symbol
+ * @notice Library helper functions for reading from a registry of asset descriptors indexed by address and symbol
  */
 library AssetRegistry {
     struct Storage {

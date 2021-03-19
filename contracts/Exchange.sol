@@ -9,6 +9,8 @@ import { AssetRegistry } from './libraries/AssetRegistry.sol';
 import { AssetRegistryAdmin } from './libraries/AssetRegistryAdmin.sol';
 import { AssetTransfers } from './libraries/AssetTransfers.sol';
 import { AssetUnitConversions } from './libraries/AssetUnitConversions.sol';
+import { LiquidityPoolRegistry } from './libraries/LiquidityPoolRegistry.sol';
+import { OrderValidations } from './libraries/OrderValidations.sol';
 import { Owned } from './Owned.sol';
 import { Signatures } from './libraries/Signatures.sol';
 import {
@@ -31,6 +33,7 @@ import { UUID } from './libraries/UUID.sol';
 contract Exchange is IExchange, Owned {
     using AssetRegistry for AssetRegistry.Storage;
     using AssetRegistryAdmin for AssetRegistry.Storage;
+    using LiquidityPoolRegistry for LiquidityPoolRegistry.Storage;
 
     // Events //
 
@@ -58,12 +61,32 @@ contract Exchange is IExchange, Owned {
      * @notice Emitted when an admin changes the Dispatch Wallet tunable parameter with `setDispatcher`
      */
     event DispatcherChanged(address previousValue, address newValue);
-
     /**
      * @notice Emitted when an admin changes the Fee Wallet tunable parameter with `setFeeWallet`
      */
     event FeeWalletChanged(address previousValue, address newValue);
-
+    /**
+     * @notice TODO
+     */
+    event LiquidityMint(
+        address indexed sender,
+        address indexed baseAssetAddress,
+        address indexed quoteAssetAddress,
+        uint64 baseAssetQuantityInPips,
+        uint64 quoteAssetQuantityInPips,
+        uint64 liquiditySharesMinted
+    );
+    /**
+     * @notice TODO
+     */
+    event LiquidityBurn(
+        address indexed sender,
+        address indexed baseAssetAddress,
+        address indexed quoteAssetAddress,
+        uint64 baseAssetQuantityInPips,
+        uint64 quoteAssetQuantityInPips,
+        uint64 liquiditySharesBurned
+    );
     /**
      * @notice Emitted when a user invalidates an order nonce with `invalidateOrderNonce`
      */
@@ -148,6 +171,7 @@ contract Exchange is IExchange, Owned {
         bool isMigrated;
         uint64 balanceInPips;
     }
+
     struct NonceInvalidation {
         bool exists;
         uint64 timestampInMs;
@@ -162,20 +186,26 @@ contract Exchange is IExchange, Owned {
 
     // Asset registry data
     AssetRegistry.Storage _assetRegistry;
-    IExchange _balanceMigrationSource;
-    // Mapping of order wallet hash => isComplete
-    mapping(bytes32 => bool) _completedOrderHashes;
-    // Mapping of withdrawal wallet hash => isComplete
-    mapping(bytes32 => bool) _completedWithdrawalHashes;
-    address payable _custodian;
-    uint64 _depositIndex;
-    // Mapping of wallet => asset => balance
+    // Balance tracking - predecessor Exchange contract from which to lazily migrate balances
+    IExchange immutable _balanceMigrationSource;
+    // Balance tracking - mapping of wallet => asset => balance descriptor
     mapping(address => mapping(address => Balance)) _balances;
-    // Mapping of wallet => last invalidated timestampInMs
+    // CLOB - mapping of order wallet hash => isComplete
+    mapping(bytes32 => bool) _completedOrderHashes;
+    // CLOB - mapping of wallet => last invalidated timestampInMs
     mapping(address => NonceInvalidation) _nonceInvalidations;
-    // Mapping of order hash => filled quantity in pips
+    // CLOB - mapping of order hash => filled quantity in pips
     mapping(bytes32 => uint64) _partiallyFilledOrderQuantitiesInPips;
+    // Custodian
+    address payable _custodian;
+    // Deposit index
+    uint64 _depositIndex;
+    // Exits
     mapping(address => WalletExit) _walletExits;
+    // Asset registry data
+    LiquidityPoolRegistry.Storage _liquidityPoolRegistry;
+    // Withdrawals - mapping of withdrawal wallet hash => isComplete
+    mapping(bytes32 => bool) _completedWithdrawalHashes;
     // Tunable parameters
     uint256 _chainPropagationPeriod;
     address _dispatcherWallet;
@@ -483,9 +513,10 @@ contract Exchange is IExchange, Owned {
             quantityInAssetUnitsWithoutFractionalPips
         );
 
+        Balance storage balance =
+            loadBalanceAndMigrateIfNeeded(wallet, assetAddress);
         uint64 newExchangeBalanceInPips =
-            loadBalanceInPipsAndMigrateIfNeeded(wallet, assetAddress) +
-                quantityInPips;
+            balance.balanceInPips + quantityInPips;
         uint256 newExchangeBalanceInAssetUnits =
             AssetUnitConversions.pipsToAssetUnits(
                 newExchangeBalanceInPips,
@@ -493,8 +524,7 @@ contract Exchange is IExchange, Owned {
             );
 
         // Update balance with actual transferred quantity
-        _balances[wallet][assetAddress]
-            .balanceInPips = newExchangeBalanceInPips;
+        balance.balanceInPips = newExchangeBalanceInPips;
         _depositIndex++;
 
         emit Deposited(
@@ -506,52 +536,6 @@ contract Exchange is IExchange, Owned {
             quantityInPips,
             newExchangeBalanceInPips,
             newExchangeBalanceInAssetUnits
-        );
-    }
-
-    // Invalidation //
-
-    /**
-     * @notice Invalidate all order nonces with a timestampInMs lower than the one provided
-     *
-     * @param nonce A Version 1 UUID. After calling and once the Chain Propagation Period has elapsed,
-     * `executeTrade` will reject order nonces from this wallet with a timestampInMs component lower than
-     * the one provided
-     */
-    function invalidateOrderNonce(uint128 nonce) external {
-        uint64 timestampInMs = UUID.getTimestampInMsFromUuidV1(nonce);
-        // Enforce a maximum skew for invalidating nonce timestamps in the future so the user doesn't
-        // lock their wallet from trades indefinitely
-        require(
-            timestampInMs < getOneDayFromNowInMs(),
-            'Nonce timestamp too far in future'
-        );
-
-        if (_nonceInvalidations[msg.sender].exists) {
-            require(
-                _nonceInvalidations[msg.sender].timestampInMs < timestampInMs,
-                'Nonce timestamp already invalidated'
-            );
-            require(
-                _nonceInvalidations[msg.sender].effectiveBlockNumber <=
-                    block.number,
-                'Previous invalidation awaiting chain propagation'
-            );
-        }
-
-        // Changing the Chain Propagation Period will not affect the effectiveBlockNumber for this invalidation
-        uint256 effectiveBlockNumber = block.number + _chainPropagationPeriod;
-        _nonceInvalidations[msg.sender] = NonceInvalidation(
-            true,
-            timestampInMs,
-            effectiveBlockNumber
-        );
-
-        emit OrderNonceInvalidated(
-            msg.sender,
-            nonce,
-            timestampInMs,
-            effectiveBlockNumber
         );
     }
 
@@ -573,7 +557,7 @@ contract Exchange is IExchange, Owned {
             'Wallet exited'
         );
         require(
-            getFeeBasisPoints(
+            OrderValidations.getFeeBasisPoints(
                 withdrawal.gasFeeInPips,
                 withdrawal.quantityInPips
             ) <= _maxWithdrawalFeeBasisPoints,
@@ -603,10 +587,13 @@ contract Exchange is IExchange, Owned {
                 asset.decimals
             );
         uint64 newExchangeBalanceInPips =
-            loadBalanceInPipsAndMigrateIfNeeded(
-                withdrawal.walletAddress,
-                asset.assetAddress
-            ) - withdrawal.quantityInPips;
+            loadBalanceAndMigrateIfNeeded(
+                withdrawal
+                    .walletAddress,
+                asset
+                    .assetAddress
+            )
+                .balanceInPips - withdrawal.quantityInPips;
         uint256 newExchangeBalanceInAssetUnits =
             AssetUnitConversions.pipsToAssetUnits(
                 newExchangeBalanceInPips,
@@ -616,10 +603,8 @@ contract Exchange is IExchange, Owned {
         _balances[withdrawal.walletAddress][asset.assetAddress]
             .balanceInPips = newExchangeBalanceInPips;
         _balances[_feeWallet][asset.assetAddress].balanceInPips =
-            loadBalanceInPipsAndMigrateIfNeeded(
-                _feeWallet,
-                asset.assetAddress
-            ) +
+            loadBalanceAndMigrateIfNeeded(_feeWallet, asset.assetAddress)
+                .balanceInPips +
             (withdrawal.gasFeeInPips);
 
         ICustodian(_custodian).withdraw(
@@ -669,16 +654,16 @@ contract Exchange is IExchange, Owned {
 
         Structs.Asset memory asset =
             _assetRegistry.loadAssetByAddress(assetAddress);
-        uint64 balanceInPips =
-            loadBalanceInPipsAndMigrateIfNeeded(msg.sender, assetAddress);
+        Balance storage balance =
+            loadBalanceAndMigrateIfNeeded(msg.sender, assetAddress);
         uint256 balanceInAssetUnits =
             AssetUnitConversions.pipsToAssetUnits(
-                balanceInPips,
+                balance.balanceInPips,
                 asset.decimals
             );
 
         require(balanceInAssetUnits > 0, 'No balance for asset');
-        _balances[msg.sender][assetAddress].balanceInPips = 0;
+        balance.balanceInPips = 0;
         ICustodian(_custodian).withdraw(
             payable(msg.sender),
             assetAddress,
@@ -689,7 +674,7 @@ contract Exchange is IExchange, Owned {
             msg.sender,
             assetAddress,
             asset.symbol,
-            balanceInPips,
+            balance.balanceInPips,
             0,
             0
         );
@@ -747,12 +732,12 @@ contract Exchange is IExchange, Owned {
             'Self-trading not allowed'
         );
 
-        validateAssetPair(buy, sell, trade);
-        validateLimitPrices(buy, sell, trade);
+        OrderValidations.validateAssetPair(_assetRegistry, buy, sell, trade);
+        OrderValidations.validateLimitPrices(buy, sell, trade);
         validateOrderNonces(buy, sell);
         (bytes32 buyHash, bytes32 sellHash) =
-            validateOrderSignatures(buy, sell, trade);
-        validateTradeFees(trade);
+            OrderValidations.validateOrderSignatures(buy, sell, trade);
+        OrderValidations.validateTradeFees(trade, _maxTradeFeeBasisPoints);
 
         updateOrderFilledQuantities(buy, buyHash, sell, sellHash, trade);
         updateBalancesForTrade(buy, sell, trade);
@@ -772,345 +757,70 @@ contract Exchange is IExchange, Owned {
         );
     }
 
-    // Updates buyer, seller, and fee wallet balances for both assets in trade pair according to trade parameters
-    function updateBalancesForTrade(
-        Structs.Order memory buy,
-        Structs.Order memory sell,
-        Structs.Trade memory trade
-    ) private {
-        // Seller gives base asset including fees
-        _balances[sell.walletAddress][trade.baseAssetAddress].balanceInPips =
-            loadBalanceInPipsAndMigrateIfNeeded(
-                sell.walletAddress,
-                trade.baseAssetAddress
-            ) -
-            trade.grossBaseQuantityInPips;
-        // Buyer receives base asset minus fees
-        _balances[buy.walletAddress][trade.baseAssetAddress].balanceInPips =
-            loadBalanceInPipsAndMigrateIfNeeded(
-                buy.walletAddress,
-                trade.baseAssetAddress
-            ) +
-            trade.netBaseQuantityInPips;
-
-        // Buyer gives quote asset including fees
-        _balances[buy.walletAddress][trade.quoteAssetAddress].balanceInPips =
-            loadBalanceInPipsAndMigrateIfNeeded(
-                buy.walletAddress,
-                trade.quoteAssetAddress
-            ) -
-            trade.grossQuoteQuantityInPips;
-        // Seller receives quote asset minus fees
-        _balances[sell.walletAddress][trade.quoteAssetAddress].balanceInPips =
-            loadBalanceInPipsAndMigrateIfNeeded(
-                sell.walletAddress,
-                trade.quoteAssetAddress
-            ) +
-            trade.netQuoteQuantityInPips;
-
-        // Maker and taker fees to fee wallet
-        _balances[_feeWallet][trade.makerFeeAssetAddress].balanceInPips =
-            loadBalanceInPipsAndMigrateIfNeeded(
-                _feeWallet,
-                trade.makerFeeAssetAddress
-            ) +
-            trade.makerFeeQuantityInPips;
-        _balances[_feeWallet][trade.takerFeeAssetAddress].balanceInPips =
-            loadBalanceInPipsAndMigrateIfNeeded(
-                _feeWallet,
-                trade.takerFeeAssetAddress
-            ) +
-            trade.takerFeeQuantityInPips;
-    }
-
-    function updateOrderFilledQuantities(
-        Structs.Order memory buyOrder,
-        bytes32 buyOrderHash,
-        Structs.Order memory sellOrder,
-        bytes32 sellOrderHash,
-        Structs.Trade memory trade
-    ) private {
-        updateOrderFilledQuantity(buyOrder, buyOrderHash, trade);
-        updateOrderFilledQuantity(sellOrder, sellOrderHash, trade);
-    }
-
-    // Update filled quantities tracking for order to prevent over- or double-filling orders
-    function updateOrderFilledQuantity(
-        Structs.Order memory order,
-        bytes32 orderHash,
-        Structs.Trade memory trade
-    ) private {
-        require(!_completedOrderHashes[orderHash], 'Order double filled');
-
-        // Total quantity of above filled as a result of all trade executions, including this one
-        uint64 newFilledQuantityInPips;
-
-        // Market orders can express quantity in quote terms, and can be partially filled by multiple
-        // limit maker orders necessitating tracking partially filled amounts in quote terms to
-        // determine completion
-        if (order.isQuantityInQuote) {
-            require(
-                isMarketOrderType(order.orderType),
-                'Order quote quantity only valid for market orders'
-            );
-            newFilledQuantityInPips =
-                trade.grossQuoteQuantityInPips +
-                _partiallyFilledOrderQuantitiesInPips[orderHash];
-        } else {
-            // All other orders track partially filled quantities in base terms
-            newFilledQuantityInPips =
-                trade.grossBaseQuantityInPips +
-                _partiallyFilledOrderQuantitiesInPips[orderHash];
-        }
-
-        require(
-            newFilledQuantityInPips <= order.quantityInPips,
-            'Order overfilled'
-        );
-
-        if (newFilledQuantityInPips < order.quantityInPips) {
-            // If the order was partially filled, track the new filled quantity
-            _partiallyFilledOrderQuantitiesInPips[
-                orderHash
-            ] = newFilledQuantityInPips;
-        } else {
-            // If the order was completed, delete any partial fill tracking and instead track its completion
-            // to prevent future double fills
-            delete _partiallyFilledOrderQuantitiesInPips[orderHash];
-            _completedOrderHashes[orderHash] = true;
-        }
-    }
-
-    function loadBalanceInPipsAndMigrateIfNeeded(
-        address wallet,
-        address assetAddress
-    ) private returns (uint64) {
-        Balance storage balance = _balances[wallet][assetAddress];
-        if (balance.isMigrated) {
-            return balance.balanceInPips;
-        }
-
-        balance.balanceInPips = _balanceMigrationSource
-            .loadBalanceInPipsByAddress(wallet, assetAddress);
-        balance.isMigrated = true;
-
-        return balance.balanceInPips;
-    }
-
-    // Validations //
-
-    function validateAssetPair(
-        Structs.Order memory buy,
-        Structs.Order memory sell,
-        Structs.Trade memory trade
-    ) private view {
-        require(
-            trade.baseAssetAddress != trade.quoteAssetAddress,
-            'Base and quote assets must be different'
-        );
-
-        // Buy order market pair
-        Structs.Asset memory buyBaseAsset =
-            _assetRegistry.loadAssetBySymbol(
-                trade.baseAssetSymbol,
-                UUID.getTimestampInMsFromUuidV1(buy.nonce)
-            );
-        Structs.Asset memory buyQuoteAsset =
-            _assetRegistry.loadAssetBySymbol(
-                trade.quoteAssetSymbol,
-                UUID.getTimestampInMsFromUuidV1(buy.nonce)
-            );
-        require(
-            buyBaseAsset.assetAddress == trade.baseAssetAddress &&
-                buyQuoteAsset.assetAddress == trade.quoteAssetAddress,
-            'Buy order market symbol address resolution mismatch'
-        );
-
-        // Sell order market pair
-        Structs.Asset memory sellBaseAsset =
-            _assetRegistry.loadAssetBySymbol(
-                trade.baseAssetSymbol,
-                UUID.getTimestampInMsFromUuidV1(sell.nonce)
-            );
-        Structs.Asset memory sellQuoteAsset =
-            _assetRegistry.loadAssetBySymbol(
-                trade.quoteAssetSymbol,
-                UUID.getTimestampInMsFromUuidV1(sell.nonce)
-            );
-        require(
-            sellBaseAsset.assetAddress == trade.baseAssetAddress &&
-                sellQuoteAsset.assetAddress == trade.quoteAssetAddress,
-            'Sell order market symbol address resolution mismatch'
-        );
-
-        // Fee asset validation
-        require(
-            trade.makerFeeAssetAddress == trade.baseAssetAddress ||
-                trade.makerFeeAssetAddress == trade.quoteAssetAddress,
-            'Maker fee asset is not in trade pair'
-        );
-        require(
-            trade.takerFeeAssetAddress == trade.baseAssetAddress ||
-                trade.takerFeeAssetAddress == trade.quoteAssetAddress,
-            'Taker fee asset is not in trade pair'
-        );
-        require(
-            trade.makerFeeAssetAddress != trade.takerFeeAssetAddress,
-            'Maker and taker fee assets must be different'
-        );
-    }
-
-    function validateLimitPrices(
-        Structs.Order memory buy,
-        Structs.Order memory sell,
-        Structs.Trade memory trade
-    ) private pure {
-        require(
-            trade.grossBaseQuantityInPips > 0,
-            'Base quantity must be greater than zero'
-        );
-        require(
-            trade.grossQuoteQuantityInPips > 0,
-            'Quote quantity must be greater than zero'
-        );
-
-        if (isLimitOrderType(buy.orderType)) {
-            require(
-                getImpliedQuoteQuantityInPips(
-                    trade.grossBaseQuantityInPips,
-                    buy.limitPriceInPips
-                ) >= trade.grossQuoteQuantityInPips,
-                'Buy order limit price exceeded'
-            );
-        }
-
-        if (isLimitOrderType(sell.orderType)) {
-            require(
-                getImpliedQuoteQuantityInPips(
-                    trade.grossBaseQuantityInPips,
-                    sell.limitPriceInPips
-                ) <= trade.grossQuoteQuantityInPips,
-                'Sell order limit price exceeded'
-            );
-        }
-    }
-
-    function validateTradeFees(Structs.Trade memory trade) private pure {
-        uint64 makerTotalQuantityInPips =
-            trade.makerFeeAssetAddress == trade.baseAssetAddress
-                ? trade.grossBaseQuantityInPips
-                : trade.grossQuoteQuantityInPips;
-        require(
-            getFeeBasisPoints(
-                trade.makerFeeQuantityInPips,
-                makerTotalQuantityInPips
-            ) <= _maxTradeFeeBasisPoints,
-            'Excessive maker fee'
-        );
-
-        uint64 takerTotalQuantityInPips =
-            trade.takerFeeAssetAddress == trade.baseAssetAddress
-                ? trade.grossBaseQuantityInPips
-                : trade.grossQuoteQuantityInPips;
-        require(
-            getFeeBasisPoints(
-                trade.takerFeeQuantityInPips,
-                takerTotalQuantityInPips
-            ) <= _maxTradeFeeBasisPoints,
-            'Excessive taker fee'
-        );
-
-        require(
-            trade.netBaseQuantityInPips +
-                (
-                    trade.makerFeeAssetAddress == trade.baseAssetAddress
-                        ? trade.makerFeeQuantityInPips
-                        : trade.takerFeeQuantityInPips
-                ) ==
-                trade.grossBaseQuantityInPips,
-            'Net base plus fee is not equal to gross'
-        );
-        require(
-            trade.netQuoteQuantityInPips +
-                (
-                    trade.makerFeeAssetAddress == trade.quoteAssetAddress
-                        ? trade.makerFeeQuantityInPips
-                        : trade.takerFeeQuantityInPips
-                ) ==
-                trade.grossQuoteQuantityInPips,
-            'Net quote plus fee is not equal to gross'
-        );
-    }
-
-    function validateOrderSignatures(
-        Structs.Order memory buy,
-        Structs.Order memory sell,
-        Structs.Trade memory trade
-    ) private pure returns (bytes32, bytes32) {
-        bytes32 buyOrderHash = validateOrderSignature(buy, trade);
-        bytes32 sellOrderHash = validateOrderSignature(sell, trade);
-
-        return (buyOrderHash, sellOrderHash);
-    }
-
-    function validateOrderSignature(
+    function executePoolTrade(
         Structs.Order memory order,
         Structs.Trade memory trade
-    ) private pure returns (bytes32) {
+    ) public onlyDispatcher {
+        require(
+            !isWalletExitFinalized(order.walletAddress),
+            'Order wallet exit finalized'
+        );
+        // TODO Do not validate order twice
+        OrderValidations.validateAssetPair(_assetRegistry, order, order, trade);
+        OrderValidations.validateLimitPrice(order, trade);
+        validateOrderNonces(order, order);
         bytes32 orderHash =
-            Signatures.getOrderWalletHash(
-                order,
-                trade.baseAssetSymbol,
-                trade.quoteAssetSymbol
+            OrderValidations.validateOrderSignature(order, trade);
+        OrderValidations.validateTradeFees(trade, _maxTradeFeeBasisPoints);
+
+        updateOrderFilledQuantity(order, orderHash, trade);
+        updateBalancesForPoolTrade(order, trade);
+    }
+
+    // Invalidation //
+
+    /**
+     * @notice Invalidate all order nonces with a timestampInMs lower than the one provided
+     *
+     * @param nonce A Version 1 UUID. After calling and once the Chain Propagation Period has elapsed,
+     * `executeTrade` will reject order nonces from this wallet with a timestampInMs component lower than
+     * the one provided
+     */
+    function invalidateOrderNonce(uint128 nonce) external {
+        uint64 timestampInMs = UUID.getTimestampInMsFromUuidV1(nonce);
+        // Enforce a maximum skew for invalidating nonce timestamps in the future so the user doesn't
+        // lock their wallet from trades indefinitely
+        require(
+            timestampInMs < getOneDayFromNowInMs(),
+            'Nonce timestamp too far in future'
+        );
+
+        if (_nonceInvalidations[msg.sender].exists) {
+            require(
+                _nonceInvalidations[msg.sender].timestampInMs < timestampInMs,
+                'Nonce timestamp already invalidated'
             );
+            require(
+                _nonceInvalidations[msg.sender].effectiveBlockNumber <=
+                    block.number,
+                'Previous invalidation awaiting chain propagation'
+            );
+        }
 
-        require(
-            Signatures.isSignatureValid(
-                orderHash,
-                order.walletSignature,
-                order.walletAddress
-            ),
-            order.side == Enums.OrderSide.Buy
-                ? 'Invalid wallet signature for buy order'
-                : 'Invalid wallet signature for sell order'
+        // Changing the Chain Propagation Period will not affect the effectiveBlockNumber for this invalidation
+        uint256 effectiveBlockNumber = block.number + _chainPropagationPeriod;
+        _nonceInvalidations[msg.sender] = NonceInvalidation(
+            true,
+            timestampInMs,
+            effectiveBlockNumber
         );
 
-        return orderHash;
-    }
-
-    function validateOrderNonces(
-        Structs.Order memory buy,
-        Structs.Order memory sell
-    ) private view {
-        require(
-            UUID.getTimestampInMsFromUuidV1(buy.nonce) >
-                getLastInvalidatedTimestamp(buy.walletAddress),
-            'Buy order nonce timestamp too low'
+        emit OrderNonceInvalidated(
+            msg.sender,
+            nonce,
+            timestampInMs,
+            effectiveBlockNumber
         );
-        require(
-            UUID.getTimestampInMsFromUuidV1(sell.nonce) >
-                getLastInvalidatedTimestamp(sell.walletAddress),
-            'Sell order nonce timestamp too low'
-        );
-    }
-
-    function validateWithdrawalSignature(Structs.Withdrawal memory withdrawal)
-        private
-        pure
-        returns (bytes32)
-    {
-        bytes32 withdrawalHash = Signatures.getWithdrawalWalletHash(withdrawal);
-
-        require(
-            Signatures.isSignatureValid(
-                withdrawalHash,
-                withdrawal.walletSignature,
-                withdrawal.walletAddress
-            ),
-            'Invalid wallet signature'
-        );
-
-        return withdrawalHash;
     }
 
     // Asset registry //
@@ -1215,7 +925,345 @@ contract Exchange is IExchange, Owned {
         _;
     }
 
-    // Utils //
+    // Private methods - lazy balance migration //
+
+    function loadBalanceAndMigrateIfNeeded(address wallet, address assetAddress)
+        private
+        returns (Balance storage)
+    {
+        Balance storage balance = _balances[wallet][assetAddress];
+
+        if (!balance.isMigrated) {
+            balance.balanceInPips = _balanceMigrationSource
+                .loadBalanceInPipsByAddress(wallet, assetAddress);
+            balance.isMigrated = true;
+        }
+
+        return balance;
+    }
+
+    // Liquidity pool registry //
+
+    function addLiquidityPool(
+        address baseAssetAddress,
+        address quoteAssetAddress
+    ) external onlyAdmin {
+        _liquidityPoolRegistry.addLiquidityPool(
+            baseAssetAddress,
+            quoteAssetAddress
+        );
+    }
+
+    function addLiquidity(Structs.LiquidityDeposit memory liquidityDeposit)
+        public
+        onlyDispatcher
+    {
+        (
+            address baseAssetAddress,
+            address quoteAssetAddress,
+            uint64 baseAssetQuantityInPips,
+            uint64 quoteAssetQuantityInPips,
+            uint64 liquiditySharesMinted
+        ) =
+            _liquidityPoolRegistry.addLiquidity(
+                _assetRegistry,
+                liquidityDeposit
+            );
+
+        Balance storage balance;
+        balance = loadBalanceAndMigrateIfNeeded(
+            liquidityDeposit.walletAddress,
+            baseAssetAddress
+        );
+        balance.balanceInPips -= baseAssetQuantityInPips;
+        balance = loadBalanceAndMigrateIfNeeded(
+            liquidityDeposit.walletAddress,
+            quoteAssetAddress
+        );
+        balance.balanceInPips -= quoteAssetQuantityInPips;
+
+        emit LiquidityMint(
+            liquidityDeposit.walletAddress,
+            baseAssetAddress,
+            quoteAssetAddress,
+            baseAssetQuantityInPips,
+            quoteAssetQuantityInPips,
+            liquiditySharesMinted
+        );
+    }
+
+    function removeLiquidity(
+        Structs.LiquidityWithdrawal memory liquidityWithdrawal
+    ) public onlyDispatcher {
+        (
+            address baseAssetAddress,
+            address quoteAssetAddress,
+            uint64 baseAssetQuantityInPips,
+            uint64 quoteAssetQuantityInPips
+        ) =
+            _liquidityPoolRegistry.removeLiquidity(
+                _assetRegistry,
+                liquidityWithdrawal
+            );
+
+        Balance storage balance;
+        balance = loadBalanceAndMigrateIfNeeded(
+            liquidityWithdrawal.walletAddress,
+            baseAssetAddress
+        );
+        balance.balanceInPips += baseAssetQuantityInPips;
+        balance = loadBalanceAndMigrateIfNeeded(
+            liquidityWithdrawal.walletAddress,
+            quoteAssetAddress
+        );
+        balance.balanceInPips += quoteAssetQuantityInPips;
+
+        emit LiquidityBurn(
+            liquidityWithdrawal.walletAddress,
+            baseAssetAddress,
+            quoteAssetAddress,
+            baseAssetQuantityInPips,
+            quoteAssetQuantityInPips,
+            liquidityWithdrawal.liquiditySharesToBurn
+        );
+    }
+
+    // Private methods - trades //
+
+    // Updates buyer, seller, and fee wallet balances for both assets in trade pair according to trade parameters
+    function updateBalancesForTrade(
+        Structs.Order memory buy,
+        Structs.Order memory sell,
+        Structs.Trade memory trade
+    ) private {
+        Balance storage balance;
+
+        // Seller gives base asset including fees
+        balance = loadBalanceAndMigrateIfNeeded(
+            sell.walletAddress,
+            trade.baseAssetAddress
+        );
+        balance.balanceInPips -= trade.grossBaseQuantityInPips;
+        // Buyer receives base asset minus fees
+        balance = loadBalanceAndMigrateIfNeeded(
+            buy.walletAddress,
+            trade.baseAssetAddress
+        );
+        balance.balanceInPips += trade.netBaseQuantityInPips;
+
+        // Buyer gives quote asset including fees
+        balance = loadBalanceAndMigrateIfNeeded(
+            buy.walletAddress,
+            trade.quoteAssetAddress
+        );
+        balance.balanceInPips -= trade.grossQuoteQuantityInPips;
+        // Seller receives quote asset minus fees
+        balance = loadBalanceAndMigrateIfNeeded(
+            sell.walletAddress,
+            trade.quoteAssetAddress
+        );
+        balance.balanceInPips += trade.netQuoteQuantityInPips;
+
+        // Maker and taker fees to fee wallet
+        balance = loadBalanceAndMigrateIfNeeded(
+            _feeWallet,
+            trade.makerFeeAssetAddress
+        );
+        balance.balanceInPips += trade.makerFeeQuantityInPips;
+        balance = loadBalanceAndMigrateIfNeeded(
+            _feeWallet,
+            trade.takerFeeAssetAddress
+        );
+        balance.balanceInPips += trade.takerFeeQuantityInPips;
+    }
+
+    event Debug(
+        uint64 baseAssetReserveInPips1,
+        uint64 quoteAssetReserveInPips1,
+        uint128 product1,
+        uint64 baseAssetReserveInPips2,
+        uint64 quoteAssetReserveInPips2,
+        uint128 product2
+    );
+
+    function updateBalancesForPoolTrade(
+        Structs.Order memory order,
+        Structs.Trade memory trade
+    ) private {
+        LiquidityPoolRegistry.LiquidityPool storage pool =
+            _liquidityPoolRegistry.loadLiquidityPoolByAssetAddresses(
+                trade.baseAssetAddress,
+                trade.quoteAssetAddress
+            );
+
+        uint128 initialProduct =
+            uint128(pool.baseAssetReserveInPips) *
+                uint128(pool.quoteAssetReserveInPips);
+        uint64 initialBaseAssetReserveInPips = pool.baseAssetReserveInPips;
+        uint64 initialQuoteAssetReserveInPips = pool.quoteAssetReserveInPips;
+
+        Balance storage balance;
+        if (order.side == Enums.OrderSide.Buy) {
+            // Buyer receives base asset minus fees
+            balance = loadBalanceAndMigrateIfNeeded(
+                order.walletAddress,
+                trade.baseAssetAddress
+            );
+            balance.balanceInPips += trade.netBaseQuantityInPips;
+            // Buyer gives quote asset including fees
+            balance = loadBalanceAndMigrateIfNeeded(
+                order.walletAddress,
+                trade.quoteAssetAddress
+            );
+            balance.balanceInPips -= trade.grossQuoteQuantityInPips;
+
+            pool.baseAssetReserveInPips -= trade.grossBaseQuantityInPips;
+            pool.quoteAssetReserveInPips += trade.grossQuoteQuantityInPips;
+        } else {
+            // Seller gives base asset including fees
+            balance = loadBalanceAndMigrateIfNeeded(
+                order.walletAddress,
+                trade.baseAssetAddress
+            );
+            balance.balanceInPips -= trade.grossBaseQuantityInPips;
+            // Seller receives quote asset minus fees
+            balance = loadBalanceAndMigrateIfNeeded(
+                order.walletAddress,
+                trade.quoteAssetAddress
+            );
+            pool.baseAssetReserveInPips += trade.grossBaseQuantityInPips;
+            pool.quoteAssetReserveInPips -= trade.grossQuoteQuantityInPips;
+        }
+
+        (
+            uint64 adjustedBaseAssetReserveInPips,
+            uint64 adjustedQuoteAssetReserveInPips
+        ) =
+            trade.makerSide == Enums.OrderSide.Buy
+                ? (
+                    pool.baseAssetReserveInPips,
+                    pool.quoteAssetReserveInPips - trade.makerFeeQuantityInPips
+                )
+                : (
+                    pool.baseAssetReserveInPips - trade.makerFeeQuantityInPips,
+                    pool.quoteAssetReserveInPips
+                );
+
+        uint128 updatedProduct =
+            uint128(adjustedBaseAssetReserveInPips) *
+                uint128(adjustedQuoteAssetReserveInPips);
+
+        emit Debug(
+            initialBaseAssetReserveInPips,
+            initialQuoteAssetReserveInPips,
+            initialProduct,
+            pool.baseAssetReserveInPips,
+            pool.quoteAssetReserveInPips,
+            updatedProduct
+        );
+
+        require(
+            updatedProduct >= initialProduct,
+            'Constant product cannot decrease'
+        );
+    }
+
+    function updateOrderFilledQuantities(
+        Structs.Order memory buyOrder,
+        bytes32 buyOrderHash,
+        Structs.Order memory sellOrder,
+        bytes32 sellOrderHash,
+        Structs.Trade memory trade
+    ) private {
+        updateOrderFilledQuantity(buyOrder, buyOrderHash, trade);
+        updateOrderFilledQuantity(sellOrder, sellOrderHash, trade);
+    }
+
+    // Update filled quantities tracking for order to prevent over- or double-filling orders
+    function updateOrderFilledQuantity(
+        Structs.Order memory order,
+        bytes32 orderHash,
+        Structs.Trade memory trade
+    ) private {
+        require(!_completedOrderHashes[orderHash], 'Order double filled');
+
+        // Total quantity of above filled as a result of all trade executions, including this one
+        uint64 newFilledQuantityInPips;
+
+        // Market orders can express quantity in quote terms, and can be partially filled by multiple
+        // limit maker orders necessitating tracking partially filled amounts in quote terms to
+        // determine completion
+        if (order.isQuantityInQuote) {
+            require(
+                isMarketOrderType(order.orderType),
+                'Order quote quantity only valid for market orders'
+            );
+            newFilledQuantityInPips =
+                trade.grossQuoteQuantityInPips +
+                _partiallyFilledOrderQuantitiesInPips[orderHash];
+        } else {
+            // All other orders track partially filled quantities in base terms
+            newFilledQuantityInPips =
+                trade.grossBaseQuantityInPips +
+                _partiallyFilledOrderQuantitiesInPips[orderHash];
+        }
+
+        require(
+            newFilledQuantityInPips <= order.quantityInPips,
+            'Order overfilled'
+        );
+
+        if (newFilledQuantityInPips < order.quantityInPips) {
+            // If the order was partially filled, track the new filled quantity
+            _partiallyFilledOrderQuantitiesInPips[
+                orderHash
+            ] = newFilledQuantityInPips;
+        } else {
+            // If the order was completed, delete any partial fill tracking and instead track its completion
+            // to prevent future double fills
+            delete _partiallyFilledOrderQuantitiesInPips[orderHash];
+            _completedOrderHashes[orderHash] = true;
+        }
+    }
+
+    // Private methods - validations //
+
+    function validateOrderNonces(
+        Structs.Order memory buy,
+        Structs.Order memory sell
+    ) private view {
+        require(
+            UUID.getTimestampInMsFromUuidV1(buy.nonce) >
+                getLastInvalidatedTimestamp(buy.walletAddress),
+            'Buy order nonce timestamp too low'
+        );
+        require(
+            UUID.getTimestampInMsFromUuidV1(sell.nonce) >
+                getLastInvalidatedTimestamp(sell.walletAddress),
+            'Sell order nonce timestamp too low'
+        );
+    }
+
+    function validateWithdrawalSignature(Structs.Withdrawal memory withdrawal)
+        private
+        pure
+        returns (bytes32)
+    {
+        bytes32 withdrawalHash = Signatures.getWithdrawalWalletHash(withdrawal);
+
+        require(
+            Signatures.isSignatureValid(
+                withdrawalHash,
+                withdrawal.walletSignature,
+                withdrawal.walletAddress
+            ),
+            'Invalid wallet signature'
+        );
+
+        return withdrawalHash;
+    }
+
+    // Private methods - utils //
 
     function isLimitOrderType(Enums.OrderType orderType)
         private
@@ -1244,33 +1292,6 @@ contract Exchange is IExchange, Owned {
         uint64 msInOneSecond = 1000;
 
         return uint64(block.timestamp) * msInOneSecond;
-    }
-
-    function getFeeBasisPoints(uint64 fee, uint64 total)
-        private
-        pure
-        returns (uint64)
-    {
-        uint64 basisPointsInTotal = 100 * 100; // 100 basis points/percent * 100 percent/total
-        return (fee * basisPointsInTotal) / total;
-    }
-
-    function getImpliedQuoteQuantityInPips(
-        uint64 baseQuantityInPips,
-        uint64 limitPriceInPips
-    ) private pure returns (uint64) {
-        // To convert a fractional price to integer pips, shift right by the pip precision of 8 decimals
-        uint256 pipsMultiplier = 10**8;
-
-        uint256 impliedQuoteQuantityInPips =
-            (uint256(baseQuantityInPips) * uint256(limitPriceInPips)) /
-                pipsMultiplier;
-        require(
-            impliedQuoteQuantityInPips < 2**64,
-            'Implied quote pip quantity overflows uint64'
-        );
-
-        return uint64(impliedQuoteQuantityInPips);
     }
 
     function getLastInvalidatedTimestamp(address walletAddress)
