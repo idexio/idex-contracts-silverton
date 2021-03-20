@@ -68,24 +68,24 @@ contract Exchange is IExchange, Owned {
     /**
      * @notice TODO
      */
-    event LiquidityMint(
+    event LiquidityMinted(
         address indexed sender,
         address indexed baseAssetAddress,
         address indexed quoteAssetAddress,
         uint64 baseAssetQuantityInPips,
         uint64 quoteAssetQuantityInPips,
-        uint64 liquiditySharesMinted
+        uint64 liquidityShareQuantity
     );
     /**
      * @notice TODO
      */
-    event LiquidityBurn(
+    event LiquidityBurned(
         address indexed sender,
         address indexed baseAssetAddress,
         address indexed quoteAssetAddress,
         uint64 baseAssetQuantityInPips,
         uint64 quoteAssetQuantityInPips,
-        uint64 liquiditySharesBurned
+        uint64 liquidityShareQuantity
     );
     /**
      * @notice Emitted when a user invalidates an order nonce with `invalidateOrderNonce`
@@ -578,7 +578,7 @@ contract Exchange is IExchange, Owned {
                 )
                 : _assetRegistry.loadAssetByAddress(withdrawal.assetAddress);
 
-        // SafeMath reverts if balance is overdrawn
+        // Reverts if balance is overdrawn
         uint64 netAssetQuantityInPips =
             withdrawal.quantityInPips - withdrawal.gasFeeInPips;
         uint256 netAssetQuantityInAssetUnits =
@@ -759,22 +759,34 @@ contract Exchange is IExchange, Owned {
 
     function executePoolTrade(
         Structs.Order memory order,
-        Structs.Trade memory trade
+        Structs.PoolTrade memory poolTrade
     ) public onlyDispatcher {
         require(
             !isWalletExitFinalized(order.walletAddress),
             'Order wallet exit finalized'
         );
-        // TODO Do not validate order twice
-        OrderValidations.validateAssetPair(_assetRegistry, order, order, trade);
-        OrderValidations.validateLimitPrice(order, trade);
-        validateOrderNonces(order, order);
+        OrderValidations.validateAssetPair(_assetRegistry, order, poolTrade);
+        OrderValidations.validateLimitPrice(order, poolTrade);
+        validateOrderNonce(order);
         bytes32 orderHash =
-            OrderValidations.validateOrderSignature(order, trade);
-        OrderValidations.validateTradeFees(trade, _maxTradeFeeBasisPoints);
+            OrderValidations.validateOrderSignature(
+                order,
+                poolTrade.baseAssetSymbol,
+                poolTrade.quoteAssetSymbol
+            );
+        OrderValidations.validatePoolTradeFees(
+            order.side,
+            poolTrade,
+            _maxTradeFeeBasisPoints
+        );
 
-        updateOrderFilledQuantity(order, orderHash, trade);
-        updateBalancesForPoolTrade(order, trade);
+        updateOrderFilledQuantity(
+            order,
+            orderHash,
+            poolTrade.grossBaseQuantityInPips,
+            poolTrade.grossQuoteQuantityInPips
+        );
+        updateBalancesForPoolTrade(order, poolTrade);
     }
 
     // Invalidation //
@@ -982,7 +994,7 @@ contract Exchange is IExchange, Owned {
         );
         balance.balanceInPips -= quoteAssetQuantityInPips;
 
-        emit LiquidityMint(
+        emit LiquidityMinted(
             liquidityDeposit.walletAddress,
             baseAssetAddress,
             quoteAssetAddress,
@@ -1018,7 +1030,7 @@ contract Exchange is IExchange, Owned {
         );
         balance.balanceInPips += quoteAssetQuantityInPips;
 
-        emit LiquidityBurn(
+        emit LiquidityBurned(
             liquidityWithdrawal.walletAddress,
             baseAssetAddress,
             quoteAssetAddress,
@@ -1077,18 +1089,9 @@ contract Exchange is IExchange, Owned {
         balance.balanceInPips += trade.takerFeeQuantityInPips;
     }
 
-    event Debug(
-        uint64 baseAssetReserveInPips1,
-        uint64 quoteAssetReserveInPips1,
-        uint128 product1,
-        uint64 baseAssetReserveInPips2,
-        uint64 quoteAssetReserveInPips2,
-        uint128 product2
-    );
-
     function updateBalancesForPoolTrade(
         Structs.Order memory order,
-        Structs.Trade memory trade
+        Structs.PoolTrade memory trade
     ) private {
         LiquidityPoolRegistry.LiquidityPool storage pool =
             _liquidityPoolRegistry.loadLiquidityPoolByAssetAddresses(
@@ -1099,18 +1102,16 @@ contract Exchange is IExchange, Owned {
         uint128 initialProduct =
             uint128(pool.baseAssetReserveInPips) *
                 uint128(pool.quoteAssetReserveInPips);
-        uint64 initialBaseAssetReserveInPips = pool.baseAssetReserveInPips;
-        uint64 initialQuoteAssetReserveInPips = pool.quoteAssetReserveInPips;
 
         Balance storage balance;
         if (order.side == Enums.OrderSide.Buy) {
-            // Buyer receives base asset minus fees
+            // Buyer receives base asset
             balance = loadBalanceAndMigrateIfNeeded(
                 order.walletAddress,
                 trade.baseAssetAddress
             );
-            balance.balanceInPips += trade.netBaseQuantityInPips;
-            // Buyer gives quote asset including fees
+            balance.balanceInPips += trade.grossBaseQuantityInPips;
+            // Buyer gives quote asset
             balance = loadBalanceAndMigrateIfNeeded(
                 order.walletAddress,
                 trade.quoteAssetAddress
@@ -1120,13 +1121,13 @@ contract Exchange is IExchange, Owned {
             pool.baseAssetReserveInPips -= trade.grossBaseQuantityInPips;
             pool.quoteAssetReserveInPips += trade.grossQuoteQuantityInPips;
         } else {
-            // Seller gives base asset including fees
+            // Seller gives base asset
             balance = loadBalanceAndMigrateIfNeeded(
                 order.walletAddress,
                 trade.baseAssetAddress
             );
             balance.balanceInPips -= trade.grossBaseQuantityInPips;
-            // Seller receives quote asset minus fees
+            // Seller receives quote asset
             balance = loadBalanceAndMigrateIfNeeded(
                 order.walletAddress,
                 trade.quoteAssetAddress
@@ -1134,33 +1135,35 @@ contract Exchange is IExchange, Owned {
             pool.baseAssetReserveInPips += trade.grossBaseQuantityInPips;
             pool.quoteAssetReserveInPips -= trade.grossQuoteQuantityInPips;
         }
+        // Protocol fee to fee wallet
+        balance = loadBalanceAndMigrateIfNeeded(
+            _feeWallet,
+            order.side == Enums.OrderSide.Buy
+                ? trade.baseAssetAddress
+                : trade.quoteAssetAddress
+        );
+        balance.balanceInPips += trade.takerProtocolFeeQuantityInPips;
 
+        uint64 totalFeeQuantityInPips =
+            trade.takerPoolFeeQuantityInPips +
+                trade.takerProtocolFeeQuantityInPips;
         (
             uint64 adjustedBaseAssetReserveInPips,
             uint64 adjustedQuoteAssetReserveInPips
         ) =
-            trade.makerSide == Enums.OrderSide.Buy
+            order.side == Enums.OrderSide.Buy
                 ? (
                     pool.baseAssetReserveInPips,
-                    pool.quoteAssetReserveInPips - trade.makerFeeQuantityInPips
+                    pool.quoteAssetReserveInPips - totalFeeQuantityInPips
                 )
                 : (
-                    pool.baseAssetReserveInPips - trade.makerFeeQuantityInPips,
+                    pool.baseAssetReserveInPips - totalFeeQuantityInPips,
                     pool.quoteAssetReserveInPips
                 );
 
         uint128 updatedProduct =
             uint128(adjustedBaseAssetReserveInPips) *
                 uint128(adjustedQuoteAssetReserveInPips);
-
-        emit Debug(
-            initialBaseAssetReserveInPips,
-            initialQuoteAssetReserveInPips,
-            initialProduct,
-            pool.baseAssetReserveInPips,
-            pool.quoteAssetReserveInPips,
-            updatedProduct
-        );
 
         require(
             updatedProduct >= initialProduct,
@@ -1175,15 +1178,26 @@ contract Exchange is IExchange, Owned {
         bytes32 sellOrderHash,
         Structs.Trade memory trade
     ) private {
-        updateOrderFilledQuantity(buyOrder, buyOrderHash, trade);
-        updateOrderFilledQuantity(sellOrder, sellOrderHash, trade);
+        updateOrderFilledQuantity(
+            buyOrder,
+            buyOrderHash,
+            trade.grossBaseQuantityInPips,
+            trade.grossQuoteQuantityInPips
+        );
+        updateOrderFilledQuantity(
+            sellOrder,
+            sellOrderHash,
+            trade.grossBaseQuantityInPips,
+            trade.grossQuoteQuantityInPips
+        );
     }
 
     // Update filled quantities tracking for order to prevent over- or double-filling orders
     function updateOrderFilledQuantity(
         Structs.Order memory order,
         bytes32 orderHash,
-        Structs.Trade memory trade
+        uint64 grossBaseQuantityInPips,
+        uint64 grossQuoteQuantityInPips
     ) private {
         require(!_completedOrderHashes[orderHash], 'Order double filled');
 
@@ -1199,12 +1213,12 @@ contract Exchange is IExchange, Owned {
                 'Order quote quantity only valid for market orders'
             );
             newFilledQuantityInPips =
-                trade.grossQuoteQuantityInPips +
+                grossQuoteQuantityInPips +
                 _partiallyFilledOrderQuantitiesInPips[orderHash];
         } else {
             // All other orders track partially filled quantities in base terms
             newFilledQuantityInPips =
-                trade.grossBaseQuantityInPips +
+                grossBaseQuantityInPips +
                 _partiallyFilledOrderQuantitiesInPips[orderHash];
         }
 
@@ -1241,6 +1255,14 @@ contract Exchange is IExchange, Owned {
             UUID.getTimestampInMsFromUuidV1(sell.nonce) >
                 getLastInvalidatedTimestamp(sell.walletAddress),
             'Sell order nonce timestamp too low'
+        );
+    }
+
+    function validateOrderNonce(Structs.Order memory order) private view {
+        require(
+            UUID.getTimestampInMsFromUuidV1(order.nonce) >
+                getLastInvalidatedTimestamp(order.walletAddress),
+            'Order nonce timestamp too low'
         );
     }
 

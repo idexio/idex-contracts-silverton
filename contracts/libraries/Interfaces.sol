@@ -160,6 +160,27 @@ contract Structs {
         Enums.OrderSide makerSide;
     }
 
+    struct PoolTrade {
+        // Base asset symbol
+        string baseAssetSymbol;
+        // Quote asset symbol
+        string quoteAssetSymbol;
+        // Base asset address
+        address baseAssetAddress;
+        // Quote asset address
+        address quoteAssetAddress;
+        // Gross amount including fees of base asset executed
+        uint64 grossBaseQuantityInPips;
+        // Gross amount including fees of quote asset executed
+        uint64 grossQuoteQuantityInPips;
+        // Fee paid by liquidity taker to pool
+        uint64 takerPoolFeeQuantityInPips;
+        // Fee paid by liquidity taker to fee wallet
+        uint64 takerProtocolFeeQuantityInPips;
+        // Execution price of trade in decimal pips * 10^8 in quote terms
+        uint64 priceInPips;
+    }
+
     /**
      * @notice Argument type for `Exchange.withdraw` and `Signatures.getWithdrawalWalletHash`
      */

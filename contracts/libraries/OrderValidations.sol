@@ -65,6 +65,29 @@ library OrderValidations {
         );
     }
 
+    function validateAssetPair(
+        AssetRegistry.Storage storage assetRegistry,
+        Structs.Order memory order,
+        Structs.PoolTrade memory poolTrade
+    ) internal view {
+        require(
+            poolTrade.baseAssetAddress != poolTrade.quoteAssetAddress,
+            'Trade assets must be different'
+        );
+
+        uint64 nonce = UUID.getTimestampInMsFromUuidV1(order.nonce);
+        Structs.Asset memory baseAsset =
+            assetRegistry.loadAssetBySymbol(poolTrade.baseAssetSymbol, nonce);
+        Structs.Asset memory quoteAsset =
+            assetRegistry.loadAssetBySymbol(poolTrade.quoteAssetSymbol, nonce);
+
+        require(
+            baseAsset.assetAddress == poolTrade.baseAssetAddress &&
+                quoteAsset.assetAddress == poolTrade.quoteAssetAddress,
+            'Order symbol address mismatch'
+        );
+    }
+
     function validateLimitPrices(
         Structs.Order memory buy,
         Structs.Order memory sell,
@@ -102,14 +125,14 @@ library OrderValidations {
 
     function validateLimitPrice(
         Structs.Order memory order,
-        Structs.Trade memory trade
+        Structs.PoolTrade memory poolTrade
     ) internal pure {
         require(
-            trade.grossBaseQuantityInPips > 0,
+            poolTrade.grossBaseQuantityInPips > 0,
             'Base quantity must be greater than zero'
         );
         require(
-            trade.grossQuoteQuantityInPips > 0,
+            poolTrade.grossQuoteQuantityInPips > 0,
             'Quote quantity must be greater than zero'
         );
 
@@ -119,9 +142,9 @@ library OrderValidations {
         ) {
             require(
                 getImpliedQuoteQuantityInPips(
-                    trade.grossBaseQuantityInPips,
+                    poolTrade.grossBaseQuantityInPips,
                     order.limitPriceInPips
-                ) >= trade.grossQuoteQuantityInPips,
+                ) >= poolTrade.grossQuoteQuantityInPips,
                 'Buy order limit price exceeded'
             );
         }
@@ -132,9 +155,9 @@ library OrderValidations {
         ) {
             require(
                 getImpliedQuoteQuantityInPips(
-                    trade.grossBaseQuantityInPips,
+                    poolTrade.grossBaseQuantityInPips,
                     order.limitPriceInPips
-                ) <= trade.grossQuoteQuantityInPips,
+                ) <= poolTrade.grossQuoteQuantityInPips,
                 'Sell order limit price exceeded'
             );
         }
@@ -190,26 +213,57 @@ library OrderValidations {
         );
     }
 
+    function validatePoolTradeFees(
+        Enums.OrderSide orderSide,
+        Structs.PoolTrade memory poolTrade,
+        uint64 maxTradeFeeBasisPoints
+    ) internal pure {
+        uint64 totalQuantityInPips =
+            orderSide == Enums.OrderSide.Buy
+                ? poolTrade.grossQuoteQuantityInPips
+                : poolTrade.grossBaseQuantityInPips;
+        uint64 totalFeeQuantityInPips =
+            poolTrade.takerPoolFeeQuantityInPips +
+                poolTrade.takerProtocolFeeQuantityInPips;
+
+        require(
+            getFeeBasisPoints(totalFeeQuantityInPips, totalQuantityInPips) <=
+                maxTradeFeeBasisPoints,
+            'Excessive fee'
+        );
+    }
+
     function validateOrderSignatures(
         Structs.Order memory buy,
         Structs.Order memory sell,
         Structs.Trade memory trade
     ) internal pure returns (bytes32, bytes32) {
-        bytes32 buyOrderHash = validateOrderSignature(buy, trade);
-        bytes32 sellOrderHash = validateOrderSignature(sell, trade);
+        bytes32 buyOrderHash =
+            validateOrderSignature(
+                buy,
+                trade.baseAssetSymbol,
+                trade.quoteAssetSymbol
+            );
+        bytes32 sellOrderHash =
+            validateOrderSignature(
+                sell,
+                trade.baseAssetSymbol,
+                trade.quoteAssetSymbol
+            );
 
         return (buyOrderHash, sellOrderHash);
     }
 
     function validateOrderSignature(
         Structs.Order memory order,
-        Structs.Trade memory trade
+        string memory baseAssetSymbol,
+        string memory quoteAssetSymbol
     ) internal pure returns (bytes32) {
         bytes32 orderHash =
             Signatures.getOrderWalletHash(
                 order,
-                trade.baseAssetSymbol,
-                trade.quoteAssetSymbol
+                baseAssetSymbol,
+                quoteAssetSymbol
             );
 
         require(
