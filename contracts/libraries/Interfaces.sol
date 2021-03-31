@@ -173,10 +173,12 @@ contract Structs {
         uint64 grossBaseQuantityInPips;
         // Gross amount including fees of quote asset executed
         uint64 grossQuoteQuantityInPips;
-        // Fee paid by liquidity taker to pool
+        // Fee paid by liquidity taker to pool from sent asset
         uint64 takerPoolFeeQuantityInPips;
-        // Fee paid by liquidity taker to fee wallet
+        // Fee paid by liquidity taker to fee wallet from sent asset
         uint64 takerProtocolFeeQuantityInPips;
+        // Fee paid by liquidity taker to fee wallet from received asset
+        uint64 takerGasFeeQuantityInPips;
         // Execution price of trade in decimal pips * 10^8 in quote terms
         uint64 priceInPips;
     }
