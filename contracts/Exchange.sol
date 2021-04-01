@@ -11,9 +11,8 @@ import { AssetTransfers } from './libraries/AssetTransfers.sol';
 import { BalanceTracking } from './libraries/BalanceTracking.sol';
 import { AssetUnitConversions } from './libraries/AssetUnitConversions.sol';
 import { LiquidityPoolRegistry } from './libraries/LiquidityPoolRegistry.sol';
-import { OrderValidations } from './libraries/OrderValidations.sol';
+import { Validations } from './libraries/Validations.sol';
 import { Owned } from './Owned.sol';
-import { Signatures } from './libraries/Signatures.sol';
 import {
   Enums,
   ICustodian,
@@ -549,12 +548,12 @@ contract Exchange is IExchange, Owned {
       'Self-trading not allowed'
     );
 
-    OrderValidations.validateAssetPair(_assetRegistry, buy, sell, trade);
-    OrderValidations.validateLimitPrices(buy, sell, trade);
+    Validations.validateAssetPair(_assetRegistry, buy, sell, trade);
+    Validations.validateLimitPrices(buy, sell, trade);
     validateOrderNonces(buy, sell);
     (bytes32 buyHash, bytes32 sellHash) =
-      OrderValidations.validateOrderSignatures(buy, sell, trade);
-    OrderValidations.validateTradeFees(trade, _maxTradeFeeBasisPoints);
+      Validations.validateOrderSignatures(buy, sell, trade);
+    Validations.validateTradeFees(trade, _maxTradeFeeBasisPoints);
 
     updateOrderFilledQuantities(buy, buyHash, sell, sellHash, trade);
     _balanceTracking.updateForTrade(buy, sell, trade, _feeWallet);
@@ -582,16 +581,16 @@ contract Exchange is IExchange, Owned {
       !isWalletExitFinalized(order.walletAddress),
       'Order wallet exit finalized'
     );
-    OrderValidations.validateAssetPair(_assetRegistry, order, poolTrade);
-    OrderValidations.validateLimitPrice(order, poolTrade);
+    Validations.validateAssetPair(_assetRegistry, order, poolTrade);
+    Validations.validateLimitPrice(order, poolTrade);
     validateOrderNonce(order);
     bytes32 orderHash =
-      OrderValidations.validateOrderSignature(
+      Validations.validateOrderSignature(
         order,
         poolTrade.baseAssetSymbol,
         poolTrade.quoteAssetSymbol
       );
-    OrderValidations.validatePoolTradeFees(
+    Validations.validatePoolTradeFees(
       order.side,
       poolTrade,
       _maxTradeFeeBasisPoints
@@ -606,6 +605,68 @@ contract Exchange is IExchange, Owned {
     _balanceTracking.updateForPoolTrade(order, poolTrade, _feeWallet);
 
     _liquidityPoolRegistry.updateReservesForPoolTrade(poolTrade, order.side);
+  }
+
+  function executeHybridTrade(
+    Structs.Order memory buy,
+    Structs.Order memory sell,
+    Structs.Trade memory trade,
+    Structs.PoolTrade memory poolTrade,
+    Enums.OrderSide poolTradeOrderSide
+  ) public onlyDispatcher {
+    // Counterparty trade
+    require(
+      !isWalletExitFinalized(buy.walletAddress),
+      'Buy wallet exit finalized'
+    );
+    require(
+      !isWalletExitFinalized(sell.walletAddress),
+      'Sell wallet exit finalized'
+    );
+    require(
+      buy.walletAddress != sell.walletAddress,
+      'Self-trading not allowed'
+    );
+
+    Validations.validateAssetPair(_assetRegistry, buy, sell, trade);
+    Validations.validateLimitPrices(buy, sell, trade);
+    validateOrderNonces(buy, sell);
+    (bytes32 buyHash, bytes32 sellHash) =
+      Validations.validateOrderSignatures(buy, sell, trade);
+    Validations.validateTradeFees(trade, _maxTradeFeeBasisPoints);
+
+    updateOrderFilledQuantities(buy, buyHash, sell, sellHash, trade);
+    _balanceTracking.updateForTrade(buy, sell, trade, _feeWallet);
+
+    // Pool trade
+    (Structs.Order memory order, bytes32 orderHash) =
+      poolTradeOrderSide == Enums.OrderSide.Buy
+        ? (buy, buyHash)
+        : (sell, sellHash);
+    require(
+      trade.baseAssetAddress == poolTrade.baseAssetAddress &&
+        trade.quoteAssetAddress == poolTrade.quoteAssetAddress,
+      'Mismatched trades'
+    );
+    Validations.validateLimitPrice(order, poolTrade);
+    Validations.validatePoolTradeFees(
+      poolTradeOrderSide,
+      poolTrade,
+      _maxTradeFeeBasisPoints
+    );
+
+    updateOrderFilledQuantity(
+      order,
+      orderHash,
+      poolTrade.grossBaseQuantityInPips,
+      poolTrade.grossQuoteQuantityInPips
+    );
+    _balanceTracking.updateForPoolTrade(order, poolTrade, _feeWallet);
+
+    _liquidityPoolRegistry.updateReservesForPoolTrade(
+      poolTrade,
+      poolTradeOrderSide
+    );
   }
 
   // Withdrawing //
@@ -623,13 +684,14 @@ contract Exchange is IExchange, Owned {
     // Validations
     require(!isWalletExitFinalized(withdrawal.walletAddress), 'Wallet exited');
     require(
-      OrderValidations.getFeeBasisPoints(
+      Validations.getFeeBasisPoints(
         withdrawal.gasFeeInPips,
         withdrawal.quantityInPips
       ) <= _maxWithdrawalFeeBasisPoints,
       'Excessive withdrawal fee'
     );
-    bytes32 withdrawalHash = validateWithdrawalSignature(withdrawal);
+    bytes32 withdrawalHash =
+      Validations.validateWithdrawalSignature(withdrawal);
     require(
       !_completedWithdrawalHashes[withdrawalHash],
       'Hash already withdrawn'
@@ -1072,38 +1134,7 @@ contract Exchange is IExchange, Owned {
     );
   }
 
-  function validateWithdrawalSignature(Structs.Withdrawal memory withdrawal)
-    private
-    pure
-    returns (bytes32)
-  {
-    bytes32 withdrawalHash = Signatures.getWithdrawalWalletHash(withdrawal);
-
-    require(
-      Signatures.isSignatureValid(
-        withdrawalHash,
-        withdrawal.walletSignature,
-        withdrawal.walletAddress
-      ),
-      'Invalid wallet signature'
-    );
-
-    return withdrawalHash;
-  }
-
   // Private methods - utils //
-
-  function isLimitOrderType(Enums.OrderType orderType)
-    private
-    pure
-    returns (bool)
-  {
-    return
-      orderType == Enums.OrderType.Limit ||
-      orderType == Enums.OrderType.LimitMaker ||
-      orderType == Enums.OrderType.StopLossLimit ||
-      orderType == Enums.OrderType.TakeProfitLimit;
-  }
 
   function isMarketOrderType(Enums.OrderType orderType)
     private

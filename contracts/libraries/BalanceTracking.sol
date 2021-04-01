@@ -24,7 +24,7 @@ library BalanceTracking {
     address wallet,
     address assetAddress,
     uint64 quantityInPips
-  ) public returns (uint64 newBalanceInPips) {
+  ) external returns (uint64 newBalanceInPips) {
     Balance storage balance =
       loadBalanceAndMigrateIfNeeded(self, wallet, assetAddress);
     balance.balanceInPips += quantityInPips;
@@ -39,7 +39,7 @@ library BalanceTracking {
     Structs.Order memory sell,
     Structs.Trade memory trade,
     address feeWallet
-  ) public {
+  ) external {
     Balance storage balance;
 
     // Seller gives base asset including fees
@@ -92,7 +92,7 @@ library BalanceTracking {
     Structs.Order memory order,
     Structs.PoolTrade memory poolTrade,
     address feeWallet
-  ) public {
+  ) external {
     Balance storage balance;
 
     // Debit from order wallet
@@ -133,7 +133,7 @@ library BalanceTracking {
     Structs.Withdrawal memory withdrawal,
     address assetAddress,
     address feeWallet
-  ) public returns (uint64 newExchangeBalanceInPips) {
+  ) external returns (uint64 newExchangeBalanceInPips) {
     Balance storage balance;
 
     balance = loadBalanceAndMigrateIfNeeded(
@@ -160,7 +160,7 @@ library BalanceTracking {
     address quoteAssetAddress,
     uint64 baseAssetQuantityInPips,
     uint64 quoteAssetQuantityInPips
-  ) public {
+  ) external {
     Balance storage balance;
 
     balance = loadBalanceAndMigrateIfNeeded(self, wallet, baseAssetAddress);
@@ -177,7 +177,7 @@ library BalanceTracking {
     address quoteAssetAddress,
     uint64 baseAssetQuantityInPips,
     uint64 quoteAssetQuantityInPips
-  ) public {
+  ) external {
     Balance storage balance;
 
     balance = loadBalanceAndMigrateIfNeeded(self, wallet, baseAssetAddress);
@@ -191,7 +191,7 @@ library BalanceTracking {
     Storage storage self,
     address wallet,
     address assetAddress
-  ) public returns (uint64 previousExchangeBalanceInPips) {
+  ) external returns (uint64 previousExchangeBalanceInPips) {
     Balance storage balance;
 
     balance = loadBalanceAndMigrateIfNeeded(self, wallet, assetAddress);
