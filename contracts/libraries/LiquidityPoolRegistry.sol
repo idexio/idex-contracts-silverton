@@ -128,6 +128,8 @@ library LiquidityPoolRegistry {
     pool.quoteAssetReserveInPips -= quoteAssetQuantityInPips;
   }
 
+  event Debug(uint128 initialProduct, uint128 updatedProduct);
+
   function updateReservesForPoolTrade(
     Storage storage self,
     Structs.PoolTrade memory poolTrade,
@@ -146,19 +148,6 @@ library LiquidityPoolRegistry {
     uint128 updatedProduct;
 
     if (orderSide == Enums.OrderSide.Buy) {
-      // Pool receives base asset
-      pool.baseAssetReserveInPips +=
-        poolTrade.grossBaseQuantityInPips -
-        poolTrade.takerProtocolFeeQuantityInPips;
-      // Pool gives quote asset
-      pool.quoteAssetReserveInPips -= poolTrade.grossQuoteQuantityInPips;
-
-      updatedProduct =
-        uint128(
-          pool.baseAssetReserveInPips - poolTrade.takerPoolFeeQuantityInPips
-        ) *
-        uint128(pool.quoteAssetReserveInPips);
-    } else {
       // Pool gives base asset
       pool.baseAssetReserveInPips -= poolTrade.grossBaseQuantityInPips;
       // Pool receives quote asset
@@ -171,6 +160,19 @@ library LiquidityPoolRegistry {
         uint128(
           pool.quoteAssetReserveInPips - poolTrade.takerPoolFeeQuantityInPips
         );
+    } else {
+      // Pool receives base asset
+      pool.baseAssetReserveInPips +=
+        poolTrade.grossBaseQuantityInPips -
+        poolTrade.takerProtocolFeeQuantityInPips;
+      // Pool gives quote asset
+      pool.quoteAssetReserveInPips -= poolTrade.grossQuoteQuantityInPips;
+
+      updatedProduct =
+        uint128(
+          pool.baseAssetReserveInPips - poolTrade.takerPoolFeeQuantityInPips
+        ) *
+        uint128(pool.quoteAssetReserveInPips);
     }
 
     require(

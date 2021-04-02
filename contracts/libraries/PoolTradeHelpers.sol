@@ -43,7 +43,7 @@ library PoolTradeHelpers {
   ) internal pure returns (uint64) {
     return
       orderSide == Enums.OrderSide.Buy
-        ? self.grossBaseQuantityInPips
-        : self.grossQuoteQuantityInPips;
+        ? self.grossQuoteQuantityInPips
+        : self.grossBaseQuantityInPips;
   }
 }

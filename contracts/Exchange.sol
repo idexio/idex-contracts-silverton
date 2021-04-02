@@ -603,7 +603,6 @@ contract Exchange is IExchange, Owned {
       poolTrade.grossQuoteQuantityInPips
     );
     _balanceTracking.updateForPoolTrade(order, poolTrade, _feeWallet);
-
     _liquidityPoolRegistry.updateReservesForPoolTrade(poolTrade, order.side);
   }
 
@@ -611,10 +610,9 @@ contract Exchange is IExchange, Owned {
     Structs.Order memory buy,
     Structs.Order memory sell,
     Structs.Trade memory trade,
-    Structs.PoolTrade memory poolTrade,
-    Enums.OrderSide poolTradeOrderSide
+    Structs.PoolTrade memory poolTrade
   ) public onlyDispatcher {
-    // Counterparty trade
+    // Counterparty trade validations
     require(
       !isWalletExitFinalized(buy.walletAddress),
       'Buy wallet exit finalized'
@@ -627,7 +625,6 @@ contract Exchange is IExchange, Owned {
       buy.walletAddress != sell.walletAddress,
       'Self-trading not allowed'
     );
-
     Validations.validateAssetPair(_assetRegistry, buy, sell, trade);
     Validations.validateLimitPrices(buy, sell, trade);
     validateOrderNonces(buy, sell);
@@ -635,26 +632,24 @@ contract Exchange is IExchange, Owned {
       Validations.validateOrderSignatures(buy, sell, trade);
     Validations.validateTradeFees(trade, _maxTradeFeeBasisPoints);
 
-    updateOrderFilledQuantities(buy, buyHash, sell, sellHash, trade);
-    _balanceTracking.updateForTrade(buy, sell, trade, _feeWallet);
-
-    // Pool trade
-    (Structs.Order memory order, bytes32 orderHash) =
-      poolTradeOrderSide == Enums.OrderSide.Buy
-        ? (buy, buyHash)
-        : (sell, sellHash);
+    // Pool trade validations
     require(
       trade.baseAssetAddress == poolTrade.baseAssetAddress &&
         trade.quoteAssetAddress == poolTrade.quoteAssetAddress,
       'Mismatched trades'
     );
+    (Structs.Order memory order, bytes32 orderHash) =
+      trade.makerSide == Enums.OrderSide.Buy
+        ? (sell, sellHash)
+        : (buy, buyHash);
     Validations.validateLimitPrice(order, poolTrade);
     Validations.validatePoolTradeFees(
-      poolTradeOrderSide,
+      order.side,
       poolTrade,
       _maxTradeFeeBasisPoints
     );
 
+    // Pool trade
     updateOrderFilledQuantity(
       order,
       orderHash,
@@ -662,11 +657,13 @@ contract Exchange is IExchange, Owned {
       poolTrade.grossQuoteQuantityInPips
     );
     _balanceTracking.updateForPoolTrade(order, poolTrade, _feeWallet);
+    _liquidityPoolRegistry.updateReservesForPoolTrade(poolTrade, order.side);
 
-    _liquidityPoolRegistry.updateReservesForPoolTrade(
-      poolTrade,
-      poolTradeOrderSide
-    );
+    // TODO Validate pool did not fill order past counterparty order's price
+
+    // Counterparty trade
+    updateOrderFilledQuantities(buy, buyHash, sell, sellHash, trade);
+    _balanceTracking.updateForTrade(buy, sell, trade, _feeWallet);
   }
 
   // Withdrawing //

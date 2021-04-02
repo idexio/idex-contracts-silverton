@@ -89,8 +89,8 @@ library BalanceTracking {
 
   function updateForPoolTrade(
     Storage storage self,
-    Structs.Order memory order,
-    Structs.PoolTrade memory poolTrade,
+    Structs.Order calldata order,
+    Structs.PoolTrade calldata poolTrade,
     address feeWallet
   ) external {
     Balance storage balance;
