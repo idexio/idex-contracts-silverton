@@ -7,21 +7,23 @@ import type {
 } from '../../types/truffle-contracts';
 
 import {
+  bnbAddress,
   deployAndAssociateContracts,
   deployAndRegisterToken,
-  bnbAddress,
   ethSymbol,
   getSignature,
 } from './helpers';
+import { generateOrdersAndFill } from './trade.test';
 import {
   decimalToAssetUnits,
   decimalToPips,
+  getHybridTradeArguments,
   getOrderHash,
   getPoolTradeArguments,
   Order,
   OrderSide,
   OrderType,
-  Trade,
+  PoolTrade,
   uuidToHexString,
 } from '../../lib';
 
@@ -129,17 +131,15 @@ contract('Exchange (liquidity pools)', (accounts) => {
       });
 
       const buyWallet = accounts[1];
-      await token.transfer(buyWallet, decimalToAssetUnits('1000.00000000', 18));
-      await deposit(exchange, token, buyWallet, '1000.00000000', '1.00000000');
-      const { buyOrder, fill } = await generateOrderAndPoolFill(
+      await deposit(exchange, token, buyWallet, '0.00000000', '1.00000000');
+      const { buyOrder, poolTrade } = await generateOrderAndPoolTrade(
         token.address,
         bnbAddress,
         buyWallet,
         '909.09090909',
         '0.00121000',
       );
-      fill.grossQuoteQuantity = '1.00000000';
-      fill.netQuoteQuantity = fill.grossQuoteQuantity;
+      poolTrade.grossQuoteQuantity = '1.00000000';
       const buySignature = await getSignature(
         web3,
         getOrderHash(buyOrder),
@@ -148,11 +148,128 @@ contract('Exchange (liquidity pools)', (accounts) => {
 
       // https://github.com/microsoft/TypeScript/issues/28486
       await (exchange.executePoolTrade as any)(
-        ...getPoolTradeArguments(buyOrder, buySignature, fill),
+        ...getPoolTradeArguments(buyOrder, buySignature, poolTrade),
+      );
+    });
+  });
+
+  describe('executeHybridTrade', () => {
+    it.only('should work', async () => {
+      const initialBaseReserve = '10000.00000000';
+      const initialQuoteReserve = '10.00000000';
+
+      const { exchange } = await deployAndAssociateContracts();
+      const token = await deployAndRegisterToken(exchange, tokenSymbol);
+      await exchange.addLiquidityPool(token.address, bnbAddress);
+      await exchange.setDispatcher(accounts[0]);
+
+      await deposit(
+        exchange,
+        token,
+        accounts[0],
+        initialBaseReserve,
+        initialQuoteReserve,
+      );
+      await exchange.addLiquidity({
+        nonce: uuidToHexString(uuidv1()),
+        walletAddress: accounts[0],
+        baseAssetSymbol: tokenSymbol,
+        quoteAssetSymbol: ethSymbol,
+        baseAssetDesiredQuantityInPips: decimalToPips(initialBaseReserve),
+        quoteAssetDesiredQuantityInPips: decimalToPips(initialQuoteReserve),
+        baseAssetMinimumQuantityInPips: decimalToPips(initialBaseReserve),
+        quoteAssetMinimumQuantityInPips: decimalToPips(initialQuoteReserve),
+        walletSignature: '0x',
+      });
+
+      const buyWallet = accounts[1];
+      const sellWallet = accounts[2];
+      await deposit(exchange, token, buyWallet, '0.00000000', '10.00000000');
+      await token.transfer(
+        sellWallet,
+        decimalToAssetUnits('5000.00000000', 18),
+      );
+      await deposit(exchange, token, sellWallet, '5000.00000000', '0.00000000');
+
+      await generateAndExecuteHybridTrade(
+        exchange,
+        token,
+        buyWallet,
+        sellWallet,
+        web3,
+      );
+
+      await generateAndExecuteHybridTrade(
+        exchange,
+        token,
+        buyWallet,
+        sellWallet,
+        web3,
+        '0.00144000',
+        '1515.15151512',
+        '757.57575756',
       );
     });
   });
 });
+
+const generateAndExecuteHybridTrade = async (
+  exchange: ExchangeInstance,
+  token: TestTokenInstance,
+  buyWallet: string,
+  sellWallet: string,
+  web3: Web3,
+  price = '0.00121000',
+  takerOrderBaseQuantity = '1818.18181818',
+  poolTradeBaseQuantity = '909.09090909',
+  counterpartyTradeBaseQuantity = poolTradeBaseQuantity,
+  poolTradeQuoteQuantity = '1.00000000',
+): Promise<void> => {
+  const { buyOrder, poolTrade } = await generateOrderAndPoolTrade(
+    token.address,
+    bnbAddress,
+    buyWallet,
+    takerOrderBaseQuantity,
+    price,
+  );
+  const buySignature = await getSignature(
+    web3,
+    getOrderHash(buyOrder),
+    buyWallet,
+  );
+  poolTrade.grossBaseQuantity = poolTradeBaseQuantity;
+  poolTrade.grossQuoteQuantity = poolTradeQuoteQuantity;
+
+  console.log(poolTrade);
+
+  const { sellOrder, fill } = await generateOrdersAndFill(
+    token.address,
+    bnbAddress,
+    buyWallet,
+    sellWallet,
+    counterpartyTradeBaseQuantity,
+    price,
+  );
+  const sellSignature = await getSignature(
+    web3,
+    getOrderHash(sellOrder),
+    sellWallet,
+  );
+
+  // https://github.com/microsoft/TypeScript/issues/28486
+  console.log(
+    await (exchange.executeHybridTrade as any)(
+      ...getHybridTradeArguments(
+        buyOrder,
+        buySignature,
+        sellOrder,
+        sellSignature,
+        fill,
+        poolTrade,
+      ),
+    ),
+  );
+};
 
 const deposit = async (
   exchange: ExchangeInstance,
@@ -162,34 +279,39 @@ const deposit = async (
   bnbQuantity: string,
   decimals = 18,
 ): Promise<void> => {
-  await token.approve(
-    exchange.address,
-    decimalToAssetUnits(tokenQuantity, decimals),
-    {
+  if (decimalToAssetUnits(tokenQuantity, decimals) !== '0') {
+    await token.approve(
+      exchange.address,
+      decimalToAssetUnits(tokenQuantity, decimals),
+      {
+        from: wallet,
+      },
+    );
+    await exchange.depositTokenByAddress(
+      token.address,
+      decimalToAssetUnits(tokenQuantity, decimals),
+      {
+        from: wallet,
+      },
+    );
+  }
+
+  if (decimalToAssetUnits(bnbQuantity, decimals) !== '0') {
+    await exchange.depositEther({
+      value: decimalToAssetUnits(bnbQuantity, decimals),
       from: wallet,
-    },
-  );
-  await exchange.depositTokenByAddress(
-    token.address,
-    decimalToAssetUnits(tokenQuantity, decimals),
-    {
-      from: wallet,
-    },
-  );
-  await exchange.depositEther({
-    value: decimalToAssetUnits(bnbQuantity, decimals),
-    from: wallet,
-  });
+    });
+  }
 };
 
-const generateOrderAndPoolFill = async (
+const generateOrderAndPoolTrade = async (
   baseAssetAddress: string,
   quoteAssetAddress: string,
   wallet: string,
   quantity = '0.00100000',
   price = '1000.00000000', // 1000 BNB buys 1 TKN
   market = marketSymbol,
-): Promise<{ buyOrder: Order; fill: Trade }> => {
+): Promise<{ buyOrder: Order; poolTrade: PoolTrade }> => {
   const quoteQuantity = new BigNumber(quantity)
     .multipliedBy(new BigNumber(price))
     .toFixed(8, BigNumber.ROUND_DOWN);
@@ -206,20 +328,16 @@ const generateOrderAndPoolFill = async (
     price,
   };
 
-  const fill: Trade = {
+  const poolTrade: PoolTrade = {
     baseAssetAddress,
     quoteAssetAddress,
     grossBaseQuantity: quantity,
     grossQuoteQuantity: quoteQuantity,
-    netBaseQuantity: quantity, // No fee
-    netQuoteQuantity: quoteQuantity, // No fee
-    makerFeeAssetAddress: quoteAssetAddress,
-    takerFeeAssetAddress: baseAssetAddress,
-    makerFeeQuantity: '0',
-    takerFeeQuantity: '0',
-    price,
-    makerSide: OrderSide.Sell,
+    // No fee
+    takerPoolFeeQuantityInPips: '0',
+    takerProtocolFeeQuantityInPips: '0',
+    takerGasFeeQuantityInPips: '0',
   };
 
-  return { buyOrder, fill };
+  return { buyOrder, poolTrade };
 };

@@ -91,7 +91,7 @@ module.exports = {
         // See the solidity docs for advice about optimization and evmVersion
         optimizer: {
           enabled: true,
-          runs: 1,
+          runs: 500,
         },
         evmVersion: 'constantinople',
       },

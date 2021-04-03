@@ -63,6 +63,15 @@ export interface Trade {
   price: string;
   makerSide: OrderSide;
 }
+export interface PoolTrade {
+  baseAssetAddress: string;
+  quoteAssetAddress: string;
+  grossBaseQuantity: string;
+  grossQuoteQuantity: string;
+  takerPoolFeeQuantityInPips: string;
+  takerProtocolFeeQuantityInPips: string;
+  takerGasFeeQuantityInPips: string;
+}
 
 enum WithdrawalType {
   BySymbol,
@@ -132,14 +141,30 @@ export const getTradeArguments = (
   ] as const;
 };
 
+export const getHybridTradeArguments = (
+  buyOrder: Order,
+  buyWalletSignature: string,
+  sellOrder: Order,
+  sellWalletSignature: string,
+  trade: Trade,
+  poolTrade: PoolTrade,
+): ExchangeInstance['executeHybridTrade']['arguments'] => {
+  return [
+    orderToArgumentStruct(buyOrder, buyWalletSignature),
+    orderToArgumentStruct(sellOrder, sellWalletSignature),
+    tradeToArgumentStruct(trade, buyOrder),
+    poolTradeToArgumentStruct(poolTrade, buyOrder),
+  ] as const;
+};
+
 export const getPoolTradeArguments = (
   order: Order,
   walletSignature: string,
-  trade: Trade,
+  poolTrade: PoolTrade,
 ): ExchangeInstance['executePoolTrade']['arguments'] => {
   return [
     orderToArgumentStruct(order, walletSignature),
-    tradeToArgumentStruct(trade, order),
+    poolTradeToArgumentStruct(poolTrade, order),
   ] as const;
 };
 
@@ -200,6 +225,22 @@ const tradeToArgumentStruct = (t: Trade, order: Order) => {
     takerFeeQuantityInPips: decimalToPips(t.takerFeeQuantity),
     priceInPips: decimalToPips(t.price),
     makerSide: t.makerSide,
+  };
+};
+
+const poolTradeToArgumentStruct = (p: PoolTrade, order: Order) => {
+  return {
+    baseAssetSymbol: order.market.split('-')[0],
+    quoteAssetSymbol: order.market.split('-')[1],
+    baseAssetAddress: p.baseAssetAddress,
+    quoteAssetAddress: p.quoteAssetAddress,
+    grossBaseQuantityInPips: decimalToPips(p.grossBaseQuantity),
+    grossQuoteQuantityInPips: decimalToPips(p.grossQuoteQuantity),
+    takerPoolFeeQuantityInPips: decimalToPips(p.takerPoolFeeQuantityInPips),
+    takerProtocolFeeQuantityInPips: decimalToPips(
+      p.takerProtocolFeeQuantityInPips,
+    ),
+    takerGasFeeQuantityInPips: decimalToPips(p.takerGasFeeQuantityInPips),
   };
 };
 

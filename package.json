@@ -87,7 +87,7 @@
   "husky": {
     "hooks": {
       "commit-msg": "[[ -n $HUSKY_BYPASS ]] || commitlint -E HUSKY_GIT_PARAMS",
-      "pre-commit": "yarn lint:markdown && yarn build:clean && yarn build && yarn test:lib:dist"
+      "pre-commit": "yarn lint:markdown && yarn build:clean && yarn build && yarn test"
     }
   },
   "commitlint": {
