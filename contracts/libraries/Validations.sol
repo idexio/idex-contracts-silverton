@@ -10,6 +10,35 @@ import { UUID } from './UUID.sol';
 library Validations {
   using AssetRegistry for AssetRegistry.Storage;
 
+  function validateHybridTrade(
+    AssetRegistry.Storage storage assetRegistry,
+    Structs.Order memory buy,
+    Structs.Order memory sell,
+    Structs.Trade memory trade,
+    Structs.PoolTrade memory poolTrade,
+    uint64 maxTradeFeeBasisPoints
+  ) public view returns (bytes32, bytes32) {
+    // Counterparty trade validations
+    validateAssetPair(assetRegistry, buy, sell, trade);
+    validateLimitPrices(buy, sell, trade);
+    (bytes32 buyHash, bytes32 sellHash) =
+      validateOrderSignatures(buy, sell, trade);
+    validateTradeFees(trade, maxTradeFeeBasisPoints);
+
+    // Pool trade validations
+    require(
+      trade.baseAssetAddress == poolTrade.baseAssetAddress &&
+        trade.quoteAssetAddress == poolTrade.quoteAssetAddress,
+      'Mismatched trades'
+    );
+    Structs.Order memory order =
+      trade.makerSide == Enums.OrderSide.Buy ? sell : buy;
+    validateLimitPrice(order, poolTrade);
+    validatePoolTradeFees(order.side, poolTrade, maxTradeFeeBasisPoints);
+
+    return (buyHash, sellHash);
+  }
+
   function getFeeBasisPoints(uint64 fee, uint64 total)
     public
     pure

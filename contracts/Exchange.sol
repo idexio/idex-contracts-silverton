@@ -607,47 +607,41 @@ contract Exchange is IExchange, Owned {
   }
 
   function executeHybridTrade(
-    Structs.Order memory buy,
-    Structs.Order memory sell,
-    Structs.Trade memory trade,
-    Structs.PoolTrade memory poolTrade
-  ) public onlyDispatcher {
+    Structs.Order calldata buy,
+    Structs.Order calldata sell,
+    Structs.Trade calldata trade,
+    Structs.PoolTrade calldata poolTrade
+  ) external onlyDispatcher {
     // Counterparty trade validations
+    (address buyWallet, address sellWallet) =
+      (buy.walletAddress, sell.walletAddress);
+    require(!isWalletExitFinalized(buyWallet), 'Buy wallet exit finalized');
+    require(!isWalletExitFinalized(sellWallet), 'Sell wallet exit finalized');
+    require(buyWallet != sellWallet, 'Self-trading not allowed');
     require(
-      !isWalletExitFinalized(buy.walletAddress),
-      'Buy wallet exit finalized'
+      UUID.getTimestampInMsFromUuidV1(buy.nonce) >
+        getLastInvalidatedTimestamp(buyWallet),
+      'Buy order nonce timestamp too low'
     );
     require(
-      !isWalletExitFinalized(sell.walletAddress),
-      'Sell wallet exit finalized'
+      UUID.getTimestampInMsFromUuidV1(sell.nonce) >
+        getLastInvalidatedTimestamp(sellWallet),
+      'Sell order nonce timestamp too low'
     );
-    require(
-      buy.walletAddress != sell.walletAddress,
-      'Self-trading not allowed'
-    );
-    Validations.validateAssetPair(_assetRegistry, buy, sell, trade);
-    Validations.validateLimitPrices(buy, sell, trade);
-    validateOrderNonces(buy, sell);
-    (bytes32 buyHash, bytes32 sellHash) =
-      Validations.validateOrderSignatures(buy, sell, trade);
-    Validations.validateTradeFees(trade, _maxTradeFeeBasisPoints);
 
-    // Pool trade validations
-    require(
-      trade.baseAssetAddress == poolTrade.baseAssetAddress &&
-        trade.quoteAssetAddress == poolTrade.quoteAssetAddress,
-      'Mismatched trades'
-    );
+    (bytes32 buyHash, bytes32 sellHash) =
+      Validations.validateHybridTrade(
+        _assetRegistry,
+        buy,
+        sell,
+        trade,
+        poolTrade,
+        _maxTradeFeeBasisPoints
+      );
     (Structs.Order memory order, bytes32 orderHash) =
       trade.makerSide == Enums.OrderSide.Buy
         ? (sell, sellHash)
         : (buy, buyHash);
-    Validations.validateLimitPrice(order, poolTrade);
-    Validations.validatePoolTradeFees(
-      order.side,
-      poolTrade,
-      _maxTradeFeeBasisPoints
-    );
 
     // Pool trade
     updateOrderFilledQuantity(
@@ -1087,12 +1081,9 @@ contract Exchange is IExchange, Owned {
         _partiallyFilledOrderQuantitiesInPips[orderHash];
     }
 
-    require(
-      newFilledQuantityInPips <= order.quantityInPips,
-      'Order overfilled'
-    );
-
-    if (newFilledQuantityInPips < order.quantityInPips) {
+    uint64 quantityInPips = order.quantityInPips;
+    require(newFilledQuantityInPips <= quantityInPips, 'Order overfilled');
+    if (newFilledQuantityInPips < quantityInPips) {
       // If the order was partially filled, track the new filled quantity
       _partiallyFilledOrderQuantitiesInPips[
         orderHash
@@ -1153,16 +1144,14 @@ contract Exchange is IExchange, Owned {
   function getLastInvalidatedTimestamp(address walletAddress)
     private
     view
-    returns (uint64)
+    returns (uint64 timestampInMs)
   {
     if (
       _nonceInvalidations[walletAddress].exists &&
       _nonceInvalidations[walletAddress].effectiveBlockNumber <= block.number
     ) {
-      return _nonceInvalidations[walletAddress].timestampInMs;
+      timestampInMs = _nonceInvalidations[walletAddress].timestampInMs;
     }
-
-    return 0;
   }
 
   function getOneDayFromNowInMs() private view returns (uint64) {
