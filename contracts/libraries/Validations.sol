@@ -82,14 +82,16 @@ library Validations {
     Structs.Trade memory trade
   ) public view {
     uint64 nonce = UUID.getTimestampInMsFromUuidV1(order.nonce);
-    Structs.Asset memory baseAsset =
+    Structs.Asset memory asset =
       assetRegistry.loadAssetBySymbol(trade.baseAssetSymbol, nonce);
-    Structs.Asset memory quoteAsset =
-      assetRegistry.loadAssetBySymbol(trade.quoteAssetSymbol, nonce);
-
     require(
-      baseAsset.assetAddress == trade.baseAssetAddress &&
-        quoteAsset.assetAddress == trade.quoteAssetAddress,
+      asset.assetAddress == trade.baseAssetAddress,
+      'Order symbol address mismatch'
+    );
+
+    asset = assetRegistry.loadAssetBySymbol(trade.quoteAssetSymbol, nonce);
+    require(
+      asset.assetAddress == trade.quoteAssetAddress,
       'Order symbol address mismatch'
     );
   }
