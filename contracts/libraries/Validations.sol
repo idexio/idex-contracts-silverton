@@ -17,7 +17,7 @@ library Validations {
     Structs.Trade memory trade,
     Structs.PoolTrade memory poolTrade,
     uint64 maxTradeFeeBasisPoints
-  ) public view returns (bytes32, bytes32) {
+  ) internal view returns (bytes32, bytes32) {
     // Counterparty trade validations
     validateAssetPair(assetRegistry, buy, sell, trade);
     validateLimitPrices(buy, sell, trade);

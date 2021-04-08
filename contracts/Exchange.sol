@@ -10,6 +10,7 @@ import { AssetRegistryAdmin } from './libraries/AssetRegistryAdmin.sol';
 import { AssetTransfers } from './libraries/AssetTransfers.sol';
 import { BalanceTracking } from './libraries/BalanceTracking.sol';
 import { AssetUnitConversions } from './libraries/AssetUnitConversions.sol';
+import { HybridTrade } from './libraries/HybridTrade.sol';
 import { LiquidityPoolRegistry } from './libraries/LiquidityPoolRegistry.sol';
 import { Validations } from './libraries/Validations.sol';
 import { Owned } from './Owned.sol';
@@ -629,35 +630,18 @@ contract Exchange is IExchange, Owned {
       'Sell order nonce timestamp too low'
     );
 
-    (bytes32 buyHash, bytes32 sellHash) =
-      Validations.validateHybridTrade(
-        _assetRegistry,
-        buy,
-        sell,
-        trade,
-        poolTrade,
-        _maxTradeFeeBasisPoints
-      );
-    (Structs.Order memory order, bytes32 orderHash) =
-      trade.makerSide == Enums.OrderSide.Buy
-        ? (sell, sellHash)
-        : (buy, buyHash);
-
-    // Pool trade
-    updateOrderFilledQuantity(
-      order,
-      orderHash,
-      poolTrade.grossBaseQuantityInPips,
-      poolTrade.grossQuoteQuantityInPips
+    HybridTrade.executeHybridTrade(
+      buy,
+      sell,
+      trade,
+      poolTrade,
+      _feeWallet,
+      _assetRegistry,
+      _liquidityPoolRegistry,
+      _balanceTracking,
+      _completedOrderHashes,
+      _partiallyFilledOrderQuantitiesInPips
     );
-    _balanceTracking.updateForPoolTrade(order, poolTrade, _feeWallet);
-    _liquidityPoolRegistry.updateReservesForPoolTrade(poolTrade, order.side);
-
-    // TODO Validate pool did not fill order past counterparty order's price
-
-    // Counterparty trade
-    updateOrderFilledQuantities(buy, buyHash, sell, sellHash, trade);
-    _balanceTracking.updateForTrade(buy, sell, trade, _feeWallet);
   }
 
   // Withdrawing //

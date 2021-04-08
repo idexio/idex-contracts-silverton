@@ -89,10 +89,10 @@ library BalanceTracking {
 
   function updateForPoolTrade(
     Storage storage self,
-    Structs.Order calldata order,
-    Structs.PoolTrade calldata poolTrade,
+    Structs.Order memory order,
+    Structs.PoolTrade memory poolTrade,
     address feeWallet
-  ) external {
+  ) public {
     Balance storage balance;
 
     // Debit from order wallet
