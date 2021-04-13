@@ -43,6 +43,7 @@
     "verify": "truffle run verify"
   },
   "dependencies": {
+    "@idexio/pancake-swap-core": "^0.1.0-alpha.1",
     "chai": "^4.2.0",
     "ethers": "^5.0.31",
     "uuid": "^8.3.2"

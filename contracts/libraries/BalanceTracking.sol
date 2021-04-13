@@ -153,40 +153,6 @@ library BalanceTracking {
     return balance.balanceInPips;
   }
 
-  function updateForLiquidityDeposit(
-    Storage storage self,
-    address wallet,
-    address baseAssetAddress,
-    address quoteAssetAddress,
-    uint64 baseAssetQuantityInPips,
-    uint64 quoteAssetQuantityInPips
-  ) external {
-    Balance storage balance;
-
-    balance = loadBalanceAndMigrateIfNeeded(self, wallet, baseAssetAddress);
-    balance.balanceInPips -= baseAssetQuantityInPips;
-
-    balance = loadBalanceAndMigrateIfNeeded(self, wallet, quoteAssetAddress);
-    balance.balanceInPips -= quoteAssetQuantityInPips;
-  }
-
-  function updateForLiquidityWithdrawal(
-    Storage storage self,
-    address wallet,
-    address baseAssetAddress,
-    address quoteAssetAddress,
-    uint64 baseAssetQuantityInPips,
-    uint64 quoteAssetQuantityInPips
-  ) external {
-    Balance storage balance;
-
-    balance = loadBalanceAndMigrateIfNeeded(self, wallet, baseAssetAddress);
-    balance.balanceInPips += baseAssetQuantityInPips;
-
-    balance = loadBalanceAndMigrateIfNeeded(self, wallet, quoteAssetAddress);
-    balance.balanceInPips += quoteAssetQuantityInPips;
-  }
-
   function updateForExit(
     Storage storage self,
     address wallet,

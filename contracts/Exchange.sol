@@ -4,12 +4,15 @@ pragma solidity 0.8.2;
 
 import { Address } from '@openzeppelin/contracts/utils/Address.sol';
 import { ECDSA } from '@openzeppelin/contracts/utils/cryptography/ECDSA.sol';
+import {
+  IFactory
+} from '@idexio/pancake-swap-core/contracts/interfaces/IFactory.sol';
 
 import { AssetRegistry } from './libraries/AssetRegistry.sol';
 import { AssetRegistryAdmin } from './libraries/AssetRegistryAdmin.sol';
 import { AssetTransfers } from './libraries/AssetTransfers.sol';
-import { BalanceTracking } from './libraries/BalanceTracking.sol';
 import { AssetUnitConversions } from './libraries/AssetUnitConversions.sol';
+import { BalanceTracking } from './libraries/BalanceTracking.sol';
 import { LiquidityPoolRegistry } from './libraries/LiquidityPoolRegistry.sol';
 import { Validations } from './libraries/Validations.sol';
 import { Owned } from './Owned.sol';
@@ -66,7 +69,7 @@ contract Exchange is IExchange, Owned {
   /**
    * @notice TODO
    */
-  event LiquidityMinted(
+  event LiquidityAdded(
     address indexed sender,
     address indexed baseAssetAddress,
     address indexed quoteAssetAddress,
@@ -77,7 +80,7 @@ contract Exchange is IExchange, Owned {
   /**
    * @notice TODO
    */
-  event LiquidityBurned(
+  event LiquidityRemoved(
     address indexed sender,
     address indexed baseAssetAddress,
     address indexed quoteAssetAddress,
@@ -193,7 +196,8 @@ contract Exchange is IExchange, Owned {
   uint64 _depositIndex;
   // Exits
   mapping(address => WalletExit) _walletExits;
-  // Asset registry data
+  // Liquidity pools
+  IFactory _pairFactoryContractAddress;
   LiquidityPoolRegistry.Storage _liquidityPoolRegistry;
   // Withdrawals - mapping of withdrawal wallet hash => isComplete
   mapping(bytes32 => bool) _completedWithdrawalHashes;
@@ -280,6 +284,22 @@ contract Exchange is IExchange, Owned {
     _feeWallet = newFeeWallet;
 
     emit FeeWalletChanged(oldFeeWallet, newFeeWallet);
+  }
+
+  function setPairFactoryAddress(IFactory newPairFactoryAddress)
+    external
+    onlyAdmin
+  {
+    require(
+      address(_pairFactoryContractAddress) == address(0x0),
+      'Factory can only be set once'
+    );
+    require(
+      Address.isContract(address(newPairFactoryAddress)),
+      'Invalid address'
+    );
+
+    _pairFactoryContractAddress = newPairFactoryAddress;
   }
 
   // Accessors //
@@ -411,7 +431,7 @@ contract Exchange is IExchange, Owned {
    * @notice Deposit BNB
    */
   function depositEther() external payable {
-    deposit(address(msg.sender), address(0x0), msg.value);
+    deposit(address(msg.sender), address(0x0), msg.value, false);
   }
 
   /**
@@ -426,7 +446,12 @@ contract Exchange is IExchange, Owned {
     uint256 quantityInAssetUnits
   ) external {
     require(address(tokenAddress) != address(0x0), 'Use depositEther for BNB');
-    deposit(address(msg.sender), address(tokenAddress), quantityInAssetUnits);
+    deposit(
+      address(msg.sender),
+      address(tokenAddress),
+      quantityInAssetUnits,
+      false
+    );
   }
 
   /**
@@ -448,13 +473,14 @@ contract Exchange is IExchange, Owned {
       );
     require(address(tokenAddress) != address(0x0), 'Use depositEther for BNB');
 
-    deposit(msg.sender, address(tokenAddress), quantityInAssetUnits);
+    deposit(msg.sender, address(tokenAddress), quantityInAssetUnits, false);
   }
 
   function deposit(
     address wallet,
     address assetAddress,
-    uint256 quantityInAssetUnits
+    uint256 quantityInAssetUnits,
+    bool isLiquidityDeposit
   ) private {
     // Calling exitWallet disables deposits immediately on mining, in contrast to withdrawals and
     // trades which respect the Chain Propagation Period given by `effectiveBlockNumber` via
@@ -484,15 +510,10 @@ contract Exchange is IExchange, Owned {
       AssetTransfers.transferFrom(
         wallet,
         IERC20(assetAddress),
+        _custodian,
         quantityInAssetUnitsWithoutFractionalPips
       );
     }
-    // Forward the funds to the `Custodian`
-    AssetTransfers.transferTo(
-      _custodian,
-      assetAddress,
-      quantityInAssetUnitsWithoutFractionalPips
-    );
 
     // Update balance with actual transferred quantity
     uint64 newExchangeBalanceInPips =
@@ -503,18 +524,21 @@ contract Exchange is IExchange, Owned {
         asset.decimals
       );
 
-    _depositIndex++;
+    // Liquidity deposits track indices and emit events separately
+    if (!isLiquidityDeposit) {
+      _depositIndex++;
 
-    emit Deposited(
-      _depositIndex,
-      wallet,
-      assetAddress,
-      asset.symbol,
-      asset.symbol,
-      quantityInPips,
-      newExchangeBalanceInPips,
-      newExchangeBalanceInAssetUnits
-    );
+      emit Deposited(
+        _depositIndex,
+        wallet,
+        assetAddress,
+        asset.symbol,
+        asset.symbol,
+        quantityInPips,
+        newExchangeBalanceInPips,
+        newExchangeBalanceInAssetUnits
+      );
+    }
   }
 
   // Trades //
@@ -968,69 +992,97 @@ contract Exchange is IExchange, Owned {
   {
     _liquidityPoolRegistry.addLiquidityPool(
       baseAssetAddress,
-      quoteAssetAddress
+      quoteAssetAddress,
+      _pairFactoryContractAddress
     );
   }
 
-  function addLiquidity(Structs.LiquidityDeposit memory liquidityDeposit)
-    public
-    onlyDispatcher
-  {
-    (
-      address baseAssetAddress,
-      address quoteAssetAddress,
-      uint64 baseAssetQuantityInPips,
-      uint64 quoteAssetQuantityInPips,
-      uint64 liquiditySharesMinted
-    ) = _liquidityPoolRegistry.addLiquidity(_assetRegistry, liquidityDeposit);
+  function addLiquidity(
+    address tokenA,
+    address tokenB,
+    uint256 amountADesired,
+    uint256 amountBDesired,
+    uint256 amountAMin,
+    uint256 amountBMin,
+    address to,
+    uint256 deadline
+  ) public {
+    deposit(msg.sender, tokenA, amountADesired, true);
+    deposit(msg.sender, tokenB, amountBDesired, true);
 
-    _balanceTracking.updateForLiquidityDeposit(
-      liquidityDeposit.walletAddress,
-      baseAssetAddress,
-      quoteAssetAddress,
-      baseAssetQuantityInPips,
-      quoteAssetQuantityInPips
+    _liquidityPoolRegistry.addLiquidity(
+      msg.sender,
+      tokenA,
+      tokenB,
+      amountADesired,
+      amountBDesired,
+      amountAMin,
+      amountBMin,
+      to,
+      deadline
     );
+  }
 
-    emit LiquidityMinted(
-      liquidityDeposit.walletAddress,
-      baseAssetAddress,
-      quoteAssetAddress,
-      baseAssetQuantityInPips,
-      quoteAssetQuantityInPips,
-      liquiditySharesMinted
+  function addLiquidityETH(
+    address token,
+    uint256 amountTokenDesired,
+    uint256 amountTokenMin,
+    uint256 amountETHMin,
+    address to,
+    uint256 deadline
+  ) public payable {
+    deposit(msg.sender, token, amountTokenDesired, true);
+    deposit(msg.sender, address(0x0), msg.value, true);
+
+    _liquidityPoolRegistry.addLiquidityETH(
+      msg.sender,
+      msg.value,
+      token,
+      amountTokenDesired,
+      amountTokenMin,
+      amountETHMin,
+      to,
+      deadline
     );
   }
 
   function removeLiquidity(
-    Structs.LiquidityWithdrawal memory liquidityWithdrawal
-  ) public onlyDispatcher {
-    (
-      address baseAssetAddress,
-      address quoteAssetAddress,
-      uint64 baseAssetQuantityInPips,
-      uint64 quoteAssetQuantityInPips
-    ) =
-      _liquidityPoolRegistry.removeLiquidity(
-        _assetRegistry,
-        liquidityWithdrawal
-      );
-
-    _balanceTracking.updateForLiquidityWithdrawal(
-      liquidityWithdrawal.walletAddress,
-      baseAssetAddress,
-      quoteAssetAddress,
-      baseAssetQuantityInPips,
-      quoteAssetQuantityInPips
+    address tokenA,
+    address tokenB,
+    uint256 liquidity,
+    uint256 amountAMin,
+    uint256 amountBMin,
+    address to,
+    uint256 deadline
+  ) public {
+    _liquidityPoolRegistry.removeLiquidity(
+      msg.sender,
+      tokenA,
+      tokenB,
+      liquidity,
+      amountAMin,
+      amountBMin,
+      to,
+      deadline
     );
+  }
 
-    emit LiquidityBurned(
-      liquidityWithdrawal.walletAddress,
-      baseAssetAddress,
-      quoteAssetAddress,
-      baseAssetQuantityInPips,
-      quoteAssetQuantityInPips,
-      liquidityWithdrawal.liquiditySharesToBurn
+  function removeLiquidityETH(
+    address token,
+    uint256 liquidity,
+    uint256 amountTokenMin,
+    uint256 amountETHMin,
+    address to,
+    uint256 deadline
+  ) public {
+    _liquidityPoolRegistry.removeLiquidityETH(
+      msg.sender,
+      token,
+      liquidity,
+      amountTokenMin,
+      amountETHMin,
+      to,
+      deadline
     );
   }
 
