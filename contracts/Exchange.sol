@@ -7,6 +7,9 @@ import { ECDSA } from '@openzeppelin/contracts/utils/cryptography/ECDSA.sol';
 import {
   IFactory
 } from '@idexio/pancake-swap-core/contracts/interfaces/IFactory.sol';
+import {
+  IPair
+} from '@idexio/pancake-swap-core/contracts/interfaces/IPair.sol';
 
 import { AssetRegistry } from './libraries/AssetRegistry.sol';
 import { AssetRegistryAdmin } from './libraries/AssetRegistryAdmin.sol';
@@ -21,6 +24,7 @@ import {
   ICustodian,
   IERC20,
   IExchange,
+  IWETH9,
   Structs
 } from './libraries/Interfaces.sol';
 import { UUID } from './libraries/UUID.sol';
@@ -199,6 +203,7 @@ contract Exchange is IExchange, Owned {
   // Liquidity pools
   IFactory _pairFactoryContractAddress;
   LiquidityPoolRegistry.Storage _liquidityPoolRegistry;
+  IWETH9 public immutable _WETH;
   // Withdrawals - mapping of withdrawal wallet hash => isComplete
   mapping(bytes32 => bool) _completedWithdrawalHashes;
   // Tunable parameters
@@ -216,12 +221,15 @@ contract Exchange is IExchange, Owned {
    * @notice Instantiate a new `Exchange` contract
    *
    * @dev Sets `_balanceMigrationSource` to first argument, and `_owner` and `_admin` to `msg.sender` */
-  constructor(IExchange balanceMigrationSource) Owned() {
+  constructor(IExchange balanceMigrationSource, IWETH9 WETH) Owned() {
     require(
       Address.isContract(address(balanceMigrationSource)),
-      'Invalid address'
+      'Invalid migration address'
     );
     _balanceTracking.migrationSource = balanceMigrationSource;
+
+    require(Address.isContract(address(WETH)), 'Invalid WETH address');
+    _WETH = WETH;
   }
 
   /**
@@ -1006,7 +1014,7 @@ contract Exchange is IExchange, Owned {
     uint256 amountBMin,
     address to,
     uint256 deadline
-  ) public {
+  ) external {
     deposit(msg.sender, tokenA, amountADesired, true);
     deposit(msg.sender, tokenB, amountBDesired, true);
 
@@ -1030,7 +1038,7 @@ contract Exchange is IExchange, Owned {
     uint256 amountETHMin,
     address to,
     uint256 deadline
-  ) public payable {
+  ) external payable {
     deposit(msg.sender, token, amountTokenDesired, true);
     deposit(msg.sender, address(0x0), msg.value, true);
 
@@ -1046,6 +1054,24 @@ contract Exchange is IExchange, Owned {
     );
   }
 
+  function executeAddLiquidity(
+    Structs.LiquidityAddition calldata addition,
+    Structs.LiquidityChangeExecution calldata execution
+  ) external onlyDispatcher {
+    _balanceTracking.executeAddLiquidity(
+      _assetRegistry,
+      addition,
+      execution,
+      _feeWallet
+    );
+
+    _liquidityPoolRegistry.executeAddLiquidity(
+      _assetRegistry,
+      addition,
+      execution
+    );
+  }
+
   function removeLiquidity(
     address tokenA,
     address tokenB,
@@ -1054,7 +1080,12 @@ contract Exchange is IExchange, Owned {
     uint256 amountBMin,
     address to,
     uint256 deadline
-  ) public {
+  ) external {
+    IPair(_pairFactoryContractAddress.getPair(tokenA, tokenB)).hybridFreeze(
+      msg.sender,
+      block.number + _chainPropagationPeriod
+    );
+
     _liquidityPoolRegistry.removeLiquidity(
       msg.sender,
       tokenA,
@@ -1074,7 +1105,10 @@ contract Exchange is IExchange, Owned {
     uint256 amountETHMin,
     address to,
     uint256 deadline
-  ) public {
+  ) external {
+    IPair(_pairFactoryContractAddress.getPair(token, address(_WETH)))
+      .hybridFreeze(msg.sender, block.number + _chainPropagationPeriod);
+
     _liquidityPoolRegistry.removeLiquidityETH(
       msg.sender,
       token,
@@ -1083,6 +1117,44 @@ contract Exchange is IExchange, Owned {
       amountETHMin,
       to,
       deadline
+    );
+  }
+
+  function executeRemoveLiquidity(
+    Structs.LiquidityRemoval calldata removal,
+    Structs.LiquidityChangeExecution calldata execution
+  ) external onlyDispatcher {
+    (
+      uint256 outputBaseAssetQuantityInAssetUnits,
+      uint256 outputQuoteAssetQuantityInAssetUnits
+    ) =
+      _balanceTracking.executeRemoveLiquidity(
+        _assetRegistry,
+        removal,
+        execution,
+        _feeWallet,
+        address(this)
+      );
+
+    if (outputBaseAssetQuantityInAssetUnits > 0) {
+      ICustodian(_custodian).withdraw(
+        removal.to,
+        execution.baseAssetAddress,
+        outputBaseAssetQuantityInAssetUnits
+      );
+    }
+    if (outputQuoteAssetQuantityInAssetUnits > 0) {
+      ICustodian(_custodian).withdraw(
+        removal.to,
+        execution.quoteAssetAddress,
+        outputQuoteAssetQuantityInAssetUnits
+      );
+    }
+
+    _liquidityPoolRegistry.executeRemoveLiquidity(
+      _assetRegistry,
+      removal,
+      execution
     );
   }
 

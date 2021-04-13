@@ -118,7 +118,7 @@ library LiquidityPoolRegistry {
     AssetRegistry.Storage storage assetRegistry,
     Structs.LiquidityAddition memory addition,
     Structs.LiquidityChangeExecution memory execution
-  ) public {
+  ) external {
     bytes32 hash =
       keccak256(
         abi.encodePacked(
@@ -138,12 +138,18 @@ library LiquidityPoolRegistry {
     require(state == Enums.LiquidityChangeState.Initiated, 'Not executable');
 
     (
-      uint256 baseAssetQuantityInAssetUnits,
-      uint256 quoteAssetQuantityInAssetUnits
+      uint256 netBaseAssetQuantityInAssetUnits,
+      uint256 netQuoteAssetQuantityInAssetUnits
     ) =
       execution.baseAssetAddress == addition.assetA
-        ? (execution.amountA, execution.amountB)
-        : (execution.amountB, execution.amountA);
+        ? (
+          execution.amountA - execution.feeAmountA,
+          execution.amountB - execution.feeAmountB
+        )
+        : (
+          execution.amountB - execution.feeAmountB,
+          execution.amountA - execution.feeAmountA
+        );
 
     LiquidityPool storage pool =
       self.poolsByAddresses[execution.baseAssetAddress][
@@ -156,14 +162,14 @@ library LiquidityPoolRegistry {
 
     asset = assetRegistry.loadAssetByAddress(execution.baseAssetAddress);
     quantityInPips = AssetUnitConversions.assetUnitsToPips(
-      baseAssetQuantityInAssetUnits,
+      netBaseAssetQuantityInAssetUnits,
       asset.decimals
     );
     pool.baseAssetReserveInPips += quantityInPips;
 
     asset = assetRegistry.loadAssetByAddress(execution.quoteAssetAddress);
     quantityInPips = AssetUnitConversions.assetUnitsToPips(
-      quoteAssetQuantityInAssetUnits,
+      netQuoteAssetQuantityInAssetUnits,
       asset.decimals
     );
     pool.quoteAssetReserveInPips += quantityInPips;

@@ -69,7 +69,7 @@ contract Structs {
     uint256 liquidity;
     uint256 amountAMin;
     uint256 amountBMin;
-    address to;
+    address payable to;
     uint256 deadline;
   }
   /**
@@ -79,6 +79,8 @@ contract Structs {
     uint256 liquidity;
     uint256 amountA;
     uint256 amountB;
+    uint256 feeAmountA;
+    uint256 feeAmountB;
     address baseAssetAddress;
     address quoteAssetAddress;
   }
@@ -392,4 +394,12 @@ interface IExchange {
    * @param withdrawal A `Structs.Withdrawal` struct encoding the parameters of the withdrawal
    */
   function withdraw(Structs.Withdrawal calldata withdrawal) external;
+}
+
+interface IWETH9 {
+  receive() external payable;
+
+  function deposit() external payable;
+
+  function withdraw(uint256 wad) external;
 }
