@@ -21,7 +21,9 @@ library LiquidityPoolRegistry {
     // Flag to distinguish from empty struct
     bool exists;
     uint64 baseAssetReserveInPips;
+    uint8 baseAssetDecimals;
     uint64 quoteAssetReserveInPips;
+    uint8 quoteAssetDecimals;
     IPair pairTokenAddress;
   }
 
@@ -32,22 +34,55 @@ library LiquidityPoolRegistry {
 
   uint64 public constant MINIMUM_LIQUIDITY = 10**3;
 
-  function addLiquidityPool(
+  function promotePool(
     Storage storage self,
+    AssetRegistry.Storage storage assetRegistry,
     address baseAssetAddress,
     address quoteAssetAddress,
-    IFactory pairFactoryAddress
+    IPair pairTokenAddress,
+    IFactory pairFactoryAddress,
+    uint112 reserve0,
+    uint112 reserve1
   ) external {
+    // Extra verification to prevent user error
+    IPair factoryPairTokenAddress =
+      IPair(pairFactoryAddress.getPair(baseAssetAddress, quoteAssetAddress));
+    require(
+      factoryPairTokenAddress == pairTokenAddress,
+      'Pair does not match factory'
+    );
+
+    // Create internally tracked pool
     LiquidityPool storage pool =
       self.poolsByAddresses[baseAssetAddress][quoteAssetAddress];
     require(!pool.exists, 'Pool already exists');
 
-    IPair pairTokenAddress =
-      IPair(pairFactoryAddress.getPair(baseAssetAddress, quoteAssetAddress));
-    require(pairTokenAddress != IPair(address(0x0)), 'Pair does not exist');
-
     pool.pairTokenAddress = pairTokenAddress;
     pool.exists = true;
+
+    // Map reserves to base/quote
+    (
+      uint256 baseAssetQuantityInAssetUnits,
+      uint256 quoteAssetQuantityInAssetUnits
+    ) =
+      pairTokenAddress.token0() == baseAssetAddress
+        ? (reserve0, reserve1)
+        : (reserve1, reserve0);
+
+    // Convert reserve amounts to pips and store
+    Structs.Asset memory asset;
+    asset = assetRegistry.loadAssetByAddress(baseAssetAddress);
+    self.poolsByAddresses[baseAssetAddress][quoteAssetAddress]
+      .baseAssetReserveInPips = AssetUnitConversions.assetUnitsToPips(
+      baseAssetQuantityInAssetUnits,
+      asset.decimals
+    );
+    asset = assetRegistry.loadAssetByAddress(quoteAssetAddress);
+    self.poolsByAddresses[baseAssetAddress][quoteAssetAddress]
+      .quoteAssetReserveInPips = AssetUnitConversions.assetUnitsToPips(
+      quoteAssetQuantityInAssetUnits,
+      asset.decimals
+    );
   }
 
   function addLiquidity(

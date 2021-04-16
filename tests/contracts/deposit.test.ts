@@ -14,12 +14,14 @@ contract('Exchange (deposits)', (accounts) => {
   const NonCompliantToken = artifacts.require('NonCompliantToken');
   const SkimmingToken = artifacts.require('SkimmingTestToken');
   const Token = artifacts.require('TestToken');
+  const WBNB = artifacts.require('WBNB');
 
   const tokenSymbol = 'TKN';
 
   it('should revert when receiving BNB directly', async () => {
     const exchange = await Exchange.new(
       (await BalanceMigrationSourceMock.new()).address,
+      (await WBNB.new()).address,
     );
 
     let error;

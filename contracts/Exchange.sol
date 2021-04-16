@@ -994,14 +994,21 @@ contract Exchange is IExchange, Owned {
 
   // Liquidity pool registry //
 
-  function addLiquidityPool(address baseAssetAddress, address quoteAssetAddress)
-    external
-    onlyAdmin
-  {
-    _liquidityPoolRegistry.addLiquidityPool(
+  function promotePool(
+    address baseAssetAddress,
+    address quoteAssetAddress,
+    IPair pairTokenAddress
+  ) external onlyAdmin {
+    (uint112 reserve0, uint112 reserve1) = pairTokenAddress.promote();
+
+    _liquidityPoolRegistry.promotePool(
+      _assetRegistry,
       baseAssetAddress,
       quoteAssetAddress,
-      _pairFactoryContractAddress
+      pairTokenAddress,
+      _pairFactoryContractAddress,
+      reserve0,
+      reserve1
     );
   }
 

@@ -1,3 +1,4 @@
+/*
 import BigNumber from 'bignumber.js';
 import { v1 as uuidv1 } from 'uuid';
 
@@ -30,7 +31,41 @@ import {
 const tokenSymbol = 'TKN';
 const marketSymbol = `${tokenSymbol}-${ethSymbol}`;
 const minimumLiquidity = 1000;
+*/
 
+import {
+  CustodianInstance,
+  ExchangeInstance,
+  TestTokenInstance,
+} from '../../types/truffle-contracts';
+import { deployAndAssociateContracts, deployAndRegisterToken } from './helpers';
+
+const tokenSymbol = 'DIL';
+
+contract('Exchange (liquidity pools)', ([ownerWallet]) => {
+  describe('promotePool', () => {
+    it('should work', async () => {
+      const { custodian, exchange } = await deployAndAssociateContracts();
+      const token = await deployAndRegisterToken(exchange, tokenSymbol);
+      await deployPancakeCoreAndCreatePool(ownerWallet, custodian, token);
+    });
+  });
+});
+
+async function deployPancakeCoreAndCreatePool(
+  ownerWallet: string,
+  custodian: CustodianInstance,
+  token: TestTokenInstance,
+  feeWallet = ownerWallet,
+) {
+  const WBNB = artifacts.require('WBNB');
+  const TestFactory = artifacts.require('TestFactory');
+  const factory = await TestFactory.new(feeWallet, custodian.address);
+
+  const pair = await factory.createPair(token.address, WBNB.address);
+}
+
+/*
 contract('Exchange (liquidity pools)', (accounts) => {
   describe('addLiquidityPool', () => {
     it('should work', async () => {
@@ -341,3 +376,4 @@ const generateOrderAndPoolTrade = async (
 
   return { buyOrder, poolTrade };
 };
+*/

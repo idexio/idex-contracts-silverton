@@ -24,26 +24,18 @@
     "build/types"
   ],
   "scripts": {
-    "analyze": "slither .",
-    "build": "yarn build:clean && yarn build:sol && yarn build:ts",
-    "build:clean": "rm -rf build; yarn build:typechain:clean; rm -rf coverage",
-    "build:sol": "truffle compile && yarn build:typechain",
+    "build": "yarn build:clean && yarn build:sol && yarn build:generate-types && yarn build:ts",
+    "build:clean": "rm -rf build && rm -rf artifacts",
+    "build:sol": "hardhat compile && mkdir -p build/contracts && find ./artifacts/contracts -name \\*.json -a -not -name \\*.dbg.json -exec cp {} build/contracts \\;",
+    "build:generate-types": "typechain --target=truffle-v5 'build/contracts/*.json'",
     "build:ts": "tsc -p .",
-    "build:typechain": "yarn build:typechain:ethers && yarn build:typechain:truffle",
-    "build:typechain:clean": "rm -rf types/ethers-contracts; rm -rf types/truffle-contracts",
-    "build:typechain:ethers": "typechain --target=ethers-v5 'build/contracts/*.json'",
-    "build:typechain:truffle": "typechain --target=truffle-v5 'build/contracts/*.json'",
-    "coverage": "multi='spec=- json=./coverage/mocha-summary.json' truffle run coverage --file './build/tests/contracts/*.test.js'",
-    "--- postbuild ---": "Some typechain files need to be copied manually. See https://github.com/ethereum-ts/TypeChain/issues/319",
-    "postbuild": "cp types/ethers-contracts/*.d.ts build/types/ethers-contracts",
     "lint:markdown": "markdownlint README.md",
     "prettier": "prettier --write **/*.sol",
-    "test": "yarn test:contracts:dist",
-    "test:contracts:dist": "multi='spec=- json=./coverage/mocha-summary.json' truffle test ./build/tests/contracts/*.test.js",
-    "verify": "truffle run verify"
+    "test": "multi='spec=- json=./coverage/mocha-summary.json' truffle test --compile-none"
   },
   "dependencies": {
     "@idexio/pancake-swap-core": "^0.1.0-alpha.1",
+    "bignumber.js": "^9.0.1",
     "chai": "^4.2.0",
     "ethers": "^5.0.31",
     "uuid": "^8.3.2"
@@ -52,14 +44,12 @@
     "@commitlint/cli": "^11.0.0",
     "@commitlint/config-conventional": "^11.0.0",
     "@openzeppelin/contracts": "4.0.0-rc.0",
-    "@typechain/ethers-v5": "^6.0.2",
     "@typechain/truffle-v5": "^4.0.1",
     "@types/chai": "^4.2.14",
     "@types/mocha": "^8.2.0",
     "@types/uuid": "^8.3.0",
     "@typescript-eslint/eslint-plugin": "^4.14.1",
     "@typescript-eslint/parser": "^4.14.1",
-    "bignumber.js": "^9.0.1",
     "eslint": "^7.18.0",
     "eslint-config-airbnb-base": "14.2.1",
     "eslint-config-prettier": "7.2.0",
@@ -69,6 +59,7 @@
     "eslint-plugin-prettier": "^3.3.1",
     "eslint-plugin-promise": "^4.2.1",
     "eslint-plugin-truffle": "^0.3.1",
+    "hardhat": "^2.1.2",
     "husky": "^4.3.8",
     "markdownlint-cli": "0.26.0",
     "mocha": "^8.2.1",
@@ -79,11 +70,14 @@
     "prettier-plugin-solidity": "1.0.0-beta.6",
     "solidity-coverage": "^0.7.16",
     "truffle": "5.2.3",
+    "ts-generator": "^0.1.1",
     "ts-node": "9.1.1",
     "ts-node-dev": "1.1.1",
     "typechain": "4.0.3",
     "typescript": "4.1.3",
-    "web3": "1.3.3"
+    "web3": "1.3.3",
+    "web3-core": "1.3.3",
+    "web3-eth-contract": "1.3.3"
   },
   "husky": {
     "hooks": {
