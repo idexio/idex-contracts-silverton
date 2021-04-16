@@ -21,27 +21,10 @@ const config: HardhatUserConfig = {
           },
         },
       },
-      {
-        version: '0.8.2',
-        settings: {
-          optimizer: {
-            enabled: true,
-            runs: 999999,
-          },
-        },
-      },
     ],
-    overrides: {
-      'contracts/Exchange.sol': {
-        version: '0.8.2',
-        settings: {
-          optimizer: {
-            enabled: true,
-            runs: 1,
-          },
-        },
-      },
-    },
+  },
+  paths: {
+    sources: './external_contracts',
   },
 };
 

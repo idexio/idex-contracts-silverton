@@ -62,7 +62,10 @@ async function deployPancakeCoreAndCreatePool(
   const TestFactory = artifacts.require('TestFactory');
   const factory = await TestFactory.new(feeWallet, custodian.address);
 
-  const pair = await factory.createPair(token.address, WBNB.address);
+  const pair = await factory.createPair(
+    token.address,
+    (await WBNB.new()).address,
+  );
 }
 
 /*

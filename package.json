@@ -26,12 +26,12 @@
   "scripts": {
     "build": "yarn build:clean && yarn build:sol && yarn build:generate-types && yarn build:ts",
     "build:clean": "rm -rf build && rm -rf artifacts",
-    "build:sol": "hardhat compile && mkdir -p build/contracts && find ./artifacts/contracts -name \\*.json -a -not -name \\*.dbg.json -exec cp {} build/contracts \\;",
+    "build:sol": "truffle compile && hardhat compile && find ./artifacts/external_contracts -name \\*.json -a -not -name \\*.dbg.json -exec cp {} build/contracts \\;",
     "build:generate-types": "typechain --target=truffle-v5 'build/contracts/*.json'",
     "build:ts": "tsc -p .",
     "lint:markdown": "markdownlint README.md",
     "prettier": "prettier --write **/*.sol",
-    "test": "multi='spec=- json=./coverage/mocha-summary.json' truffle test --compile-none"
+    "test": "multi='spec=- json=./coverage/mocha-summary.json' truffle test"
   },
   "dependencies": {
     "@idexio/pancake-swap-core": "^0.1.0-alpha.1",
