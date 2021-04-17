@@ -396,7 +396,7 @@ interface IExchange {
   function withdraw(Structs.Withdrawal calldata withdrawal) external;
 }
 
-interface IWETH9 {
+interface IWETH9 is IERC20 {
   receive() external payable;
 
   function deposit() external payable;

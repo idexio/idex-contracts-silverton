@@ -37,6 +37,7 @@ library LiquidityPoolRegistry {
   function promotePool(
     Storage storage self,
     AssetRegistry.Storage storage assetRegistry,
+    address WETH,
     address baseAssetAddress,
     address quoteAssetAddress,
     IPair pairTokenAddress,
@@ -46,7 +47,12 @@ library LiquidityPoolRegistry {
   ) external {
     // Extra verification to prevent user error
     IPair factoryPairTokenAddress =
-      IPair(pairFactoryAddress.getPair(baseAssetAddress, quoteAssetAddress));
+      IPair(
+        pairFactoryAddress.getPair(
+          baseAssetAddress == address(0x0) ? WETH : baseAssetAddress,
+          quoteAssetAddress == address(0x0) ? WETH : quoteAssetAddress
+        )
+      );
     require(
       factoryPairTokenAddress == pairTokenAddress,
       'Pair does not match factory'

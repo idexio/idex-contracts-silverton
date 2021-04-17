@@ -1000,9 +1000,13 @@ contract Exchange is IExchange, Owned {
     IPair pairTokenAddress
   ) external onlyAdmin {
     (uint112 reserve0, uint112 reserve1) = pairTokenAddress.promote();
+    if (baseAssetAddress == address(0x0) || quoteAssetAddress == address(0x0)) {
+      _WETH.withdraw(_WETH.balanceOf(address(this)));
+    }
 
     _liquidityPoolRegistry.promotePool(
       _assetRegistry,
+      address(_WETH),
       baseAssetAddress,
       quoteAssetAddress,
       pairTokenAddress,
