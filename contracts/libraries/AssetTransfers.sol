@@ -19,7 +19,7 @@ library AssetTransfers {
     IERC20 tokenAddress,
     address to,
     uint256 quantityInAssetUnits
-  ) external {
+  ) internal {
     uint256 balanceBefore = tokenAddress.balanceOf(address(this));
 
     // Because we check for the expected balance change we can safely ignore the return value of transferFrom
@@ -39,7 +39,7 @@ library AssetTransfers {
     address payable walletOrContract,
     address asset,
     uint256 quantityInAssetUnits
-  ) external {
+  ) internal {
     if (asset == address(0x0)) {
       require(
         walletOrContract.send(quantityInAssetUnits),

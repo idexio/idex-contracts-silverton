@@ -44,7 +44,7 @@ library LiquidityPoolRegistry {
     IFactory pairFactoryAddress,
     uint112 reserve0,
     uint112 reserve1
-  ) external {
+  ) public {
     // Extra verification to prevent user error
     IPair factoryPairTokenAddress =
       IPair(
@@ -338,7 +338,7 @@ library LiquidityPoolRegistry {
     Storage storage self,
     Structs.PoolTrade memory poolTrade,
     Enums.OrderSide orderSide
-  ) public {
+  ) internal {
     LiquidityPool storage pool =
       loadLiquidityPoolByAssetAddresses(
         self,

@@ -193,6 +193,13 @@ contract Structs {
     uint64 takerGasFeeQuantityInPips;
   }
 
+  struct HybridTradeExecution {
+    Order buy;
+    Order sell;
+    Trade trade;
+    PoolTrade poolTrade;
+  }
+
   /**
    * @notice Argument type for `Exchange.withdraw` and `Signatures.getWithdrawalWalletHash`
    */

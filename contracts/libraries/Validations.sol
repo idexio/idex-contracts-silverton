@@ -10,8 +10,10 @@ import { UUID } from './UUID.sol';
 library Validations {
   using AssetRegistry for AssetRegistry.Storage;
 
+  uint64 public constant _maxTradeFeeBasisPoints = 20 * 100; // 20%;
+
   function getFeeBasisPoints(uint64 fee, uint64 total)
-    public
+    internal
     pure
     returns (uint64)
   {
@@ -19,19 +21,75 @@ library Validations {
     return (fee * basisPointsInTotal) / total;
   }
 
-  function validateAssetPair(
-    AssetRegistry.Storage storage assetRegistry,
+  function validateCounterpartyTrade(
     Structs.Order memory buy,
     Structs.Order memory sell,
-    Structs.Trade memory trade
-  ) public view {
+    Structs.Trade memory trade,
+    AssetRegistry.Storage storage assetRegistry
+  ) internal view returns (bytes32, bytes32) {
+    // Counterparty trade validations
+    validateAssetPair(buy, sell, trade, assetRegistry);
+    validateLimitPrices(buy, sell, trade);
+    (bytes32 buyHash, bytes32 sellHash) =
+      validateOrderSignatures(buy, sell, trade);
+    validateTradeFees(trade);
+
+    return (buyHash, sellHash);
+  }
+
+  function validateHybridTrade(
+    Structs.Order memory buy,
+    Structs.Order memory sell,
+    Structs.Trade memory trade,
+    Structs.PoolTrade memory poolTrade,
+    AssetRegistry.Storage storage assetRegistry
+  ) internal view returns (bytes32 buyHash, bytes32 sellHash) {
+    // Counterparty trade validations
+    (buyHash, sellHash) = validateOrderSignatures(buy, sell, trade);
+    validateAssetPair(buy, sell, trade, assetRegistry);
+    validateLimitPrices(buy, sell, trade);
+    validateTradeFees(trade);
+
+    // Pool trade validations
+    require(
+      trade.baseAssetAddress == poolTrade.baseAssetAddress &&
+        trade.quoteAssetAddress == poolTrade.quoteAssetAddress,
+      'Mismatched trades'
+    );
+    Structs.Order memory order =
+      trade.makerSide == Enums.OrderSide.Buy ? sell : buy;
+    validateLimitPrice(order, poolTrade);
+    validatePoolTradeFees(order.side, poolTrade);
+  }
+
+  function validatePoolTrade(
+    Structs.Order memory order,
+    Structs.PoolTrade memory poolTrade,
+    AssetRegistry.Storage storage assetRegistry
+  ) internal view returns (bytes32 orderHash) {
+    orderHash = validateOrderSignature(
+      order,
+      poolTrade.baseAssetSymbol,
+      poolTrade.quoteAssetSymbol
+    );
+    validateAssetPair(order, poolTrade, assetRegistry);
+    validateLimitPrice(order, poolTrade);
+    validatePoolTradeFees(order.side, poolTrade);
+  }
+
+  function validateAssetPair(
+    Structs.Order memory buy,
+    Structs.Order memory sell,
+    Structs.Trade memory trade,
+    AssetRegistry.Storage storage assetRegistry
+  ) internal view {
     require(
       trade.baseAssetAddress != trade.quoteAssetAddress,
       'Trade assets must be different'
     );
 
-    validateAssetPair(assetRegistry, buy, trade);
-    validateAssetPair(assetRegistry, sell, trade);
+    validateAssetPair(buy, trade, assetRegistry);
+    validateAssetPair(sell, trade, assetRegistry);
 
     // Fee asset validation
     require(
@@ -48,10 +106,10 @@ library Validations {
   }
 
   function validateAssetPair(
-    AssetRegistry.Storage storage assetRegistry,
     Structs.Order memory order,
-    Structs.Trade memory trade
-  ) public view {
+    Structs.Trade memory trade,
+    AssetRegistry.Storage storage assetRegistry
+  ) internal view {
     uint64 nonce = UUID.getTimestampInMsFromUuidV1(order.nonce);
     Structs.Asset memory baseAsset =
       assetRegistry.loadAssetBySymbol(trade.baseAssetSymbol, nonce);
@@ -66,10 +124,10 @@ library Validations {
   }
 
   function validateAssetPair(
-    AssetRegistry.Storage storage assetRegistry,
     Structs.Order memory order,
-    Structs.PoolTrade memory poolTrade
-  ) public view {
+    Structs.PoolTrade memory poolTrade,
+    AssetRegistry.Storage storage assetRegistry
+  ) internal view {
     require(
       poolTrade.baseAssetAddress != poolTrade.quoteAssetAddress,
       'Trade assets must be different'
@@ -92,7 +150,7 @@ library Validations {
     Structs.Order memory buy,
     Structs.Order memory sell,
     Structs.Trade memory trade
-  ) public pure {
+  ) internal pure {
     require(
       trade.grossBaseQuantityInPips > 0,
       'Base quantity must be greater than zero'
@@ -126,7 +184,7 @@ library Validations {
   function validateLimitPrice(
     Structs.Order memory order,
     Structs.PoolTrade memory poolTrade
-  ) public pure {
+  ) internal pure {
     require(
       poolTrade.grossBaseQuantityInPips > 0,
       'Base quantity must be greater than zero'
@@ -161,10 +219,7 @@ library Validations {
     }
   }
 
-  function validateTradeFees(
-    Structs.Trade memory trade,
-    uint64 maxTradeFeeBasisPoints
-  ) public pure {
+  function validateTradeFees(Structs.Trade memory trade) internal pure {
     uint64 makerTotalQuantityInPips =
       trade.makerFeeAssetAddress == trade.baseAssetAddress
         ? trade.grossBaseQuantityInPips
@@ -173,7 +228,7 @@ library Validations {
       getFeeBasisPoints(
         trade.makerFeeQuantityInPips,
         makerTotalQuantityInPips
-      ) <= maxTradeFeeBasisPoints,
+      ) <= _maxTradeFeeBasisPoints,
       'Excessive maker fee'
     );
 
@@ -185,7 +240,7 @@ library Validations {
       getFeeBasisPoints(
         trade.takerFeeQuantityInPips,
         takerTotalQuantityInPips
-      ) <= maxTradeFeeBasisPoints,
+      ) <= _maxTradeFeeBasisPoints,
       'Excessive taker fee'
     );
 
@@ -213,9 +268,8 @@ library Validations {
 
   function validatePoolTradeFees(
     Enums.OrderSide orderSide,
-    Structs.PoolTrade memory poolTrade,
-    uint64 maxTradeFeeBasisPoints
-  ) public pure {
+    Structs.PoolTrade memory poolTrade
+  ) internal pure {
     uint64 totalQuantityInPips =
       orderSide == Enums.OrderSide.Buy
         ? poolTrade.grossQuoteQuantityInPips
@@ -226,7 +280,7 @@ library Validations {
 
     require(
       getFeeBasisPoints(totalFeeQuantityInPips, totalQuantityInPips) <=
-        maxTradeFeeBasisPoints,
+        _maxTradeFeeBasisPoints,
       'Excessive fee'
     );
   }
@@ -235,7 +289,7 @@ library Validations {
     Structs.Order memory buy,
     Structs.Order memory sell,
     Structs.Trade memory trade
-  ) public pure returns (bytes32, bytes32) {
+  ) internal pure returns (bytes32, bytes32) {
     bytes32 buyOrderHash =
       validateOrderSignature(
         buy,
@@ -256,7 +310,7 @@ library Validations {
     Structs.Order memory order,
     string memory baseAssetSymbol,
     string memory quoteAssetSymbol
-  ) public pure returns (bytes32) {
+  ) internal pure returns (bytes32) {
     bytes32 orderHash =
       Signatures.getOrderWalletHash(order, baseAssetSymbol, quoteAssetSymbol);
 
@@ -275,7 +329,7 @@ library Validations {
   }
 
   function validateWithdrawalSignature(Structs.Withdrawal memory withdrawal)
-    public
+    internal
     pure
     returns (bytes32)
   {

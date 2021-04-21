@@ -27,7 +27,7 @@ library BalanceTracking {
     address wallet,
     address assetAddress,
     uint64 quantityInPips
-  ) external returns (uint64 newBalanceInPips) {
+  ) internal returns (uint64 newBalanceInPips) {
     Balance storage balance =
       loadBalanceAndMigrateIfNeeded(self, wallet, assetAddress);
     balance.balanceInPips += quantityInPips;
@@ -42,7 +42,7 @@ library BalanceTracking {
     Structs.Order memory sell,
     Structs.Trade memory trade,
     address feeWallet
-  ) external {
+  ) internal {
     Balance storage balance;
 
     // Seller gives base asset including fees
@@ -92,10 +92,10 @@ library BalanceTracking {
 
   function updateForPoolTrade(
     Storage storage self,
-    Structs.Order calldata order,
-    Structs.PoolTrade calldata poolTrade,
+    Structs.Order memory order,
+    Structs.PoolTrade memory poolTrade,
     address feeWallet
-  ) external {
+  ) internal {
     Balance storage balance;
 
     // Debit from order wallet
@@ -136,7 +136,7 @@ library BalanceTracking {
     Structs.Withdrawal memory withdrawal,
     address assetAddress,
     address feeWallet
-  ) external returns (uint64 newExchangeBalanceInPips) {
+  ) internal returns (uint64 newExchangeBalanceInPips) {
     Balance storage balance;
 
     balance = loadBalanceAndMigrateIfNeeded(
@@ -160,7 +160,7 @@ library BalanceTracking {
     Storage storage self,
     address wallet,
     address assetAddress
-  ) external returns (uint64 previousExchangeBalanceInPips) {
+  ) internal returns (uint64 previousExchangeBalanceInPips) {
     Balance storage balance;
 
     balance = loadBalanceAndMigrateIfNeeded(self, wallet, assetAddress);
@@ -177,7 +177,7 @@ library BalanceTracking {
     Structs.LiquidityAddition memory addition,
     Structs.LiquidityChangeExecution memory execution,
     address feeWallet
-  ) external {
+  ) internal {
     (
       uint256 grossBaseAssetQuantityInAssetUnits,
       uint256 feeBaseAssetQuantityInAssetUnits,
@@ -265,7 +265,7 @@ library BalanceTracking {
     address feeWallet,
     address exchangeAddress
   )
-    external
+    internal
     returns (
       uint256 outputBaseAssetQuantityInAssetUnits,
       uint256 outputQuoteAssetQuantityInAssetUnits

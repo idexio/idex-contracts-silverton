@@ -53,7 +53,7 @@ const tokenSymbol = 'DIL';
 
 contract('Exchange (liquidity pools)', ([ownerWallet]) => {
   describe('promotePool', () => {
-    it('should work', async () => {
+    it.only('should work', async () => {
       const { custodian, exchange, wbnb } = await deployAndAssociateContracts();
       const token = await deployAndRegisterToken(exchange, tokenSymbol);
       const { factory, pair } = await deployPancakeCoreAndCreatePool(
