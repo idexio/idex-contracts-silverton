@@ -1065,37 +1065,14 @@ contract Exchange is IExchange, Owned {
     Structs.LiquidityRemoval calldata removal,
     Structs.LiquidityChangeExecution calldata execution
   ) external onlyDispatcher {
-    (
-      uint256 outputBaseAssetQuantityInAssetUnits,
-      uint256 outputQuoteAssetQuantityInAssetUnits
-    ) =
-      _balanceTracking.executeRemoveLiquidity(
-        _assetRegistry,
-        removal,
-        execution,
-        _feeWallet,
-        address(this)
-      );
-
-    if (outputBaseAssetQuantityInAssetUnits > 0) {
-      ICustodian(_custodian).withdraw(
-        removal.to,
-        execution.baseAssetAddress,
-        outputBaseAssetQuantityInAssetUnits
-      );
-    }
-    if (outputQuoteAssetQuantityInAssetUnits > 0) {
-      ICustodian(_custodian).withdraw(
-        removal.to,
-        execution.quoteAssetAddress,
-        outputQuoteAssetQuantityInAssetUnits
-      );
-    }
-
     _liquidityPoolRegistry.executeRemoveLiquidity(
-      _assetRegistry,
       removal,
-      execution
+      execution,
+      ICustodian(_custodian),
+      address(this),
+      _feeWallet,
+      _assetRegistry,
+      _balanceTracking
     );
   }
 
@@ -1103,15 +1080,15 @@ contract Exchange is IExchange, Owned {
     address baseAssetAddress,
     address quoteAssetAddress
   ) external {
-    (
-      uint256 outputBaseAssetQuantityInAssetUnits,
-      uint256 outputQuoteAssetQuantityInAssetUnits
-    ) =
-      _liquidityPoolRegistry.removeLiquidityExit(
-        baseAssetAddress,
-        quoteAssetAddress,
-        _assetRegistry
-      );
+    require(isWalletExitFinalized(msg.sender), 'Wallet exit not finalized');
+
+    _liquidityPoolRegistry.removeLiquidityExit(
+      baseAssetAddress,
+      quoteAssetAddress,
+      ICustodian(_custodian),
+      _assetRegistry,
+      _balanceTracking
+    );
   }
 
   // Private methods - validations //
