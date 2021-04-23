@@ -85,6 +85,7 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
         expectedLiquidity.toString(),
       );
 
+      const reserves = await pair.getReserves();
       await exchange.promotePool(token.address, bnbAddress, pair.address);
       throw '';
     });

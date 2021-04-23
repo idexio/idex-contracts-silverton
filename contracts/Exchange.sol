@@ -13,12 +13,10 @@ import {
 
 import { AssetRegistry } from './libraries/AssetRegistry.sol';
 import { AssetRegistryAdmin } from './libraries/AssetRegistryAdmin.sol';
-import { AssetTransfers } from './libraries/AssetTransfers.sol';
 import { AssetUnitConversions } from './libraries/AssetUnitConversions.sol';
 import { BalanceTracking } from './libraries/BalanceTracking.sol';
 import { Depositing } from './libraries/Depositing.sol';
 import { LiquidityPoolRegistry } from './libraries/LiquidityPoolRegistry.sol';
-import { Validations } from './libraries/Validations.sol';
 import { Owned } from './Owned.sol';
 import { Trading } from './libraries/Trading.sol';
 import { Withdrawing } from './libraries/Withdrawing.sol';
@@ -53,7 +51,7 @@ contract Exchange is IExchange, Owned {
    */
   event ChainPropagationPeriodChanged(uint256 previousValue, uint256 newValue);
   /**
-   * @notice Emitted when a user deposits BNB with `depositEther` or a token with `depositAsset` or `depositAssetBySymbol`
+   * @notice Emitted when a user deposits BNB with `depositEther` or a token with `depositTokenByAddress` or `depositAssetBySymbol`
    */
   event Deposited(
     uint64 index,
@@ -436,11 +434,19 @@ contract Exchange is IExchange, Owned {
 
   // Depositing //
 
+  receive() external payable {
+    require(msg.sender == address(_WETH), 'Use depositEther');
+  }
+
   /**
    * @notice Deposit BNB
    */
   function depositEther() external payable {
-    deposit(address(msg.sender), address(0x0), msg.value, false);
+    deposit(
+      address(msg.sender),
+      _assetRegistry.loadAssetByAddress(address(0x0)),
+      msg.value
+    );
   }
 
   /**
@@ -451,16 +457,15 @@ contract Exchange is IExchange, Owned {
    * the token contract for at least this quantity first
    */
   function depositTokenByAddress(
-    IERC20 tokenAddress,
+    address tokenAddress,
     uint256 quantityInAssetUnits
   ) external {
+    Structs.Asset memory asset =
+      _assetRegistry.loadAssetByAddress(tokenAddress);
+
     require(address(tokenAddress) != address(0x0), 'Use depositEther for BNB');
-    deposit(
-      address(msg.sender),
-      address(tokenAddress),
-      quantityInAssetUnits,
-      false
-    );
+
+    deposit(address(msg.sender), asset, quantityInAssetUnits);
   }
 
   /**
@@ -474,22 +479,18 @@ contract Exchange is IExchange, Owned {
     string memory assetSymbol,
     uint256 quantityInAssetUnits
   ) public {
-    IERC20 tokenAddress =
-      IERC20(
-        _assetRegistry
-          .loadAssetBySymbol(assetSymbol, getCurrentTimestampInMs())
-          .assetAddress
-      );
-    require(address(tokenAddress) != address(0x0), 'Use depositEther for BNB');
+    Structs.Asset memory asset =
+      _assetRegistry.loadAssetBySymbol(assetSymbol, getCurrentTimestampInMs());
 
-    deposit(msg.sender, address(tokenAddress), quantityInAssetUnits, false);
+    require(address(asset.assetAddress) != address(0x0), 'Use depositEther');
+
+    deposit(msg.sender, asset, quantityInAssetUnits);
   }
 
   function deposit(
     address wallet,
-    address assetAddress,
-    uint256 quantityInAssetUnits,
-    bool isLiquidityDeposit
+    Structs.Asset memory asset,
+    uint256 quantityInAssetUnits
   ) private {
     // Calling exitWallet disables deposits immediately on mining, in contrast to withdrawals and
     // trades which respect the Chain Propagation Period given by `effectiveBlockNumber` via
@@ -499,33 +500,28 @@ contract Exchange is IExchange, Owned {
     (
       uint64 quantityInPips,
       uint64 newExchangeBalanceInPips,
-      uint256 newExchangeBalanceInAssetUnits,
-      string memory assetSymbol
+      uint256 newExchangeBalanceInAssetUnits
     ) =
       Depositing.deposit(
         wallet,
-        assetAddress,
+        asset,
         quantityInAssetUnits,
         _custodian,
-        _assetRegistry,
         _balanceTracking
       );
 
-    // Liquidity deposits track indices and emit events separately
-    if (!isLiquidityDeposit) {
-      _depositIndex++;
+    _depositIndex++;
 
-      emit Deposited(
-        _depositIndex,
-        wallet,
-        assetAddress,
-        assetSymbol,
-        assetSymbol,
-        quantityInPips,
-        newExchangeBalanceInPips,
-        newExchangeBalanceInAssetUnits
-      );
-    }
+    emit Deposited(
+      _depositIndex,
+      wallet,
+      asset.assetAddress,
+      asset.symbol,
+      asset.symbol,
+      quantityInPips,
+      newExchangeBalanceInPips,
+      newExchangeBalanceInAssetUnits
+    );
   }
 
   // Trades //
@@ -907,20 +903,14 @@ contract Exchange is IExchange, Owned {
     address quoteAssetAddress,
     IPair pairTokenAddress
   ) external onlyAdmin {
-    (uint112 reserve0, uint112 reserve1) = pairTokenAddress.promote();
-    if (baseAssetAddress == address(0x0) || quoteAssetAddress == address(0x0)) {
-      _WETH.withdraw(_WETH.balanceOf(address(this)));
-    }
-
     _liquidityPoolRegistry.promotePool(
-      _assetRegistry,
-      address(_WETH),
       baseAssetAddress,
       quoteAssetAddress,
       pairTokenAddress,
+      _custodian,
       _pairFactoryContractAddress,
-      reserve0,
-      reserve1
+      _WETH,
+      _assetRegistry
     );
   }
 
@@ -934,8 +924,16 @@ contract Exchange is IExchange, Owned {
     address to,
     uint256 deadline
   ) external {
-    deposit(msg.sender, tokenA, amountADesired, true);
-    deposit(msg.sender, tokenB, amountBDesired, true);
+    Depositing.depositLiquidityReserves(
+      msg.sender,
+      tokenA,
+      tokenB,
+      amountADesired,
+      amountBDesired,
+      _custodian,
+      _assetRegistry,
+      _balanceTracking
+    );
 
     _liquidityPoolRegistry.addLiquidity(
       msg.sender,
@@ -958,8 +956,16 @@ contract Exchange is IExchange, Owned {
     address to,
     uint256 deadline
   ) external payable {
-    deposit(msg.sender, token, amountTokenDesired, true);
-    deposit(msg.sender, address(0x0), msg.value, true);
+    Depositing.depositLiquidityReserves(
+      msg.sender,
+      token,
+      address(0x0),
+      amountTokenDesired,
+      msg.value,
+      _custodian,
+      _assetRegistry,
+      _balanceTracking
+    );
 
     _liquidityPoolRegistry.addLiquidityETH(
       msg.sender,
@@ -1000,9 +1006,16 @@ contract Exchange is IExchange, Owned {
     address to,
     uint256 deadline
   ) external {
-    IPair(_pairFactoryContractAddress.getPair(tokenA, tokenB)).hybridFreeze(
+    Depositing.depositLiquidityTokens(
       msg.sender,
-      block.number + _chainPropagationPeriod
+      tokenA,
+      tokenB,
+      liquidity,
+      _custodian,
+      _pairFactoryContractAddress,
+      address(_WETH),
+      _assetRegistry,
+      _balanceTracking
     );
 
     _liquidityPoolRegistry.removeLiquidity(
@@ -1025,8 +1038,17 @@ contract Exchange is IExchange, Owned {
     address to,
     uint256 deadline
   ) external {
-    IPair(_pairFactoryContractAddress.getPair(token, address(_WETH)))
-      .hybridFreeze(msg.sender, block.number + _chainPropagationPeriod);
+    Depositing.depositLiquidityTokens(
+      msg.sender,
+      token,
+      address(0x0),
+      liquidity,
+      _custodian,
+      _pairFactoryContractAddress,
+      address(_WETH),
+      _assetRegistry,
+      _balanceTracking
+    );
 
     _liquidityPoolRegistry.removeLiquidityETH(
       msg.sender,
@@ -1075,6 +1097,21 @@ contract Exchange is IExchange, Owned {
       removal,
       execution
     );
+  }
+
+  function removeLiquidityExit(
+    address baseAssetAddress,
+    address quoteAssetAddress
+  ) external {
+    (
+      uint256 outputBaseAssetQuantityInAssetUnits,
+      uint256 outputQuoteAssetQuantityInAssetUnits
+    ) =
+      _liquidityPoolRegistry.removeLiquidityExit(
+        baseAssetAddress,
+        quoteAssetAddress,
+        _assetRegistry
+      );
   }
 
   // Private methods - validations //
