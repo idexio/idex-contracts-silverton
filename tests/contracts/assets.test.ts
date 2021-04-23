@@ -6,7 +6,7 @@ import {
   ethSymbol,
 } from './helpers';
 import { bnbAddress } from '../../lib';
-import { AssetsMockInstance } from '../../types/truffle-contracts/AssetsMock';
+import { AssetsMockInstance } from '../../types/truffle-contracts';
 
 contract('Exchange (tokens)', () => {
   const AssetsMock = artifacts.require('AssetsMock');

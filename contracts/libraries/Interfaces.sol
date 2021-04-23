@@ -6,6 +6,8 @@ pragma solidity 0.8.2;
  * @notice Enums used in `Order` and `Withdrawal` structs
  */
 contract Enums {
+  enum LiquidityChangeType { Addition, Removal }
+  enum LiquidityChangeState { NotInitiated, Initiated, Executed }
   enum OrderSelfTradePrevention {
     // Decrement and cancel
     dc,
@@ -46,31 +48,41 @@ contract Structs {
   /**
    * @notice TODO
    */
-  struct LiquidityDeposit {
-    // UUIDv1 unique to wallet
-    uint128 nonce;
-    address walletAddress;
-    string baseAssetSymbol;
-    string quoteAssetSymbol;
-    uint64 baseAssetDesiredQuantityInPips;
-    uint64 quoteAssetDesiredQuantityInPips;
-    uint64 baseAssetMinimumQuantityInPips;
-    uint64 quoteAssetMinimumQuantityInPips;
-    bytes walletSignature;
+  struct LiquidityAddition {
+    address wallet;
+    address assetA;
+    address assetB;
+    uint256 amountADesired;
+    uint256 amountBDesired;
+    uint256 amountAMin;
+    uint256 amountBMin;
+    address to;
+    uint256 deadline;
   }
   /**
    * @notice TODO
    */
-  struct LiquidityWithdrawal {
-    // UUIDv1 unique to wallet
-    uint128 nonce;
-    address walletAddress;
-    uint64 liquiditySharesToBurn;
-    string baseAssetSymbol;
-    string quoteAssetSymbol;
-    uint64 baseAssetMinimumQuantityInPips;
-    uint64 quoteAssetMinimumQuantityInPips;
-    bytes walletSignature;
+  struct LiquidityRemoval {
+    address wallet;
+    address assetA;
+    address assetB;
+    uint256 liquidity;
+    uint256 amountAMin;
+    uint256 amountBMin;
+    address payable to;
+    uint256 deadline;
+  }
+  /**
+   * @notice TODO
+   */
+  struct LiquidityChangeExecution {
+    uint256 liquidity;
+    uint256 amountA;
+    uint256 amountB;
+    uint256 feeAmountA;
+    uint256 feeAmountB;
+    address baseAssetAddress;
+    address quoteAssetAddress;
   }
 
   /**
@@ -179,6 +191,13 @@ contract Structs {
     uint64 takerProtocolFeeQuantityInPips;
     // Fee paid by liquidity taker to fee wallet from received asset
     uint64 takerGasFeeQuantityInPips;
+  }
+
+  struct HybridTradeExecution {
+    Order buy;
+    Order sell;
+    Trade trade;
+    PoolTrade poolTrade;
   }
 
   /**
@@ -382,4 +401,12 @@ interface IExchange {
    * @param withdrawal A `Structs.Withdrawal` struct encoding the parameters of the withdrawal
    */
   function withdraw(Structs.Withdrawal calldata withdrawal) external;
+}
+
+interface IWETH9 is IERC20 {
+  receive() external payable;
+
+  function deposit() external payable;
+
+  function withdraw(uint256 wad) external;
 }

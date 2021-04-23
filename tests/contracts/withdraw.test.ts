@@ -1,9 +1,11 @@
 import BigNumber from 'bignumber.js';
 import { v1 as uuidv1 } from 'uuid';
 
-import type { CustodianInstance } from '../../types/truffle-contracts/Custodian';
-import type { ExchangeInstance } from '../../types/truffle-contracts/Exchange';
-import type { GovernanceInstance } from '../../types/truffle-contracts/Governance';
+import type {
+  CustodianInstance,
+  ExchangeInstance,
+  GovernanceInstance,
+} from '../../types/truffle-contracts';
 
 import {
   decimalToAssetUnits,
@@ -32,6 +34,7 @@ contract('Exchange (withdrawals)', (accounts) => {
   const NonCompliantToken = artifacts.require('NonCompliantToken');
   const SkimmingToken = artifacts.require('SkimmingTestToken');
   const Token = artifacts.require('TestToken');
+  const WBNB = artifacts.require('WBNB');
 
   const tokenSymbol = 'TKN';
 
@@ -482,7 +485,10 @@ contract('Exchange (withdrawals)', (accounts) => {
     governance: GovernanceInstance;
   }> => {
     const [exchange, governance] = await Promise.all([
-      Exchange.new((await BalanceMigrationSourceMock.new()).address),
+      Exchange.new(
+        (await BalanceMigrationSourceMock.new()).address,
+        (await WBNB.new()).address,
+      ),
       Governance.new(blockDelay),
     ]);
     const custodian = await Custodian.new(exchange.address, governance.address);

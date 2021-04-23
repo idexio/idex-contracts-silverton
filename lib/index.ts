@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { ethers } from 'ethers';
 
-import { ExchangeInstance } from '../types/truffle-contracts/Exchange';
+import { ExchangeInstance } from '../types/truffle-contracts';
 
 /** The fixed number of digits following the decimal in quantities expressed as pips */
 export const pipsDecimals = 8;

@@ -5,16 +5,21 @@ contract('Exchange (tunable parameters)', (accounts) => {
     'BalanceMigrationSourceMock',
   );
   const Exchange = artifacts.require('Exchange');
+  const WBNB = artifacts.require('WBNB');
 
   const bnbAddress = web3.utils.bytesToHex([...Buffer.alloc(20)]);
 
   it('should deploy', async () => {
-    await Exchange.new((await BalanceMigrationSourceMock.new()).address);
+    await Exchange.new(
+      (await BalanceMigrationSourceMock.new()).address,
+      (await WBNB.new()).address,
+    );
   });
 
   it('should revert when receiving BNB directly', async () => {
     const exchange = await Exchange.new(
       (await BalanceMigrationSourceMock.new()).address,
+      (await WBNB.new()).address,
     );
 
     let error;
@@ -100,6 +105,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
     it('should work for valid address', async () => {
       const exchange = await Exchange.new(
         (await BalanceMigrationSourceMock.new()).address,
+        (await WBNB.new()).address,
       );
 
       await exchange.setAdmin(accounts[1]);
@@ -108,6 +114,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
     it('should revert for empty address', async () => {
       const exchange = await Exchange.new(
         (await BalanceMigrationSourceMock.new()).address,
+        (await WBNB.new()).address,
       );
 
       let error;
@@ -138,6 +145,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
     it('should revert when not called by owner', async () => {
       const exchange = await Exchange.new(
         (await BalanceMigrationSourceMock.new()).address,
+        (await WBNB.new()).address,
       );
 
       let error;
@@ -168,6 +176,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
     it('should revert for empty address', async () => {
       const exchange = await Exchange.new(
         (await BalanceMigrationSourceMock.new()).address,
+        (await WBNB.new()).address,
       );
 
       let error;
@@ -240,6 +249,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
     it('should revert for empty address', async () => {
       const exchange = await Exchange.new(
         (await BalanceMigrationSourceMock.new()).address,
+        (await WBNB.new()).address,
       );
 
       let error;
@@ -302,6 +312,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
     it('should revert for empty address', async () => {
       const exchange = await Exchange.new(
         (await BalanceMigrationSourceMock.new()).address,
+        (await WBNB.new()).address,
       );
 
       let error;

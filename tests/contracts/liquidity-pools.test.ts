@@ -1,4 +1,4 @@
-import BigNumber from 'bignumber.js';
+/*
 import { v1 as uuidv1 } from 'uuid';
 
 import type {
@@ -30,7 +30,90 @@ import {
 const tokenSymbol = 'TKN';
 const marketSymbol = `${tokenSymbol}-${ethSymbol}`;
 const minimumLiquidity = 1000;
+*/
 
+import BigNumber from 'bignumber.js';
+
+import {
+  CustodianInstance,
+  IPairInstance,
+  TestFactoryInstance,
+  TestTokenInstance,
+  WBNBInstance,
+} from '../../types/truffle-contracts';
+import {
+  deployAndAssociateContracts,
+  deployAndRegisterToken,
+  bnbAddress,
+} from './helpers';
+
+const minimumLiquidity = '1000';
+
+const tokenSymbol = 'DIL';
+
+contract('Exchange (liquidity pools)', ([ownerWallet]) => {
+  describe('promotePool', () => {
+    it.only('should work', async () => {
+      const { custodian, exchange, wbnb } = await deployAndAssociateContracts();
+      const token = await deployAndRegisterToken(exchange, tokenSymbol);
+      const { factory, pair } = await deployPancakeCoreAndCreatePool(
+        ownerWallet,
+        custodian,
+        token,
+        wbnb,
+      );
+      await exchange.setPairFactoryAddress(factory.address);
+
+      const depositQuantity = web3.utils.toWei('1', 'ether');
+      await wbnb.deposit({ value: depositQuantity, from: ownerWallet });
+      await wbnb.transfer(pair.address, depositQuantity, { from: ownerWallet });
+      await token.transfer(pair.address, depositQuantity, {
+        from: ownerWallet,
+      });
+      await pair.mint(ownerWallet);
+
+      const expectedLiquidity = new BigNumber(depositQuantity).minus(
+        minimumLiquidity,
+      );
+      const events = await pair.getPastEvents('Transfer', {
+        fromBlock: 0,
+      });
+      expect(events).to.be.an('array');
+      expect(events.length).to.equal(2);
+      expect(events[0].returnValues.value).to.equal(minimumLiquidity);
+      expect(events[1].returnValues.value).to.equal(
+        expectedLiquidity.toString(),
+      );
+
+      const reserves = await pair.getReserves();
+      await exchange.promotePool(token.address, bnbAddress, pair.address);
+      throw '';
+    });
+  });
+});
+
+async function deployPancakeCoreAndCreatePool(
+  ownerWallet: string,
+  custodian: CustodianInstance,
+  token: TestTokenInstance,
+  wbnb: WBNBInstance,
+  feeWallet = ownerWallet,
+): Promise<{
+  factory: TestFactoryInstance;
+  pair: IPairInstance;
+}> {
+  const TestFactory = artifacts.require('TestFactory');
+  const IPair = artifacts.require('IPair');
+  const factory = await TestFactory.new(feeWallet, custodian.address);
+
+  const pairAddress = (await factory.createPair(token.address, wbnb.address))
+    .logs[0].args.pair;
+  const pair = await IPair.at(pairAddress);
+
+  return { factory, pair };
+}
+
+/*
 contract('Exchange (liquidity pools)', (accounts) => {
   describe('addLiquidityPool', () => {
     it('should work', async () => {
@@ -341,3 +424,4 @@ const generateOrderAndPoolTrade = async (
 
   return { buyOrder, poolTrade };
 };
+*/

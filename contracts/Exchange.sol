@@ -4,23 +4,31 @@ pragma solidity 0.8.2;
 
 import { Address } from '@openzeppelin/contracts/utils/Address.sol';
 import { ECDSA } from '@openzeppelin/contracts/utils/cryptography/ECDSA.sol';
+import {
+  IFactory
+} from '@idexio/pancake-swap-core/contracts/interfaces/IFactory.sol';
+import {
+  IPair
+} from '@idexio/pancake-swap-core/contracts/interfaces/IPair.sol';
 
 import { AssetRegistry } from './libraries/AssetRegistry.sol';
 import { AssetRegistryAdmin } from './libraries/AssetRegistryAdmin.sol';
-import { AssetTransfers } from './libraries/AssetTransfers.sol';
-import { BalanceTracking } from './libraries/BalanceTracking.sol';
 import { AssetUnitConversions } from './libraries/AssetUnitConversions.sol';
+import { BalanceTracking } from './libraries/BalanceTracking.sol';
+import { Depositing } from './libraries/Depositing.sol';
 import { LiquidityPoolRegistry } from './libraries/LiquidityPoolRegistry.sol';
-import { Validations } from './libraries/Validations.sol';
 import { Owned } from './Owned.sol';
+import { Trading } from './libraries/Trading.sol';
+import { Withdrawing } from './libraries/Withdrawing.sol';
+import { UUID } from './libraries/UUID.sol';
 import {
   Enums,
   ICustodian,
   IERC20,
   IExchange,
+  IWETH9,
   Structs
 } from './libraries/Interfaces.sol';
-import { UUID } from './libraries/UUID.sol';
 
 /**
  * @notice The Exchange contract. Implements all deposit, trade, and withdrawal logic and associated balance tracking
@@ -43,7 +51,7 @@ contract Exchange is IExchange, Owned {
    */
   event ChainPropagationPeriodChanged(uint256 previousValue, uint256 newValue);
   /**
-   * @notice Emitted when a user deposits BNB with `depositEther` or a token with `depositAsset` or `depositAssetBySymbol`
+   * @notice Emitted when a user deposits BNB with `depositEther` or a token with `depositTokenByAddress` or `depositAssetBySymbol`
    */
   event Deposited(
     uint64 index,
@@ -66,7 +74,7 @@ contract Exchange is IExchange, Owned {
   /**
    * @notice TODO
    */
-  event LiquidityMinted(
+  event LiquidityAdded(
     address indexed sender,
     address indexed baseAssetAddress,
     address indexed quoteAssetAddress,
@@ -77,7 +85,7 @@ contract Exchange is IExchange, Owned {
   /**
    * @notice TODO
    */
-  event LiquidityBurned(
+  event LiquidityRemoved(
     address indexed sender,
     address indexed baseAssetAddress,
     address indexed quoteAssetAddress,
@@ -193,8 +201,10 @@ contract Exchange is IExchange, Owned {
   uint64 _depositIndex;
   // Exits
   mapping(address => WalletExit) _walletExits;
-  // Asset registry data
+  // Liquidity pools
+  IFactory _pairFactoryContractAddress;
   LiquidityPoolRegistry.Storage _liquidityPoolRegistry;
+  IWETH9 public immutable _WETH;
   // Withdrawals - mapping of withdrawal wallet hash => isComplete
   mapping(bytes32 => bool) _completedWithdrawalHashes;
   // Tunable parameters
@@ -205,19 +215,20 @@ contract Exchange is IExchange, Owned {
   // Constant values //
 
   uint256 constant _maxChainPropagationPeriod = (7 * 24 * 60 * 60) / 15; // 1 week at 15s/block
-  uint64 constant _maxTradeFeeBasisPoints = 20 * 100; // 20%;
-  uint64 constant _maxWithdrawalFeeBasisPoints = 20 * 100; // 20%;
 
   /**
    * @notice Instantiate a new `Exchange` contract
    *
    * @dev Sets `_balanceMigrationSource` to first argument, and `_owner` and `_admin` to `msg.sender` */
-  constructor(IExchange balanceMigrationSource) Owned() {
+  constructor(IExchange balanceMigrationSource, IWETH9 WETH) Owned() {
     require(
       Address.isContract(address(balanceMigrationSource)),
-      'Invalid address'
+      'Invalid migration address'
     );
     _balanceTracking.migrationSource = balanceMigrationSource;
+
+    require(Address.isContract(address(WETH)), 'Invalid WETH address');
+    _WETH = WETH;
   }
 
   /**
@@ -280,6 +291,22 @@ contract Exchange is IExchange, Owned {
     _feeWallet = newFeeWallet;
 
     emit FeeWalletChanged(oldFeeWallet, newFeeWallet);
+  }
+
+  function setPairFactoryAddress(IFactory newPairFactoryAddress)
+    external
+    onlyAdmin
+  {
+    require(
+      address(_pairFactoryContractAddress) == address(0x0),
+      'Factory can only be set once'
+    );
+    require(
+      Address.isContract(address(newPairFactoryAddress)),
+      'Invalid address'
+    );
+
+    _pairFactoryContractAddress = newPairFactoryAddress;
   }
 
   // Accessors //
@@ -407,11 +434,19 @@ contract Exchange is IExchange, Owned {
 
   // Depositing //
 
+  receive() external payable {
+    require(msg.sender == address(_WETH), 'Use depositEther');
+  }
+
   /**
    * @notice Deposit BNB
    */
   function depositEther() external payable {
-    deposit(address(msg.sender), address(0x0), msg.value);
+    deposit(
+      address(msg.sender),
+      _assetRegistry.loadAssetByAddress(address(0x0)),
+      msg.value
+    );
   }
 
   /**
@@ -422,11 +457,15 @@ contract Exchange is IExchange, Owned {
    * the token contract for at least this quantity first
    */
   function depositTokenByAddress(
-    IERC20 tokenAddress,
+    address tokenAddress,
     uint256 quantityInAssetUnits
   ) external {
+    Structs.Asset memory asset =
+      _assetRegistry.loadAssetByAddress(tokenAddress);
+
     require(address(tokenAddress) != address(0x0), 'Use depositEther for BNB');
-    deposit(address(msg.sender), address(tokenAddress), quantityInAssetUnits);
+
+    deposit(address(msg.sender), asset, quantityInAssetUnits);
   }
 
   /**
@@ -437,23 +476,20 @@ contract Exchange is IExchange, Owned {
    * the token contract for at least this quantity first
    */
   function depositTokenBySymbol(
-    string calldata assetSymbol,
+    string memory assetSymbol,
     uint256 quantityInAssetUnits
-  ) external {
-    IERC20 tokenAddress =
-      IERC20(
-        _assetRegistry
-          .loadAssetBySymbol(assetSymbol, getCurrentTimestampInMs())
-          .assetAddress
-      );
-    require(address(tokenAddress) != address(0x0), 'Use depositEther for BNB');
+  ) public {
+    Structs.Asset memory asset =
+      _assetRegistry.loadAssetBySymbol(assetSymbol, getCurrentTimestampInMs());
 
-    deposit(msg.sender, address(tokenAddress), quantityInAssetUnits);
+    require(address(asset.assetAddress) != address(0x0), 'Use depositEther');
+
+    deposit(msg.sender, asset, quantityInAssetUnits);
   }
 
   function deposit(
     address wallet,
-    address assetAddress,
+    Structs.Asset memory asset,
     uint256 quantityInAssetUnits
   ) private {
     // Calling exitWallet disables deposits immediately on mining, in contrast to withdrawals and
@@ -461,46 +497,17 @@ contract Exchange is IExchange, Owned {
     // `isWalletExitFinalized`
     require(!_walletExits[wallet].exists, 'Wallet exited');
 
-    Structs.Asset memory asset =
-      _assetRegistry.loadAssetByAddress(assetAddress);
-    uint64 quantityInPips =
-      AssetUnitConversions.assetUnitsToPips(
-        quantityInAssetUnits,
-        asset.decimals
-      );
-    require(quantityInPips > 0, 'Quantity is too low');
-
-    // Convert from pips back into asset units to remove any fractional amount that is too small
-    // to express in pips. If the asset is BNB, this leftover fractional amount accumulates as dust
-    // in the `Exchange` contract. If the asset is a token the `Exchange` will call `transferFrom`
-    // without this fractional amount and there will be no dust
-    uint256 quantityInAssetUnitsWithoutFractionalPips =
-      AssetUnitConversions.pipsToAssetUnits(quantityInPips, asset.decimals);
-
-    // If the asset is BNB then the funds were already assigned to this contract via msg.value. If
-    // the asset is a token, additionally call the transferFrom function on the token contract for
-    // the pre-approved asset quantity
-    if (assetAddress != address(0x0)) {
-      AssetTransfers.transferFrom(
+    (
+      uint64 quantityInPips,
+      uint64 newExchangeBalanceInPips,
+      uint256 newExchangeBalanceInAssetUnits
+    ) =
+      Depositing.deposit(
         wallet,
-        IERC20(assetAddress),
-        quantityInAssetUnitsWithoutFractionalPips
-      );
-    }
-    // Forward the funds to the `Custodian`
-    AssetTransfers.transferTo(
-      _custodian,
-      assetAddress,
-      quantityInAssetUnitsWithoutFractionalPips
-    );
-
-    // Update balance with actual transferred quantity
-    uint64 newExchangeBalanceInPips =
-      _balanceTracking.updateForDeposit(wallet, assetAddress, quantityInPips);
-    uint256 newExchangeBalanceInAssetUnits =
-      AssetUnitConversions.pipsToAssetUnits(
-        newExchangeBalanceInPips,
-        asset.decimals
+        asset,
+        quantityInAssetUnits,
+        _custodian,
+        _balanceTracking
       );
 
     _depositIndex++;
@@ -508,7 +515,7 @@ contract Exchange is IExchange, Owned {
     emit Deposited(
       _depositIndex,
       wallet,
-      assetAddress,
+      asset.assetAddress,
       asset.symbol,
       asset.symbol,
       quantityInPips,
@@ -548,15 +555,19 @@ contract Exchange is IExchange, Owned {
       'Self-trading not allowed'
     );
 
-    Validations.validateAssetPair(_assetRegistry, buy, sell, trade);
-    Validations.validateLimitPrices(buy, sell, trade);
     validateOrderNonces(buy, sell);
-    (bytes32 buyHash, bytes32 sellHash) =
-      Validations.validateOrderSignatures(buy, sell, trade);
-    Validations.validateTradeFees(trade, _maxTradeFeeBasisPoints);
 
-    updateOrderFilledQuantities(buy, buyHash, sell, sellHash, trade);
-    _balanceTracking.updateForTrade(buy, sell, trade, _feeWallet);
+    (bytes32 buyHash, bytes32 sellHash) =
+      Trading.executeCounterpartyTrade(
+        buy,
+        sell,
+        trade,
+        _feeWallet,
+        _assetRegistry,
+        _balanceTracking,
+        _completedOrderHashes,
+        _partiallyFilledOrderQuantitiesInPips
+      );
 
     emit TradeExecuted(
       buy.walletAddress,
@@ -581,29 +592,18 @@ contract Exchange is IExchange, Owned {
       !isWalletExitFinalized(order.walletAddress),
       'Order wallet exit finalized'
     );
-    Validations.validateAssetPair(_assetRegistry, order, poolTrade);
-    Validations.validateLimitPrice(order, poolTrade);
     validateOrderNonce(order);
-    bytes32 orderHash =
-      Validations.validateOrderSignature(
-        order,
-        poolTrade.baseAssetSymbol,
-        poolTrade.quoteAssetSymbol
-      );
-    Validations.validatePoolTradeFees(
-      order.side,
-      poolTrade,
-      _maxTradeFeeBasisPoints
-    );
 
-    updateOrderFilledQuantity(
+    Trading.executePoolTrade(
       order,
-      orderHash,
-      poolTrade.grossBaseQuantityInPips,
-      poolTrade.grossQuoteQuantityInPips
+      poolTrade,
+      _feeWallet,
+      _assetRegistry,
+      _liquidityPoolRegistry,
+      _balanceTracking,
+      _completedOrderHashes,
+      _partiallyFilledOrderQuantitiesInPips
     );
-    _balanceTracking.updateForPoolTrade(order, poolTrade, _feeWallet);
-    _liquidityPoolRegistry.updateReservesForPoolTrade(poolTrade, order.side);
   }
 
   function executeHybridTrade(
@@ -625,45 +625,21 @@ contract Exchange is IExchange, Owned {
       buy.walletAddress != sell.walletAddress,
       'Self-trading not allowed'
     );
-    Validations.validateAssetPair(_assetRegistry, buy, sell, trade);
-    Validations.validateLimitPrices(buy, sell, trade);
+
     validateOrderNonces(buy, sell);
-    (bytes32 buyHash, bytes32 sellHash) =
-      Validations.validateOrderSignatures(buy, sell, trade);
-    Validations.validateTradeFees(trade, _maxTradeFeeBasisPoints);
 
-    // Pool trade validations
-    require(
-      trade.baseAssetAddress == poolTrade.baseAssetAddress &&
-        trade.quoteAssetAddress == poolTrade.quoteAssetAddress,
-      'Mismatched trades'
-    );
-    (Structs.Order memory order, bytes32 orderHash) =
-      trade.makerSide == Enums.OrderSide.Buy
-        ? (sell, sellHash)
-        : (buy, buyHash);
-    Validations.validateLimitPrice(order, poolTrade);
-    Validations.validatePoolTradeFees(
-      order.side,
+    Trading.executeHybridTrade(
+      buy,
+      sell,
+      trade,
       poolTrade,
-      _maxTradeFeeBasisPoints
+      _feeWallet,
+      _assetRegistry,
+      _liquidityPoolRegistry,
+      _balanceTracking,
+      _completedOrderHashes,
+      _partiallyFilledOrderQuantitiesInPips
     );
-
-    // Pool trade
-    updateOrderFilledQuantity(
-      order,
-      orderHash,
-      poolTrade.grossBaseQuantityInPips,
-      poolTrade.grossQuoteQuantityInPips
-    );
-    _balanceTracking.updateForPoolTrade(order, poolTrade, _feeWallet);
-    _liquidityPoolRegistry.updateReservesForPoolTrade(poolTrade, order.side);
-
-    // TODO Validate pool did not fill order past counterparty order's price
-
-    // Counterparty trade
-    updateOrderFilledQuantities(buy, buyHash, sell, sellHash, trade);
-    _balanceTracking.updateForTrade(buy, sell, trade, _feeWallet);
   }
 
   // Withdrawing //
@@ -678,62 +654,22 @@ contract Exchange is IExchange, Owned {
     override
     onlyDispatcher
   {
-    // Validations
     require(!isWalletExitFinalized(withdrawal.walletAddress), 'Wallet exited');
-    require(
-      Validations.getFeeBasisPoints(
-        withdrawal.gasFeeInPips,
-        withdrawal.quantityInPips
-      ) <= _maxWithdrawalFeeBasisPoints,
-      'Excessive withdrawal fee'
-    );
-    bytes32 withdrawalHash =
-      Validations.validateWithdrawalSignature(withdrawal);
-    require(
-      !_completedWithdrawalHashes[withdrawalHash],
-      'Hash already withdrawn'
-    );
 
-    // If withdrawal is by asset symbol (most common) then resolve to asset address
-    Structs.Asset memory asset =
-      withdrawal.withdrawalType == Enums.WithdrawalType.BySymbol
-        ? _assetRegistry.loadAssetBySymbol(
-          withdrawal.assetSymbol,
-          UUID.getTimestampInMsFromUuidV1(withdrawal.nonce)
-        )
-        : _assetRegistry.loadAssetByAddress(withdrawal.assetAddress);
-
-    // Update wallet balances
-    uint64 newExchangeBalanceInPips =
-      _balanceTracking.updateForWithdrawal(
+    (uint64 newExchangeBalanceInPips, uint256 newExchangeBalanceInAssetUnits) =
+      Withdrawing.withdraw(
         withdrawal,
-        asset.assetAddress,
-        _feeWallet
+        ICustodian(_custodian),
+        _feeWallet,
+        _assetRegistry,
+        _balanceTracking,
+        _completedWithdrawalHashes
       );
 
-    // Transfer funds from Custodian to wallet
-    uint256 netAssetQuantityInAssetUnits =
-      AssetUnitConversions.pipsToAssetUnits(
-        withdrawal.quantityInPips - withdrawal.gasFeeInPips,
-        asset.decimals
-      );
-    ICustodian(_custodian).withdraw(
-      withdrawal.walletAddress,
-      asset.assetAddress,
-      netAssetQuantityInAssetUnits
-    );
-
-    _completedWithdrawalHashes[withdrawalHash] = true;
-
-    uint256 newExchangeBalanceInAssetUnits =
-      AssetUnitConversions.pipsToAssetUnits(
-        newExchangeBalanceInPips,
-        asset.decimals
-      );
     emit Withdrawn(
       withdrawal.walletAddress,
-      asset.assetAddress,
-      asset.symbol,
+      withdrawal.assetAddress,
+      withdrawal.assetSymbol,
       withdrawal.quantityInPips,
       newExchangeBalanceInPips,
       newExchangeBalanceInAssetUnits
@@ -962,147 +898,197 @@ contract Exchange is IExchange, Owned {
 
   // Liquidity pool registry //
 
-  function addLiquidityPool(address baseAssetAddress, address quoteAssetAddress)
-    external
-    onlyAdmin
-  {
-    _liquidityPoolRegistry.addLiquidityPool(
+  function promotePool(
+    address baseAssetAddress,
+    address quoteAssetAddress,
+    IPair pairTokenAddress
+  ) external onlyAdmin {
+    _liquidityPoolRegistry.promotePool(
       baseAssetAddress,
-      quoteAssetAddress
+      quoteAssetAddress,
+      pairTokenAddress,
+      _custodian,
+      _pairFactoryContractAddress,
+      _WETH,
+      _assetRegistry
     );
   }
 
-  function addLiquidity(Structs.LiquidityDeposit memory liquidityDeposit)
-    public
-    onlyDispatcher
-  {
-    (
-      address baseAssetAddress,
-      address quoteAssetAddress,
-      uint64 baseAssetQuantityInPips,
-      uint64 quoteAssetQuantityInPips,
-      uint64 liquiditySharesMinted
-    ) = _liquidityPoolRegistry.addLiquidity(_assetRegistry, liquidityDeposit);
-
-    _balanceTracking.updateForLiquidityDeposit(
-      liquidityDeposit.walletAddress,
-      baseAssetAddress,
-      quoteAssetAddress,
-      baseAssetQuantityInPips,
-      quoteAssetQuantityInPips
+  function addLiquidity(
+    address tokenA,
+    address tokenB,
+    uint256 amountADesired,
+    uint256 amountBDesired,
+    uint256 amountAMin,
+    uint256 amountBMin,
+    address to,
+    uint256 deadline
+  ) external {
+    Depositing.depositLiquidityReserves(
+      msg.sender,
+      tokenA,
+      tokenB,
+      amountADesired,
+      amountBDesired,
+      _custodian,
+      _assetRegistry,
+      _balanceTracking
     );
 
-    emit LiquidityMinted(
-      liquidityDeposit.walletAddress,
-      baseAssetAddress,
-      quoteAssetAddress,
-      baseAssetQuantityInPips,
-      quoteAssetQuantityInPips,
-      liquiditySharesMinted
+    _liquidityPoolRegistry.addLiquidity(
+      msg.sender,
+      tokenA,
+      tokenB,
+      amountADesired,
+      amountBDesired,
+      amountAMin,
+      amountBMin,
+      to,
+      deadline
+    );
+  }
+
+  function addLiquidityETH(
+    address token,
+    uint256 amountTokenDesired,
+    uint256 amountTokenMin,
+    uint256 amountETHMin,
+    address to,
+    uint256 deadline
+  ) external payable {
+    Depositing.depositLiquidityReserves(
+      msg.sender,
+      token,
+      address(0x0),
+      amountTokenDesired,
+      msg.value,
+      _custodian,
+      _assetRegistry,
+      _balanceTracking
+    );
+
+    _liquidityPoolRegistry.addLiquidityETH(
+      msg.sender,
+      msg.value,
+      token,
+      amountTokenDesired,
+      amountTokenMin,
+      amountETHMin,
+      to,
+      deadline
+    );
+  }
+
+  function executeAddLiquidity(
+    Structs.LiquidityAddition calldata addition,
+    Structs.LiquidityChangeExecution calldata execution
+  ) external onlyDispatcher {
+    _balanceTracking.executeAddLiquidity(
+      _assetRegistry,
+      addition,
+      execution,
+      _feeWallet
+    );
+
+    _liquidityPoolRegistry.executeAddLiquidity(
+      _assetRegistry,
+      addition,
+      execution
     );
   }
 
   function removeLiquidity(
-    Structs.LiquidityWithdrawal memory liquidityWithdrawal
-  ) public onlyDispatcher {
-    (
-      address baseAssetAddress,
-      address quoteAssetAddress,
-      uint64 baseAssetQuantityInPips,
-      uint64 quoteAssetQuantityInPips
-    ) =
-      _liquidityPoolRegistry.removeLiquidity(
-        _assetRegistry,
-        liquidityWithdrawal
-      );
-
-    _balanceTracking.updateForLiquidityWithdrawal(
-      liquidityWithdrawal.walletAddress,
-      baseAssetAddress,
-      quoteAssetAddress,
-      baseAssetQuantityInPips,
-      quoteAssetQuantityInPips
+    address tokenA,
+    address tokenB,
+    uint256 liquidity,
+    uint256 amountAMin,
+    uint256 amountBMin,
+    address to,
+    uint256 deadline
+  ) external {
+    Depositing.depositLiquidityTokens(
+      msg.sender,
+      tokenA,
+      tokenB,
+      liquidity,
+      _custodian,
+      _pairFactoryContractAddress,
+      address(_WETH),
+      _assetRegistry,
+      _balanceTracking
     );
 
-    emit LiquidityBurned(
-      liquidityWithdrawal.walletAddress,
-      baseAssetAddress,
-      quoteAssetAddress,
-      baseAssetQuantityInPips,
-      quoteAssetQuantityInPips,
-      liquidityWithdrawal.liquiditySharesToBurn
-    );
-  }
-
-  // Private methods - trades //
-
-  function updateOrderFilledQuantities(
-    Structs.Order memory buyOrder,
-    bytes32 buyOrderHash,
-    Structs.Order memory sellOrder,
-    bytes32 sellOrderHash,
-    Structs.Trade memory trade
-  ) private {
-    updateOrderFilledQuantity(
-      buyOrder,
-      buyOrderHash,
-      trade.grossBaseQuantityInPips,
-      trade.grossQuoteQuantityInPips
-    );
-    updateOrderFilledQuantity(
-      sellOrder,
-      sellOrderHash,
-      trade.grossBaseQuantityInPips,
-      trade.grossQuoteQuantityInPips
+    _liquidityPoolRegistry.removeLiquidity(
+      msg.sender,
+      tokenA,
+      tokenB,
+      liquidity,
+      amountAMin,
+      amountBMin,
+      to,
+      deadline
     );
   }
 
-  // Update filled quantities tracking for order to prevent over- or double-filling orders
-  function updateOrderFilledQuantity(
-    Structs.Order memory order,
-    bytes32 orderHash,
-    uint64 grossBaseQuantityInPips,
-    uint64 grossQuoteQuantityInPips
-  ) private {
-    require(!_completedOrderHashes[orderHash], 'Order double filled');
-
-    // Total quantity of above filled as a result of all trade executions, including this one
-    uint64 newFilledQuantityInPips;
-
-    // Market orders can express quantity in quote terms, and can be partially filled by multiple
-    // limit maker orders necessitating tracking partially filled amounts in quote terms to
-    // determine completion
-    if (order.isQuantityInQuote) {
-      require(
-        isMarketOrderType(order.orderType),
-        'Order quote quantity only valid for market orders'
-      );
-      newFilledQuantityInPips =
-        grossQuoteQuantityInPips +
-        _partiallyFilledOrderQuantitiesInPips[orderHash];
-    } else {
-      // All other orders track partially filled quantities in base terms
-      newFilledQuantityInPips =
-        grossBaseQuantityInPips +
-        _partiallyFilledOrderQuantitiesInPips[orderHash];
-    }
-
-    require(
-      newFilledQuantityInPips <= order.quantityInPips,
-      'Order overfilled'
+  function removeLiquidityETH(
+    address token,
+    uint256 liquidity,
+    uint256 amountTokenMin,
+    uint256 amountETHMin,
+    address to,
+    uint256 deadline
+  ) external {
+    Depositing.depositLiquidityTokens(
+      msg.sender,
+      token,
+      address(0x0),
+      liquidity,
+      _custodian,
+      _pairFactoryContractAddress,
+      address(_WETH),
+      _assetRegistry,
+      _balanceTracking
     );
 
-    if (newFilledQuantityInPips < order.quantityInPips) {
-      // If the order was partially filled, track the new filled quantity
-      _partiallyFilledOrderQuantitiesInPips[
-        orderHash
-      ] = newFilledQuantityInPips;
-    } else {
-      // If the order was completed, delete any partial fill tracking and instead track its completion
-      // to prevent future double fills
-      delete _partiallyFilledOrderQuantitiesInPips[orderHash];
-      _completedOrderHashes[orderHash] = true;
-    }
+    _liquidityPoolRegistry.removeLiquidityETH(
+      msg.sender,
+      token,
+      liquidity,
+      amountTokenMin,
+      amountETHMin,
+      to,
+      deadline
+    );
+  }
+
+  function executeRemoveLiquidity(
+    Structs.LiquidityRemoval calldata removal,
+    Structs.LiquidityChangeExecution calldata execution
+  ) external onlyDispatcher {
+    _liquidityPoolRegistry.executeRemoveLiquidity(
+      removal,
+      execution,
+      ICustodian(_custodian),
+      address(this),
+      _feeWallet,
+      _assetRegistry,
+      _balanceTracking
+    );
+  }
+
+  function removeLiquidityExit(
+    address baseAssetAddress,
+    address quoteAssetAddress
+  ) external {
+    require(isWalletExitFinalized(msg.sender), 'Wallet exit not finalized');
+
+    _liquidityPoolRegistry.removeLiquidityExit(
+      baseAssetAddress,
+      quoteAssetAddress,
+      ICustodian(_custodian),
+      _assetRegistry,
+      _balanceTracking
+    );
   }
 
   // Private methods - validations //
@@ -1132,17 +1118,6 @@ contract Exchange is IExchange, Owned {
   }
 
   // Private methods - utils //
-
-  function isMarketOrderType(Enums.OrderType orderType)
-    private
-    pure
-    returns (bool)
-  {
-    return
-      orderType == Enums.OrderType.Market ||
-      orderType == Enums.OrderType.StopLoss ||
-      orderType == Enums.OrderType.TakeProfit;
-  }
 
   function getCurrentTimestampInMs() private view returns (uint64) {
     uint64 msInOneSecond = 1000;
