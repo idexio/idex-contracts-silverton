@@ -896,7 +896,18 @@ contract Exchange is IExchange, Owned {
     _;
   }
 
-  // Liquidity pool registry //
+  // Liquidity pools //
+
+  function loadLiquidityPoolByAssetAddresses(
+    address baseAssetAddress,
+    address quoteAssetAddress
+  ) public view returns (LiquidityPoolRegistry.LiquidityPool memory) {
+    return
+      _liquidityPoolRegistry.loadLiquidityPoolByAssetAddresses(
+        baseAssetAddress,
+        quoteAssetAddress
+      );
+  }
 
   function promotePool(
     address baseAssetAddress,
@@ -914,6 +925,11 @@ contract Exchange is IExchange, Owned {
     );
   }
 
+  /** @dev Adds liquidity to an ERC-20⇄ERC-20 pool
+   *
+   * To cover all possible scenarios, `msg.sender` should have already given the Exchange an allowance
+   * of at least amountADesired/amountBDesired on tokenA/tokenB
+   */
   function addLiquidity(
     address tokenA,
     address tokenB,
@@ -924,19 +940,7 @@ contract Exchange is IExchange, Owned {
     address to,
     uint256 deadline
   ) external {
-    Depositing.depositLiquidityReserves(
-      msg.sender,
-      tokenA,
-      tokenB,
-      amountADesired,
-      amountBDesired,
-      _custodian,
-      _assetRegistry,
-      _balanceTracking
-    );
-
     _liquidityPoolRegistry.addLiquidity(
-      msg.sender,
       tokenA,
       tokenB,
       amountADesired,
@@ -944,10 +948,18 @@ contract Exchange is IExchange, Owned {
       amountAMin,
       amountBMin,
       to,
-      deadline
+      deadline,
+      _custodian,
+      _assetRegistry,
+      _balanceTracking
     );
   }
 
+  /** @dev Adds liquidity to an ERC-20⇄ETH pool
+   *
+   * To cover all possible scenarios, msg.sender should have already given the router an allowance
+   * of at least amountTokenDesired on token. `msg.value` is treated as a amountETHDesired
+   */
   function addLiquidityETH(
     address token,
     uint256 amountTokenDesired,
@@ -956,44 +968,31 @@ contract Exchange is IExchange, Owned {
     address to,
     uint256 deadline
   ) external payable {
-    Depositing.depositLiquidityReserves(
-      msg.sender,
-      token,
-      address(0x0),
-      amountTokenDesired,
-      msg.value,
-      _custodian,
-      _assetRegistry,
-      _balanceTracking
-    );
-
     _liquidityPoolRegistry.addLiquidityETH(
-      msg.sender,
-      msg.value,
       token,
       amountTokenDesired,
       amountTokenMin,
       amountETHMin,
       to,
-      deadline
+      deadline,
+      _custodian,
+      _assetRegistry,
+      _balanceTracking
     );
   }
 
+  /** @dev Settles a liquidity addition by adjusting pool reserves and minting LP tokens
+   */
   function executeAddLiquidity(
     Structs.LiquidityAddition calldata addition,
     Structs.LiquidityChangeExecution calldata execution
   ) external onlyDispatcher {
-    _balanceTracking.executeAddLiquidity(
-      _assetRegistry,
+    _liquidityPoolRegistry.executeAddLiquidity(
       addition,
       execution,
-      _feeWallet
-    );
-
-    _liquidityPoolRegistry.executeAddLiquidity(
+      _feeWallet,
       _assetRegistry,
-      addition,
-      execution
+      _balanceTracking
     );
   }
 
@@ -1005,28 +1004,24 @@ contract Exchange is IExchange, Owned {
     uint256 amountBMin,
     address to,
     uint256 deadline
-  ) external {
-    Depositing.depositLiquidityTokens(
-      msg.sender,
-      tokenA,
-      tokenB,
-      liquidity,
+  ) public {
+    _liquidityPoolRegistry.removeLiquidity(
+      // Use struct to avoid stack too deep
+      Structs.LiquidityRemoval(
+        msg.sender,
+        tokenA,
+        tokenB,
+        liquidity,
+        amountAMin,
+        amountBMin,
+        payable(to),
+        deadline
+      ),
       _custodian,
       _pairFactoryContractAddress,
       address(_WETH),
       _assetRegistry,
       _balanceTracking
-    );
-
-    _liquidityPoolRegistry.removeLiquidity(
-      msg.sender,
-      tokenA,
-      tokenB,
-      liquidity,
-      amountAMin,
-      amountBMin,
-      to,
-      deadline
     );
   }
 
@@ -1038,26 +1033,23 @@ contract Exchange is IExchange, Owned {
     address to,
     uint256 deadline
   ) external {
-    Depositing.depositLiquidityTokens(
-      msg.sender,
-      token,
-      address(0x0),
-      liquidity,
+    _liquidityPoolRegistry.removeLiquidity(
+      // Use struct to avoid stack too deep
+      Structs.LiquidityRemoval(
+        msg.sender,
+        token,
+        address(0x0),
+        liquidity,
+        amountTokenMin,
+        amountETHMin,
+        payable(to),
+        deadline
+      ),
       _custodian,
       _pairFactoryContractAddress,
       address(_WETH),
       _assetRegistry,
       _balanceTracking
-    );
-
-    _liquidityPoolRegistry.removeLiquidityETH(
-      msg.sender,
-      token,
-      liquidity,
-      amountTokenMin,
-      amountETHMin,
-      to,
-      deadline
     );
   }
 

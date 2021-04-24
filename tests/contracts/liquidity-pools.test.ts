@@ -34,6 +34,7 @@ const minimumLiquidity = 1000;
 
 import BigNumber from 'bignumber.js';
 
+import { assetUnitsToPips } from '../../lib';
 import {
   CustodianInstance,
   IPairInstance,
@@ -53,24 +54,16 @@ const tokenSymbol = 'DIL';
 
 contract('Exchange (liquidity pools)', ([ownerWallet]) => {
   describe('promotePool', () => {
-    it.only('should work', async () => {
-      const { custodian, exchange, wbnb } = await deployAndAssociateContracts();
-      const token = await deployAndRegisterToken(exchange, tokenSymbol);
-      const { factory, pair } = await deployPancakeCoreAndCreatePool(
-        ownerWallet,
-        custodian,
-        token,
-        wbnb,
-      );
-      await exchange.setPairFactoryAddress(factory.address);
-
+    it('should work', async () => {
       const depositQuantity = web3.utils.toWei('1', 'ether');
-      await wbnb.deposit({ value: depositQuantity, from: ownerWallet });
-      await wbnb.transfer(pair.address, depositQuantity, { from: ownerWallet });
-      await token.transfer(pair.address, depositQuantity, {
-        from: ownerWallet,
-      });
-      await pair.mint(ownerWallet);
+      const {
+        exchange,
+        pair,
+        token,
+      } = await deployContractsAndCreateHybridPool(
+        depositQuantity,
+        ownerWallet,
+      );
 
       const expectedLiquidity = new BigNumber(depositQuantity).minus(
         minimumLiquidity,
@@ -85,12 +78,114 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
         expectedLiquidity.toString(),
       );
 
-      const reserves = await pair.getReserves();
-      await exchange.promotePool(token.address, bnbAddress, pair.address);
-      throw '';
+      const pool = await exchange.loadLiquidityPoolByAssetAddresses(
+        token.address,
+        bnbAddress,
+      );
+      expect(pool.baseAssetReserveInPips).to.equal(
+        assetUnitsToPips(depositQuantity, 18),
+      );
+      expect(pool.quoteAssetReserveInPips).to.equal(
+        assetUnitsToPips(depositQuantity, 18),
+      );
+    });
+  });
+
+  describe('addLiquidityETH', () => {
+    it.only('should work', async () => {
+      const depositQuantity = web3.utils.toWei('1', 'ether');
+      const {
+        exchange,
+        pair,
+        token,
+      } = await deployContractsAndCreateHybridPool(
+        depositQuantity,
+        ownerWallet,
+      );
+      await exchange.setDispatcher(ownerWallet);
+      await token.approve(exchange.address, depositQuantity, {
+        from: ownerWallet,
+      });
+
+      const deadline = Date.now() + 10000;
+      await exchange.addLiquidityETH(
+        token.address,
+        depositQuantity,
+        depositQuantity,
+        depositQuantity,
+        ownerWallet,
+        deadline,
+        { value: depositQuantity },
+      );
+
+      await exchange.executeAddLiquidity(
+        {
+          wallet: ownerWallet,
+          assetA: token.address,
+          assetB: bnbAddress,
+          amountADesired: depositQuantity,
+          amountBDesired: depositQuantity,
+          amountAMin: depositQuantity,
+          amountBMin: depositQuantity,
+          to: ownerWallet,
+          deadline,
+        },
+        {
+          liquidity: depositQuantity,
+          amountA: depositQuantity,
+          amountB: depositQuantity,
+          feeAmountA: '0',
+          feeAmountB: '0',
+          baseAssetAddress: token.address,
+          quoteAssetAddress: bnbAddress,
+        },
+        { from: ownerWallet },
+      );
+
+      const transferEvents = await pair.getPastEvents('Transfer', {
+        fromBlock: 0,
+      });
+      expect(transferEvents).to.be.an('array');
+      expect(transferEvents.length).to.equal(3);
+      expect(transferEvents[2].returnValues.value).to.equal(depositQuantity);
+
+      const mintEvents = await pair.getPastEvents('Mint', {
+        fromBlock: 0,
+      });
+      expect(mintEvents).to.be.an('array');
+      expect(mintEvents.length).to.equal(3);
+      expect(mintEvents[2].returnValues.value).to.equal(depositQuantity);
     });
   });
 });
+
+async function deployContractsAndCreateHybridPool(
+  depositQuantity: string,
+  ownerWallet: string,
+  feeWallet = ownerWallet,
+) {
+  const { custodian, exchange, wbnb } = await deployAndAssociateContracts();
+  const token = await deployAndRegisterToken(exchange, tokenSymbol);
+  const { factory, pair } = await deployPancakeCoreAndCreatePool(
+    ownerWallet,
+    custodian,
+    token,
+    wbnb,
+    feeWallet,
+  );
+  await exchange.setPairFactoryAddress(factory.address);
+
+  await wbnb.deposit({ value: depositQuantity, from: ownerWallet });
+  await wbnb.transfer(pair.address, depositQuantity, { from: ownerWallet });
+  await token.transfer(pair.address, depositQuantity, {
+    from: ownerWallet,
+  });
+  await pair.mint(ownerWallet);
+
+  await exchange.promotePool(token.address, bnbAddress, pair.address);
+
+  return { exchange, pair, token };
+}
 
 async function deployPancakeCoreAndCreatePool(
   ownerWallet: string,

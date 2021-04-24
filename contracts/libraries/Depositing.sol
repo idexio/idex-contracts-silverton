@@ -52,7 +52,7 @@ library Depositing {
     address payable custodian,
     AssetRegistry.Storage storage assetRegistry,
     BalanceTracking.Storage storage balanceTracking
-  ) public {
+  ) internal {
     Structs.Asset memory asset;
 
     asset = assetRegistry.loadAssetByAddress(assetA);
@@ -84,7 +84,7 @@ library Depositing {
     address WETH,
     AssetRegistry.Storage storage assetRegistry,
     BalanceTracking.Storage storage balanceTracking
-  ) public {
+  ) internal {
     address pairTokenAddress =
       pairFactoryAddress.getPair(
         assetA == address(0x0) ? address(WETH) : assetA,

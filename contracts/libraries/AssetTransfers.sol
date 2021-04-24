@@ -20,7 +20,7 @@ library AssetTransfers {
     address to,
     uint256 quantityInAssetUnits
   ) internal {
-    uint256 balanceBefore = tokenAddress.balanceOf(address(this));
+    uint256 balanceBefore = tokenAddress.balanceOf(to);
 
     // Because we check for the expected balance change we can safely ignore the return value of transferFrom
     tokenAddress.transferFrom(wallet, to, quantityInAssetUnits);

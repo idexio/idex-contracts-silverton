@@ -2,6 +2,10 @@
 
 pragma solidity 0.8.2;
 
+import {
+  IPair
+} from '@idexio/pancake-swap-core/contracts/interfaces/IPair.sol';
+
 import { AssetRegistry } from './AssetRegistry.sol';
 import { AssetUnitConversions } from './AssetUnitConversions.sol';
 import { IExchange, Structs } from './Interfaces.sol';
@@ -259,11 +263,11 @@ library BalanceTracking {
 
   function executeRemoveLiquidity(
     Storage storage self,
-    AssetRegistry.Storage storage assetRegistry,
     Structs.LiquidityRemoval memory removal,
     Structs.LiquidityChangeExecution memory execution,
     address feeWallet,
-    address exchangeAddress
+    address exchangeAddress,
+    AssetRegistry.Storage storage assetRegistry
   )
     internal
     returns (
@@ -295,69 +299,87 @@ library BalanceTracking {
     Balance storage balance;
     uint64 quantityInPips;
 
-    // Base asset updates
-    asset = assetRegistry.loadAssetByAddress(execution.baseAssetAddress);
+    {
+      // Base asset updates
+      asset = assetRegistry.loadAssetByAddress(execution.baseAssetAddress);
 
-    // Only add output assets to wallet's balances in the Exchange if latter is target
-    if (removal.to == exchangeAddress) {
-      // Base net credit
+      // Only add output assets to wallet's balances in the Exchange if latter is target
+      if (removal.to == exchangeAddress) {
+        // Base net credit
+        quantityInPips = AssetUnitConversions.assetUnitsToPips(
+          netBaseAssetQuantityInAssetUnits,
+          asset.decimals
+        );
+        balance = loadBalanceAndMigrateIfNeeded(
+          self,
+          removal.wallet,
+          execution.baseAssetAddress
+        );
+        balance.balanceInPips += quantityInPips;
+      } else {
+        outputBaseAssetQuantityInAssetUnits = netBaseAssetQuantityInAssetUnits;
+      }
+
+      // Base fee credit
       quantityInPips = AssetUnitConversions.assetUnitsToPips(
-        netBaseAssetQuantityInAssetUnits,
+        feeBaseAssetQuantityInAssetUnits,
         asset.decimals
       );
       balance = loadBalanceAndMigrateIfNeeded(
         self,
-        removal.wallet,
+        feeWallet,
         execution.baseAssetAddress
       );
       balance.balanceInPips += quantityInPips;
-    } else {
-      outputBaseAssetQuantityInAssetUnits = netBaseAssetQuantityInAssetUnits;
-    }
 
-    // Base fee credit
-    quantityInPips = AssetUnitConversions.assetUnitsToPips(
-      feeBaseAssetQuantityInAssetUnits,
-      asset.decimals
-    );
-    balance = loadBalanceAndMigrateIfNeeded(
-      self,
-      feeWallet,
-      execution.baseAssetAddress
-    );
-    balance.balanceInPips += quantityInPips;
+      // Quote asset updates
+      asset = assetRegistry.loadAssetByAddress(execution.quoteAssetAddress);
 
-    // Quote asset updates
-    asset = assetRegistry.loadAssetByAddress(execution.quoteAssetAddress);
+      // Only add output assets to wallet's balances in the Exchange if latter is target
+      if (removal.to == exchangeAddress) {
+        // Quote net credit
+        quantityInPips = AssetUnitConversions.assetUnitsToPips(
+          netQuoteAssetQuantityInAssetUnits,
+          asset.decimals
+        );
+        balance = loadBalanceAndMigrateIfNeeded(
+          self,
+          removal.wallet,
+          execution.quoteAssetAddress
+        );
+        balance.balanceInPips += quantityInPips;
+      } else {
+        outputQuoteAssetQuantityInAssetUnits = netQuoteAssetQuantityInAssetUnits;
+      }
 
-    // Only add output assets to wallet's balances in the Exchange if latter is target
-    if (removal.to == exchangeAddress) {
-      // Quote net credit
+      // Quote fee credit
       quantityInPips = AssetUnitConversions.assetUnitsToPips(
-        netQuoteAssetQuantityInAssetUnits,
+        feeQuoteAssetQuantityInAssetUnits,
         asset.decimals
       );
       balance = loadBalanceAndMigrateIfNeeded(
         self,
-        removal.wallet,
+        feeWallet,
         execution.quoteAssetAddress
       );
       balance.balanceInPips += quantityInPips;
-    } else {
-      outputQuoteAssetQuantityInAssetUnits = netQuoteAssetQuantityInAssetUnits;
     }
+  }
 
-    // Quote fee credit
-    quantityInPips = AssetUnitConversions.assetUnitsToPips(
-      feeQuoteAssetQuantityInAssetUnits,
-      asset.decimals
-    );
-    balance = loadBalanceAndMigrateIfNeeded(
-      self,
-      feeWallet,
-      execution.quoteAssetAddress
-    );
-    balance.balanceInPips += quantityInPips;
+  function burnLiquidityTokens(
+    Storage storage self,
+    address pairTokenAddress,
+    address wallet,
+    uint256 liquidity
+  ) internal {
+    uint64 quantityInPips =
+      AssetUnitConversions.assetUnitsToPips(
+        liquidity,
+        IPair(pairTokenAddress).decimals()
+      );
+    Balance storage balance =
+      loadBalanceAndMigrateIfNeeded(self, wallet, pairTokenAddress);
+    balance.balanceInPips -= quantityInPips;
   }
 
   function loadBalanceAndMigrateIfNeeded(
