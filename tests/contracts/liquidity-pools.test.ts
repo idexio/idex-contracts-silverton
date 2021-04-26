@@ -37,6 +37,7 @@ import BigNumber from 'bignumber.js';
 import { assetUnitsToPips } from '../../lib';
 import {
   CustodianInstance,
+  ExchangeInstance,
   IPairInstance,
   TestFactoryInstance,
   TestTokenInstance,
@@ -52,7 +53,7 @@ const minimumLiquidity = '1000';
 
 const tokenSymbol = 'DIL';
 
-contract('Exchange (liquidity pools)', ([ownerWallet]) => {
+contract.only('Exchange (liquidity pools)', ([ownerWallet]) => {
   describe('promotePool', () => {
     it('should work', async () => {
       const depositQuantity = web3.utils.toWei('1', 'ether');
@@ -92,7 +93,7 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
   });
 
   describe('addLiquidityETH', () => {
-    it.only('should work', async () => {
+    it('should work', async () => {
       const depositQuantity = web3.utils.toWei('1', 'ether');
       const {
         exchange,
@@ -103,28 +104,69 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
         ownerWallet,
       );
       await exchange.setDispatcher(ownerWallet);
-      await token.approve(exchange.address, depositQuantity, {
+
+      await addLiquidityAndExecute(
+        depositQuantity,
+        ownerWallet,
+        exchange,
+        token,
+      );
+
+      const transferEvents = await pair.getPastEvents('Transfer', {
+        fromBlock: 0,
+      });
+      expect(transferEvents).to.be.an('array');
+      expect(transferEvents.length).to.equal(3);
+      expect(transferEvents[2].returnValues.value).to.equal(depositQuantity);
+
+      const mintEvents = await pair.getPastEvents('Mint', {
+        fromBlock: 0,
+      });
+      expect(mintEvents).to.be.an('array');
+      expect(mintEvents.length).to.equal(2);
+      expect(mintEvents[1].returnValues.amount0).to.equal(depositQuantity);
+      expect(mintEvents[1].returnValues.amount1).to.equal(depositQuantity);
+    });
+  });
+
+  describe('removeLiquidityETH', () => {
+    it('should work', async () => {
+      const depositQuantity = web3.utils.toWei('1', 'ether');
+      const {
+        exchange,
+        pair,
+        token,
+      } = await deployContractsAndCreateHybridPool(
+        depositQuantity,
+        ownerWallet,
+      );
+      await exchange.setDispatcher(ownerWallet);
+      await addLiquidityAndExecute(
+        depositQuantity,
+        ownerWallet,
+        exchange,
+        token,
+      );
+
+      await pair.approve(exchange.address, depositQuantity, {
         from: ownerWallet,
       });
-
       const deadline = Date.now() + 10000;
-      await exchange.addLiquidityETH(
+      await exchange.removeLiquidityETH(
         token.address,
         depositQuantity,
         depositQuantity,
         depositQuantity,
         ownerWallet,
         deadline,
-        { value: depositQuantity },
       );
 
-      await exchange.executeAddLiquidity(
+      await exchange.executeRemoveLiquidity(
         {
           wallet: ownerWallet,
           assetA: token.address,
           assetB: bnbAddress,
-          amountADesired: depositQuantity,
-          amountBDesired: depositQuantity,
+          liquidity: depositQuantity,
           amountAMin: depositQuantity,
           amountBMin: depositQuantity,
           to: ownerWallet,
@@ -142,19 +184,13 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
         { from: ownerWallet },
       );
 
-      const transferEvents = await pair.getPastEvents('Transfer', {
+      const burnEvents = await pair.getPastEvents('Burn', {
         fromBlock: 0,
       });
-      expect(transferEvents).to.be.an('array');
-      expect(transferEvents.length).to.equal(3);
-      expect(transferEvents[2].returnValues.value).to.equal(depositQuantity);
-
-      const mintEvents = await pair.getPastEvents('Mint', {
-        fromBlock: 0,
-      });
-      expect(mintEvents).to.be.an('array');
-      expect(mintEvents.length).to.equal(3);
-      expect(mintEvents[2].returnValues.value).to.equal(depositQuantity);
+      expect(burnEvents).to.be.an('array');
+      expect(burnEvents.length).to.equal(1);
+      expect(burnEvents[0].returnValues.amount0).to.equal(depositQuantity);
+      expect(burnEvents[0].returnValues.amount1).to.equal(depositQuantity);
     });
   });
 });
@@ -174,6 +210,10 @@ async function deployContractsAndCreateHybridPool(
     feeWallet,
   );
   await exchange.setPairFactoryAddress(factory.address);
+
+  const pairSymbol = await pair.symbol();
+  await exchange.registerToken(pair.address, pairSymbol, 18);
+  await exchange.confirmTokenRegistration(pair.address, pairSymbol, 18);
 
   await wbnb.deposit({ value: depositQuantity, from: ownerWallet });
   await wbnb.transfer(pair.address, depositQuantity, { from: ownerWallet });
@@ -206,6 +246,52 @@ async function deployPancakeCoreAndCreatePool(
   const pair = await IPair.at(pairAddress);
 
   return { factory, pair };
+}
+
+async function addLiquidityAndExecute(
+  depositQuantity: string,
+  ownerWallet: string,
+  exchange: ExchangeInstance,
+  token: TestTokenInstance,
+) {
+  await token.approve(exchange.address, depositQuantity, {
+    from: ownerWallet,
+  });
+
+  const deadline = Date.now() + 10000;
+  await exchange.addLiquidityETH(
+    token.address,
+    depositQuantity,
+    depositQuantity,
+    depositQuantity,
+    ownerWallet,
+    deadline,
+    { value: depositQuantity },
+  );
+
+  await exchange.executeAddLiquidity(
+    {
+      wallet: ownerWallet,
+      assetA: token.address,
+      assetB: bnbAddress,
+      amountADesired: depositQuantity,
+      amountBDesired: depositQuantity,
+      amountAMin: depositQuantity,
+      amountBMin: depositQuantity,
+      to: ownerWallet,
+      deadline,
+    },
+    {
+      liquidity: depositQuantity,
+      amountA: depositQuantity,
+      amountB: depositQuantity,
+      feeAmountA: '0',
+      feeAmountB: '0',
+      baseAssetAddress: token.address,
+      quoteAssetAddress: bnbAddress,
+    },
+    { from: ownerWallet },
+  );
 }
 
 /*

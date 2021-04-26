@@ -14,7 +14,8 @@ import { AssetTransfers } from './AssetTransfers.sol';
 import { AssetUnitConversions } from './AssetUnitConversions.sol';
 import { BalanceTracking } from './BalanceTracking.sol';
 import { Depositing } from './Depositing.sol';
-import { UUID } from './/UUID.sol';
+import { UUID } from './UUID.sol';
+import { Withdrawing } from './Withdrawing.sol';
 import { Enums, ICustodian, IWETH9, Structs } from './Interfaces.sol';
 
 library LiquidityPoolRegistry {
@@ -254,24 +255,33 @@ library LiquidityPoolRegistry {
         execution.quoteAssetAddress
       );
 
-    Structs.Asset memory asset;
-    uint64 quantityInPips;
+    {
+      Structs.Asset memory asset;
+      uint64 quantityInPips;
 
-    asset = assetRegistry.loadAssetByAddress(execution.baseAssetAddress);
-    quantityInPips = AssetUnitConversions.assetUnitsToPips(
+      asset = assetRegistry.loadAssetByAddress(execution.baseAssetAddress);
+      quantityInPips = AssetUnitConversions.assetUnitsToPips(
+        netBaseAssetQuantityInAssetUnits,
+        asset.decimals
+      );
+      pool.baseAssetReserveInPips += quantityInPips;
+
+      asset = assetRegistry.loadAssetByAddress(execution.quoteAssetAddress);
+      quantityInPips = AssetUnitConversions.assetUnitsToPips(
+        netQuoteAssetQuantityInAssetUnits,
+        asset.decimals
+      );
+      pool.quoteAssetReserveInPips += quantityInPips;
+    }
+
+    // TODO Should this use gross quantities?
+    pool.pairTokenAddress.hybridMint(
+      addition.wallet,
+      execution.liquidity,
       netBaseAssetQuantityInAssetUnits,
-      asset.decimals
-    );
-    pool.baseAssetReserveInPips += quantityInPips;
-
-    asset = assetRegistry.loadAssetByAddress(execution.quoteAssetAddress);
-    quantityInPips = AssetUnitConversions.assetUnitsToPips(
       netQuoteAssetQuantityInAssetUnits,
-      asset.decimals
+      addition.to
     );
-    pool.quoteAssetReserveInPips += quantityInPips;
-
-    pool.pairTokenAddress.hybridMint(addition.to, execution.liquidity);
   }
 
   // Remove liquidity //
@@ -325,43 +335,26 @@ library LiquidityPoolRegistry {
       Enums.LiquidityChangeState state = self.changes[hash];
       require(state == Enums.LiquidityChangeState.Initiated, 'Not executable');
 
-      (
-        uint256 outputBaseAssetQuantityInAssetUnits,
-        uint256 outputQuoteAssetQuantityInAssetUnits
-      ) =
-        balanceTracking.executeRemoveLiquidity(
-          removal,
-          execution,
-          feeWallet,
-          exchangeAddress,
-          assetRegistry
-        );
-
-      if (outputBaseAssetQuantityInAssetUnits > 0) {
-        custodian.withdraw(
-          removal.to,
-          execution.baseAssetAddress,
-          outputBaseAssetQuantityInAssetUnits
-        );
-      }
-      if (outputQuoteAssetQuantityInAssetUnits > 0) {
-        custodian.withdraw(
-          removal.to,
-          execution.quoteAssetAddress,
-          outputQuoteAssetQuantityInAssetUnits
-        );
-      }
+      Withdrawing.executeRemoveLiquidity(
+        removal,
+        execution,
+        custodian,
+        exchangeAddress,
+        feeWallet,
+        assetRegistry,
+        balanceTracking
+      );
     }
 
-    {
-      (
-        uint256 baseAssetQuantityInAssetUnits,
-        uint256 quoteAssetQuantityInAssetUnits
-      ) =
-        execution.baseAssetAddress == removal.assetA
-          ? (execution.amountA, execution.amountB)
-          : (execution.amountB, execution.amountA);
+    (
+      uint256 baseAssetQuantityInAssetUnits,
+      uint256 quoteAssetQuantityInAssetUnits
+    ) =
+      execution.baseAssetAddress == removal.assetA
+        ? (execution.amountA, execution.amountB)
+        : (execution.amountB, execution.amountA);
 
+    {
       Structs.Asset memory asset;
       uint64 quantityInPips;
 
@@ -378,15 +371,21 @@ library LiquidityPoolRegistry {
         asset.decimals
       );
       pool.quoteAssetReserveInPips -= quantityInPips;
-
-      pool.pairTokenAddress.hybridBurn(removal.wallet, execution.liquidity);
-
-      balanceTracking.burnLiquidityTokens(
-        address(pool.pairTokenAddress),
-        removal.wallet,
-        execution.liquidity
-      );
     }
+
+    pool.pairTokenAddress.hybridBurn(
+      removal.wallet,
+      execution.liquidity,
+      baseAssetQuantityInAssetUnits,
+      quoteAssetQuantityInAssetUnits,
+      removal.to
+    );
+
+    balanceTracking.burnLiquidityTokens(
+      address(pool.pairTokenAddress),
+      removal.wallet,
+      execution.liquidity
+    );
   }
 
   // Exit liquidity //
@@ -427,7 +426,13 @@ library LiquidityPoolRegistry {
     pool.baseAssetReserveInPips -= outputBaseAssetQuantityInPips;
     pool.quoteAssetReserveInPips -= outputQuoteAssetQuantityInPips;
 
-    pool.pairTokenAddress.hybridBurn(msg.sender, liquidityToBurnInAssetUnits);
+    pool.pairTokenAddress.hybridBurn(
+      msg.sender,
+      liquidityToBurnInAssetUnits,
+      outputBaseAssetQuantityInPips,
+      outputQuoteAssetQuantityInPips,
+      msg.sender
+    );
 
     Structs.Asset memory asset;
     asset = assetRegistry.loadAssetByAddress(baseAssetAddress);

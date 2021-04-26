@@ -78,4 +78,41 @@ library Withdrawing {
 
     completedWithdrawalHashes[withdrawalHash] = true;
   }
+
+  function executeRemoveLiquidity(
+    Structs.LiquidityRemoval memory removal,
+    Structs.LiquidityChangeExecution memory execution,
+    ICustodian custodian,
+    address exchangeAddress,
+    address feeWallet,
+    AssetRegistry.Storage storage assetRegistry,
+    BalanceTracking.Storage storage balanceTracking
+  ) internal {
+    (
+      uint256 outputBaseAssetQuantityInAssetUnits,
+      uint256 outputQuoteAssetQuantityInAssetUnits
+    ) =
+      balanceTracking.executeRemoveLiquidity(
+        removal,
+        execution,
+        feeWallet,
+        exchangeAddress,
+        assetRegistry
+      );
+
+    if (outputBaseAssetQuantityInAssetUnits > 0) {
+      custodian.withdraw(
+        removal.to,
+        execution.baseAssetAddress,
+        outputBaseAssetQuantityInAssetUnits
+      );
+    }
+    if (outputQuoteAssetQuantityInAssetUnits > 0) {
+      custodian.withdraw(
+        removal.to,
+        execution.quoteAssetAddress,
+        outputQuoteAssetQuantityInAssetUnits
+      );
+    }
+  }
 }
