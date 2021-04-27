@@ -1,20 +1,10 @@
-/*
+import BigNumber from 'bignumber.js';
 import { v1 as uuidv1 } from 'uuid';
 
-import type {
-  ExchangeInstance,
-  TestTokenInstance,
-} from '../../types/truffle-contracts';
-
-import {
-  bnbAddress,
-  deployAndAssociateContracts,
-  deployAndRegisterToken,
-  ethSymbol,
-  getSignature,
-} from './helpers';
 import { generateOrdersAndFill } from './trade.test';
 import {
+  assetUnitsToPips,
+  bnbAddress,
   decimalToAssetUnits,
   decimalToPips,
   getHybridTradeArguments,
@@ -24,17 +14,7 @@ import {
   OrderSide,
   OrderType,
   PoolTrade,
-  uuidToHexString,
 } from '../../lib';
-
-const tokenSymbol = 'TKN';
-const marketSymbol = `${tokenSymbol}-${ethSymbol}`;
-const minimumLiquidity = 1000;
-*/
-
-import BigNumber from 'bignumber.js';
-
-import { assetUnitsToPips } from '../../lib';
 import {
   CustodianInstance,
   ExchangeInstance,
@@ -44,159 +24,229 @@ import {
   WBNBInstance,
 } from '../../types/truffle-contracts';
 import {
+  bnbSymbol,
   deployAndAssociateContracts,
   deployAndRegisterToken,
-  bnbAddress,
+  getSignature,
 } from './helpers';
 
 const minimumLiquidity = '1000';
-
 const tokenSymbol = 'DIL';
+const marketSymbol = `${tokenSymbol}-${bnbSymbol}`;
 
-contract.only('Exchange (liquidity pools)', ([ownerWallet]) => {
-  describe('promotePool', () => {
-    it('should work', async () => {
-      const depositQuantity = web3.utils.toWei('1', 'ether');
-      const {
-        exchange,
-        pair,
-        token,
-      } = await deployContractsAndCreateHybridPool(
-        depositQuantity,
-        ownerWallet,
-      );
+contract(
+  'Exchange (liquidity pools)',
+  ([ownerWallet, buyWallet, sellWallet]) => {
+    describe('promotePool', () => {
+      it('should work', async () => {
+        const depositQuantity = '1.00000000';
+        const {
+          exchange,
+          pair,
+          token,
+        } = await deployContractsAndCreateHybridPool(
+          depositQuantity,
+          depositQuantity,
+          ownerWallet,
+        );
 
-      const expectedLiquidity = new BigNumber(depositQuantity).minus(
-        minimumLiquidity,
-      );
-      const events = await pair.getPastEvents('Transfer', {
-        fromBlock: 0,
+        const expectedLiquidity = new BigNumber(
+          decimalToAssetUnits(depositQuantity, 18),
+        ).minus(minimumLiquidity);
+        const events = await pair.getPastEvents('Transfer', {
+          fromBlock: 0,
+        });
+        expect(events).to.be.an('array');
+        expect(events.length).to.equal(2);
+        expect(events[0].returnValues.value).to.equal(minimumLiquidity);
+        expect(events[1].returnValues.value).to.equal(
+          expectedLiquidity.toString(),
+        );
+
+        const pool = await exchange.loadLiquidityPoolByAssetAddresses(
+          token.address,
+          bnbAddress,
+        );
+        expect(pool.baseAssetReserveInPips).to.equal(
+          decimalToPips(depositQuantity),
+        );
+        expect(pool.quoteAssetReserveInPips).to.equal(
+          decimalToPips(depositQuantity),
+        );
       });
-      expect(events).to.be.an('array');
-      expect(events.length).to.equal(2);
-      expect(events[0].returnValues.value).to.equal(minimumLiquidity);
-      expect(events[1].returnValues.value).to.equal(
-        expectedLiquidity.toString(),
-      );
-
-      const pool = await exchange.loadLiquidityPoolByAssetAddresses(
-        token.address,
-        bnbAddress,
-      );
-      expect(pool.baseAssetReserveInPips).to.equal(
-        assetUnitsToPips(depositQuantity, 18),
-      );
-      expect(pool.quoteAssetReserveInPips).to.equal(
-        assetUnitsToPips(depositQuantity, 18),
-      );
     });
-  });
 
-  describe('addLiquidityETH', () => {
-    it('should work', async () => {
-      const depositQuantity = web3.utils.toWei('1', 'ether');
-      const {
-        exchange,
-        pair,
-        token,
-      } = await deployContractsAndCreateHybridPool(
-        depositQuantity,
-        ownerWallet,
-      );
-      await exchange.setDispatcher(ownerWallet);
+    describe('addLiquidityETH', () => {
+      it('should work', async () => {
+        const depositQuantity = '1.00000000';
+        const {
+          exchange,
+          pair,
+          token,
+        } = await deployContractsAndCreateHybridPool(
+          depositQuantity,
+          depositQuantity,
+          ownerWallet,
+        );
+        await exchange.setDispatcher(ownerWallet);
 
-      await addLiquidityAndExecute(
-        depositQuantity,
-        ownerWallet,
-        exchange,
-        token,
-      );
+        await addLiquidityAndExecute(
+          depositQuantity,
+          ownerWallet,
+          exchange,
+          token,
+        );
 
-      const transferEvents = await pair.getPastEvents('Transfer', {
-        fromBlock: 0,
+        const transferEvents = await pair.getPastEvents('Transfer', {
+          fromBlock: 0,
+        });
+        expect(transferEvents).to.be.an('array');
+        expect(transferEvents.length).to.equal(3);
+        expect(transferEvents[2].returnValues.value).to.equal(
+          decimalToAssetUnits(depositQuantity, 18),
+        );
+
+        const mintEvents = await pair.getPastEvents('Mint', {
+          fromBlock: 0,
+        });
+        expect(mintEvents).to.be.an('array');
+        expect(mintEvents.length).to.equal(2);
+        expect(mintEvents[1].returnValues.amount0).to.equal(
+          decimalToAssetUnits(depositQuantity, 18),
+        );
+        expect(mintEvents[1].returnValues.amount1).to.equal(
+          decimalToAssetUnits(depositQuantity, 18),
+        );
       });
-      expect(transferEvents).to.be.an('array');
-      expect(transferEvents.length).to.equal(3);
-      expect(transferEvents[2].returnValues.value).to.equal(depositQuantity);
-
-      const mintEvents = await pair.getPastEvents('Mint', {
-        fromBlock: 0,
-      });
-      expect(mintEvents).to.be.an('array');
-      expect(mintEvents.length).to.equal(2);
-      expect(mintEvents[1].returnValues.amount0).to.equal(depositQuantity);
-      expect(mintEvents[1].returnValues.amount1).to.equal(depositQuantity);
     });
-  });
 
-  describe('removeLiquidityETH', () => {
-    it('should work', async () => {
-      const depositQuantity = web3.utils.toWei('1', 'ether');
-      const {
-        exchange,
-        pair,
-        token,
-      } = await deployContractsAndCreateHybridPool(
-        depositQuantity,
-        ownerWallet,
-      );
-      await exchange.setDispatcher(ownerWallet);
-      await addLiquidityAndExecute(
-        depositQuantity,
-        ownerWallet,
-        exchange,
-        token,
-      );
+    describe('removeLiquidityETH', () => {
+      it('should work', async () => {
+        const depositQuantity = '1.00000000';
+        const {
+          exchange,
+          pair,
+          token,
+        } = await deployContractsAndCreateHybridPool(
+          depositQuantity,
+          depositQuantity,
+          ownerWallet,
+        );
+        await exchange.setDispatcher(ownerWallet);
+        await addLiquidityAndExecute(
+          depositQuantity,
+          ownerWallet,
+          exchange,
+          token,
+        );
 
-      await pair.approve(exchange.address, depositQuantity, {
-        from: ownerWallet,
+        await removeLiquidityAndExecute(
+          depositQuantity,
+          ownerWallet,
+          exchange,
+          pair,
+          token,
+        );
+
+        const burnEvents = await pair.getPastEvents('Burn', {
+          fromBlock: 0,
+        });
+        expect(burnEvents).to.be.an('array');
+        expect(burnEvents.length).to.equal(1);
+        expect(burnEvents[0].returnValues.amount0).to.equal(
+          decimalToAssetUnits(depositQuantity, 18),
+        );
+        expect(burnEvents[0].returnValues.amount1).to.equal(
+          decimalToAssetUnits(depositQuantity, 18),
+        );
       });
-      const deadline = Date.now() + 10000;
-      await exchange.removeLiquidityETH(
-        token.address,
-        depositQuantity,
-        depositQuantity,
-        depositQuantity,
-        ownerWallet,
-        deadline,
-      );
-
-      await exchange.executeRemoveLiquidity(
-        {
-          wallet: ownerWallet,
-          assetA: token.address,
-          assetB: bnbAddress,
-          liquidity: depositQuantity,
-          amountAMin: depositQuantity,
-          amountBMin: depositQuantity,
-          to: ownerWallet,
-          deadline,
-        },
-        {
-          liquidity: depositQuantity,
-          amountA: depositQuantity,
-          amountB: depositQuantity,
-          feeAmountA: '0',
-          feeAmountB: '0',
-          baseAssetAddress: token.address,
-          quoteAssetAddress: bnbAddress,
-        },
-        { from: ownerWallet },
-      );
-
-      const burnEvents = await pair.getPastEvents('Burn', {
-        fromBlock: 0,
-      });
-      expect(burnEvents).to.be.an('array');
-      expect(burnEvents.length).to.equal(1);
-      expect(burnEvents[0].returnValues.amount0).to.equal(depositQuantity);
-      expect(burnEvents[0].returnValues.amount1).to.equal(depositQuantity);
     });
-  });
-});
+
+    describe('executePoolTrade', () => {
+      it('should work', async () => {
+        const initialBaseReserve = '10000.00000000';
+        const initialQuoteReserve = '10.00000000';
+
+        const { exchange, token } = await deployContractsAndCreateHybridPool(
+          initialBaseReserve,
+          initialQuoteReserve,
+          ownerWallet,
+        );
+        await exchange.setDispatcher(ownerWallet);
+
+        await deposit(exchange, token, buyWallet, '0.00000000', '1.00000000');
+        const { buyOrder, poolTrade } = await generateOrderAndPoolTrade(
+          token.address,
+          bnbAddress,
+          buyWallet,
+          '909.09090909',
+          '0.00121000',
+        );
+        poolTrade.grossQuoteQuantity = '1.00000000';
+        const buySignature = await getSignature(
+          web3,
+          getOrderHash(buyOrder),
+          buyWallet,
+        );
+
+        // https://github.com/microsoft/TypeScript/issues/28486
+        await (exchange.executePoolTrade as any)(
+          ...getPoolTradeArguments(buyOrder, buySignature, poolTrade),
+        );
+      });
+    });
+
+    describe('executeHybridTrade', () => {
+      it('should work', async () => {
+        const initialBaseReserve = '10000.00000000';
+        const initialQuoteReserve = '10.00000000';
+
+        const { exchange, token } = await deployContractsAndCreateHybridPool(
+          initialBaseReserve,
+          initialQuoteReserve,
+          ownerWallet,
+        );
+        await exchange.setDispatcher(ownerWallet);
+
+        await deposit(exchange, token, buyWallet, '0.00000000', '10.00000000');
+        await token.transfer(
+          sellWallet,
+          decimalToAssetUnits('5000.00000000', 18),
+        );
+        await deposit(
+          exchange,
+          token,
+          sellWallet,
+          '5000.00000000',
+          '0.00000000',
+        );
+
+        await generateAndExecuteHybridTrade(
+          exchange,
+          token,
+          buyWallet,
+          sellWallet,
+          web3,
+        );
+
+        await generateAndExecuteHybridTrade(
+          exchange,
+          token,
+          buyWallet,
+          sellWallet,
+          web3,
+          '0.00144000',
+          '1515.15151512',
+          '757.57575756',
+        );
+      });
+    });
+  },
+);
 
 async function deployContractsAndCreateHybridPool(
-  depositQuantity: string,
+  initialBaseReserve: string,
+  initialQuoteReserve: string,
   ownerWallet: string,
   feeWallet = ownerWallet,
 ) {
@@ -215,11 +265,24 @@ async function deployContractsAndCreateHybridPool(
   await exchange.registerToken(pair.address, pairSymbol, 18);
   await exchange.confirmTokenRegistration(pair.address, pairSymbol, 18);
 
-  await wbnb.deposit({ value: depositQuantity, from: ownerWallet });
-  await wbnb.transfer(pair.address, depositQuantity, { from: ownerWallet });
-  await token.transfer(pair.address, depositQuantity, {
+  await wbnb.deposit({
+    value: decimalToAssetUnits(initialQuoteReserve, 18),
     from: ownerWallet,
   });
+  await wbnb.transfer(
+    pair.address,
+    decimalToAssetUnits(initialQuoteReserve, 18),
+    {
+      from: ownerWallet,
+    },
+  );
+  await token.transfer(
+    pair.address,
+    decimalToAssetUnits(initialBaseReserve, 18),
+    {
+      from: ownerWallet,
+    },
+  );
   await pair.mint(ownerWallet);
 
   await exchange.promotePool(token.address, bnbAddress, pair.address);
@@ -253,20 +316,26 @@ async function addLiquidityAndExecute(
   ownerWallet: string,
   exchange: ExchangeInstance,
   token: TestTokenInstance,
+  decimals = 18,
 ) {
-  await token.approve(exchange.address, depositQuantity, {
+  const depositQuantityInAssetUnits = decimalToAssetUnits(
+    depositQuantity,
+    decimals,
+  );
+
+  await token.approve(exchange.address, depositQuantityInAssetUnits, {
     from: ownerWallet,
   });
 
   const deadline = Date.now() + 10000;
   await exchange.addLiquidityETH(
     token.address,
-    depositQuantity,
-    depositQuantity,
-    depositQuantity,
+    depositQuantityInAssetUnits,
+    depositQuantityInAssetUnits,
+    depositQuantityInAssetUnits,
     ownerWallet,
     deadline,
-    { value: depositQuantity },
+    { value: depositQuantityInAssetUnits },
   );
 
   await exchange.executeAddLiquidity(
@@ -274,17 +343,17 @@ async function addLiquidityAndExecute(
       wallet: ownerWallet,
       assetA: token.address,
       assetB: bnbAddress,
-      amountADesired: depositQuantity,
-      amountBDesired: depositQuantity,
-      amountAMin: depositQuantity,
-      amountBMin: depositQuantity,
+      amountADesired: depositQuantityInAssetUnits,
+      amountBDesired: depositQuantityInAssetUnits,
+      amountAMin: depositQuantityInAssetUnits,
+      amountBMin: depositQuantityInAssetUnits,
       to: ownerWallet,
       deadline,
     },
     {
-      liquidity: depositQuantity,
-      amountA: depositQuantity,
-      amountB: depositQuantity,
+      liquidity: depositQuantityInAssetUnits,
+      amountA: depositQuantityInAssetUnits,
+      amountB: depositQuantityInAssetUnits,
       feeAmountA: '0',
       feeAmountB: '0',
       baseAssetAddress: token.address,
@@ -294,246 +363,55 @@ async function addLiquidityAndExecute(
   );
 }
 
-/*
-contract('Exchange (liquidity pools)', (accounts) => {
-  describe('addLiquidityPool', () => {
-    it('should work', async () => {
-      const { exchange } = await deployAndAssociateContracts();
-      const token = await deployAndRegisterToken(exchange, tokenSymbol);
-
-      await exchange.addLiquidityPool(token.address, bnbAddress);
-    });
-  });
-
-  describe('addLiquidity', () => {
-    it('should work', async () => {
-      const lpDepositQuantity = minimumLiquidity + 1;
-
-      const { exchange } = await deployAndAssociateContracts();
-      const token = await deployAndRegisterToken(exchange, tokenSymbol);
-      await exchange.addLiquidityPool(token.address, bnbAddress);
-      await exchange.setDispatcher(accounts[0]);
-
-      await deposit(
-        exchange,
-        token,
-        accounts[0],
-        '10000.00000000',
-        '10.00000000',
-      );
-
-      await exchange.addLiquidity({
-        nonce: uuidToHexString(uuidv1()),
-        walletAddress: accounts[0],
-        baseAssetSymbol: tokenSymbol,
-        quoteAssetSymbol: ethSymbol,
-        baseAssetDesiredQuantityInPips: lpDepositQuantity,
-        quoteAssetDesiredQuantityInPips: lpDepositQuantity,
-        baseAssetMinimumQuantityInPips: lpDepositQuantity,
-        quoteAssetMinimumQuantityInPips: lpDepositQuantity,
-        walletSignature: '0x',
-      });
-
-      const events = await exchange.getPastEvents('LiquidityMint', {
-        fromBlock: 0,
-      });
-      expect(events).to.be.an('array');
-      expect(events.length).to.equal(1);
-      expect(
-        parseInt(events[0].returnValues.liquiditySharesMinted, 10),
-      ).to.equal(1);
-
-      await exchange.addLiquidity({
-        nonce: uuidToHexString(uuidv1()),
-        walletAddress: accounts[0],
-        baseAssetSymbol: tokenSymbol,
-        quoteAssetSymbol: ethSymbol,
-        baseAssetDesiredQuantityInPips: 1,
-        quoteAssetDesiredQuantityInPips: 1,
-        baseAssetMinimumQuantityInPips: 1,
-        quoteAssetMinimumQuantityInPips: 1,
-        walletSignature: '0x',
-      });
-
-      const events2 = await exchange.getPastEvents('LiquidityMint', {
-        fromBlock: 0,
-      });
-      expect(events2.length).to.equal(2);
-      expect(
-        parseInt(events2[1].returnValues.liquiditySharesMinted, 10),
-      ).to.equal(1);
-    });
-  });
-
-  describe('executePoolTrade', () => {
-    it('should work', async () => {
-      const initialBaseReserve = '10000.00000000';
-      const initialQuoteReserve = '10.00000000';
-
-      const { exchange } = await deployAndAssociateContracts();
-      const token = await deployAndRegisterToken(exchange, tokenSymbol);
-      await exchange.addLiquidityPool(token.address, bnbAddress);
-      await exchange.setDispatcher(accounts[0]);
-
-      await deposit(
-        exchange,
-        token,
-        accounts[0],
-        initialBaseReserve,
-        initialQuoteReserve,
-      );
-      await exchange.addLiquidity({
-        nonce: uuidToHexString(uuidv1()),
-        walletAddress: accounts[0],
-        baseAssetSymbol: tokenSymbol,
-        quoteAssetSymbol: ethSymbol,
-        baseAssetDesiredQuantityInPips: decimalToPips(initialBaseReserve),
-        quoteAssetDesiredQuantityInPips: decimalToPips(initialQuoteReserve),
-        baseAssetMinimumQuantityInPips: decimalToPips(initialBaseReserve),
-        quoteAssetMinimumQuantityInPips: decimalToPips(initialQuoteReserve),
-        walletSignature: '0x',
-      });
-
-      const buyWallet = accounts[1];
-      await deposit(exchange, token, buyWallet, '0.00000000', '1.00000000');
-      const { buyOrder, poolTrade } = await generateOrderAndPoolTrade(
-        token.address,
-        bnbAddress,
-        buyWallet,
-        '909.09090909',
-        '0.00121000',
-      );
-      poolTrade.grossQuoteQuantity = '1.00000000';
-      const buySignature = await getSignature(
-        web3,
-        getOrderHash(buyOrder),
-        buyWallet,
-      );
-
-      // https://github.com/microsoft/TypeScript/issues/28486
-      await (exchange.executePoolTrade as any)(
-        ...getPoolTradeArguments(buyOrder, buySignature, poolTrade),
-      );
-    });
-  });
-
-  describe('executeHybridTrade', () => {
-    it.only('should work', async () => {
-      const initialBaseReserve = '10000.00000000';
-      const initialQuoteReserve = '10.00000000';
-
-      const { exchange } = await deployAndAssociateContracts();
-      const token = await deployAndRegisterToken(exchange, tokenSymbol);
-      await exchange.addLiquidityPool(token.address, bnbAddress);
-      await exchange.setDispatcher(accounts[0]);
-
-      await deposit(
-        exchange,
-        token,
-        accounts[0],
-        initialBaseReserve,
-        initialQuoteReserve,
-      );
-      await exchange.addLiquidity({
-        nonce: uuidToHexString(uuidv1()),
-        walletAddress: accounts[0],
-        baseAssetSymbol: tokenSymbol,
-        quoteAssetSymbol: ethSymbol,
-        baseAssetDesiredQuantityInPips: decimalToPips(initialBaseReserve),
-        quoteAssetDesiredQuantityInPips: decimalToPips(initialQuoteReserve),
-        baseAssetMinimumQuantityInPips: decimalToPips(initialBaseReserve),
-        quoteAssetMinimumQuantityInPips: decimalToPips(initialQuoteReserve),
-        walletSignature: '0x',
-      });
-
-      const buyWallet = accounts[1];
-      const sellWallet = accounts[2];
-      await deposit(exchange, token, buyWallet, '0.00000000', '10.00000000');
-      await token.transfer(
-        sellWallet,
-        decimalToAssetUnits('5000.00000000', 18),
-      );
-      await deposit(exchange, token, sellWallet, '5000.00000000', '0.00000000');
-
-      await generateAndExecuteHybridTrade(
-        exchange,
-        token,
-        buyWallet,
-        sellWallet,
-        web3,
-      );
-
-      await generateAndExecuteHybridTrade(
-        exchange,
-        token,
-        buyWallet,
-        sellWallet,
-        web3,
-        '0.00144000',
-        '1515.15151512',
-        '757.57575756',
-      );
-    });
-  });
-});
-
-const generateAndExecuteHybridTrade = async (
+async function removeLiquidityAndExecute(
+  depositQuantity: string,
+  ownerWallet: string,
   exchange: ExchangeInstance,
+  pair: IPairInstance,
   token: TestTokenInstance,
-  buyWallet: string,
-  sellWallet: string,
-  web3: Web3,
-  price = '0.00121000',
-  takerOrderBaseQuantity = '1818.18181818',
-  poolTradeBaseQuantity = '909.09090909',
-  counterpartyTradeBaseQuantity = poolTradeBaseQuantity,
-  poolTradeQuoteQuantity = '1.00000000',
-): Promise<void> => {
-  const { buyOrder, poolTrade } = await generateOrderAndPoolTrade(
+  decimals = 18,
+) {
+  const depositQuantityInAssetUnits = decimalToAssetUnits(
+    depositQuantity,
+    decimals,
+  );
+
+  await pair.approve(exchange.address, depositQuantityInAssetUnits, {
+    from: ownerWallet,
+  });
+  const deadline = Date.now() + 10000;
+  await exchange.removeLiquidityETH(
     token.address,
-    bnbAddress,
-    buyWallet,
-    takerOrderBaseQuantity,
-    price,
-  );
-  const buySignature = await getSignature(
-    web3,
-    getOrderHash(buyOrder),
-    buyWallet,
-  );
-  poolTrade.grossBaseQuantity = poolTradeBaseQuantity;
-  poolTrade.grossQuoteQuantity = poolTradeQuoteQuantity;
-
-  console.log(poolTrade);
-
-  const { sellOrder, fill } = await generateOrdersAndFill(
-    token.address,
-    bnbAddress,
-    buyWallet,
-    sellWallet,
-    counterpartyTradeBaseQuantity,
-    price,
-  );
-  const sellSignature = await getSignature(
-    web3,
-    getOrderHash(sellOrder),
-    sellWallet,
+    depositQuantityInAssetUnits,
+    depositQuantityInAssetUnits,
+    depositQuantityInAssetUnits,
+    ownerWallet,
+    deadline,
   );
 
-  // https://github.com/microsoft/TypeScript/issues/28486
-  console.log(
-    await (exchange.executeHybridTrade as any)(
-      ...getHybridTradeArguments(
-        buyOrder,
-        buySignature,
-        sellOrder,
-        sellSignature,
-        fill,
-        poolTrade,
-      ),
-    ),
+  await exchange.executeRemoveLiquidity(
+    {
+      wallet: ownerWallet,
+      assetA: token.address,
+      assetB: bnbAddress,
+      liquidity: depositQuantityInAssetUnits,
+      amountAMin: depositQuantityInAssetUnits,
+      amountBMin: depositQuantityInAssetUnits,
+      to: ownerWallet,
+      deadline,
+    },
+    {
+      liquidity: depositQuantityInAssetUnits,
+      amountA: depositQuantityInAssetUnits,
+      amountB: depositQuantityInAssetUnits,
+      feeAmountA: '0',
+      feeAmountB: '0',
+      baseAssetAddress: token.address,
+      quoteAssetAddress: bnbAddress,
+    },
+    { from: ownerWallet },
   );
-};
+}
 
 const deposit = async (
   exchange: ExchangeInstance,
@@ -605,4 +483,58 @@ const generateOrderAndPoolTrade = async (
 
   return { buyOrder, poolTrade };
 };
-*/
+
+const generateAndExecuteHybridTrade = async (
+  exchange: ExchangeInstance,
+  token: TestTokenInstance,
+  buyWallet: string,
+  sellWallet: string,
+  web3: Web3,
+  price = '0.00121000',
+  takerOrderBaseQuantity = '1818.18181818',
+  poolTradeBaseQuantity = '909.09090909',
+  counterpartyTradeBaseQuantity = poolTradeBaseQuantity,
+  poolTradeQuoteQuantity = '1.00000000',
+): Promise<void> => {
+  const { buyOrder, poolTrade } = await generateOrderAndPoolTrade(
+    token.address,
+    bnbAddress,
+    buyWallet,
+    takerOrderBaseQuantity,
+    price,
+  );
+  const buySignature = await getSignature(
+    web3,
+    getOrderHash(buyOrder),
+    buyWallet,
+  );
+  poolTrade.grossBaseQuantity = poolTradeBaseQuantity;
+  poolTrade.grossQuoteQuantity = poolTradeQuoteQuantity;
+
+  const { sellOrder, fill } = await generateOrdersAndFill(
+    token.address,
+    bnbAddress,
+    buyWallet,
+    sellWallet,
+    counterpartyTradeBaseQuantity,
+    price,
+    marketSymbol,
+  );
+  const sellSignature = await getSignature(
+    web3,
+    getOrderHash(sellOrder),
+    sellWallet,
+  );
+
+  // https://github.com/microsoft/TypeScript/issues/28486
+  await (exchange.executeHybridTrade as any)(
+    ...getHybridTradeArguments(
+      buyOrder,
+      buySignature,
+      sellOrder,
+      sellSignature,
+      fill,
+      poolTrade,
+    ),
+  );
+};

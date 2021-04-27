@@ -9,11 +9,11 @@ import type {
 import {
   deployAndAssociateContracts,
   deployAndRegisterToken,
-  bnbAddress,
-  ethSymbol,
+  bnbSymbol,
   getSignature,
 } from './helpers';
 import {
+  bnbAddress,
   decimalToPips,
   decimalToAssetUnits,
   getOrderHash,
@@ -26,7 +26,7 @@ import {
 } from '../../lib';
 
 const tokenSymbol = 'TKN';
-const marketSymbol = `${tokenSymbol}-${ethSymbol}`;
+const marketSymbol = `${tokenSymbol}-${bnbSymbol}`;
 
 contract('Exchange (trades)', (accounts) => {
   const Token = artifacts.require('TestToken');
@@ -64,7 +64,7 @@ contract('Exchange (trades)', (accounts) => {
       expect(loggedSellWallet).to.equal(sellWallet);
 
       expect(baseAssetSymbol).to.equal(tokenSymbol);
-      expect(quoteAssetSymbol).to.equal(ethSymbol);
+      expect(quoteAssetSymbol).to.equal(bnbSymbol);
 
       expect(
         (
@@ -360,7 +360,7 @@ contract('Exchange (trades)', (accounts) => {
       expect(loggedSellWallet).to.equal(sellWallet);
 
       expect(baseAssetSymbol).to.equal(tokenSymbol);
-      expect(quoteAssetSymbol).to.equal(ethSymbol);
+      expect(quoteAssetSymbol).to.equal(bnbSymbol);
 
       expect(
         (
@@ -1387,8 +1387,8 @@ contract('Exchange (trades)', (accounts) => {
         buyWallet,
         sellWallet,
       );
-      buyOrder.market = `${ethSymbol}-${ethSymbol}`;
-      sellOrder.market = `${ethSymbol}-${ethSymbol}`;
+      buyOrder.market = `${bnbSymbol}-${bnbSymbol}`;
+      sellOrder.market = `${bnbSymbol}-${bnbSymbol}`;
       fill.baseAssetAddress = bnbAddress;
 
       let error;

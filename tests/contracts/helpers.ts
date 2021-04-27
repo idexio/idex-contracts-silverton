@@ -13,8 +13,7 @@ import {
   getWithdrawalHash,
 } from '../../lib';
 
-export const bnbAddress = web3.utils.bytesToHex([...Buffer.alloc(20)]);
-export const ethSymbol = 'BNB';
+export const bnbSymbol = 'BNB';
 
 // TODO Test tokens with decimals other than 18
 export const minimumDecimalQuantity = '0.00000001';

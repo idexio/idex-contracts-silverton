@@ -1,6 +1,6 @@
 import BigNumber from 'bignumber.js';
 
-import { bnbAddress } from './helpers';
+import { bnbAddress } from '../../lib';
 import {
   CustodianInstance,
   ExchangeInstance,

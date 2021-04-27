@@ -426,6 +426,7 @@ library LiquidityPoolRegistry {
     pool.baseAssetReserveInPips -= outputBaseAssetQuantityInPips;
     pool.quoteAssetReserveInPips -= outputQuoteAssetQuantityInPips;
 
+    // Burn deposited LP tokens
     pool.pairTokenAddress.hybridBurn(
       msg.sender,
       liquidityToBurnInAssetUnits,
@@ -445,6 +446,7 @@ library LiquidityPoolRegistry {
     outputQuoteAssetQuantityInAssetUnits = AssetUnitConversions
       .pipsToAssetUnits(outputQuoteAssetQuantityInPips, asset.decimals);
 
+    // Transfer reserve assets to wallet
     custodian.withdraw(
       payable(msg.sender),
       baseAssetAddress,

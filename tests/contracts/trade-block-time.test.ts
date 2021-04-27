@@ -1,10 +1,7 @@
 import { v1 as uuidv1 } from 'uuid';
 
-import {
-  deployAndAssociateContracts,
-  deployAndRegisterToken,
-  bnbAddress,
-} from './helpers';
+import { bnbAddress } from '../../lib';
+import { deployAndAssociateContracts, deployAndRegisterToken } from './helpers';
 import { deposit, executeTrade, generateOrdersAndFill } from './trade.test';
 
 const tokenSymbol = 'TKN';
