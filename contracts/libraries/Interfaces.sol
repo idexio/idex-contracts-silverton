@@ -2,6 +2,10 @@
 
 pragma solidity 0.8.2;
 
+import {
+  IPair
+} from '@idexio/pancake-swap-core/contracts/interfaces/IPair.sol';
+
 /**
  * @notice Enums used in `Order` and `Withdrawal` structs
  */
@@ -45,6 +49,18 @@ contract Enums {
  * @notice Struct definitions
  */
 contract Structs {
+  /**
+   * @notice TODO
+   */
+  struct LiquidityPool {
+    // Flag to distinguish from empty struct
+    bool exists;
+    uint64 baseAssetReserveInPips;
+    uint8 baseAssetDecimals;
+    uint64 quoteAssetReserveInPips;
+    uint8 quoteAssetDecimals;
+    IPair pairTokenAddress;
+  }
   /**
    * @notice TODO
    */

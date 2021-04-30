@@ -3,7 +3,7 @@ import BigNumber from 'bignumber.js';
 import {
   deployAndAssociateContracts,
   deployAndRegisterToken,
-  ethSymbol,
+  bnbSymbol,
 } from './helpers';
 import { bnbAddress } from '../../lib';
 import { AssetsMockInstance } from '../../types/truffle-contracts';
@@ -254,7 +254,7 @@ contract('Exchange (tokens)', () => {
       const { exchange } = await deployAndAssociateContracts();
 
       const registeredAddress = (
-        await exchange.loadAssetBySymbol(ethSymbol, new Date().getTime())
+        await exchange.loadAssetBySymbol(bnbSymbol, new Date().getTime())
       ).assetAddress;
 
       expect(registeredAddress).to.equal(bnbAddress);

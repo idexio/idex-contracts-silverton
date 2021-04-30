@@ -2,6 +2,10 @@
 
 pragma solidity 0.8.2;
 
+import {
+  IPair
+} from '@idexio/pancake-swap-core/contracts/interfaces/IPair.sol';
+
 import { AssetRegistry } from './AssetRegistry.sol';
 import { AssetUnitConversions } from './AssetUnitConversions.sol';
 import { BalanceTracking } from './BalanceTracking.sol';
@@ -77,5 +81,44 @@ library Withdrawing {
     );
 
     completedWithdrawalHashes[withdrawalHash] = true;
+  }
+
+  function withdrawLiquidity(
+    Structs.LiquidityRemoval memory removal,
+    Structs.LiquidityChangeExecution memory execution,
+    ICustodian custodian,
+    address exchangeAddress,
+    address feeWallet,
+    IPair pairTokenAddress,
+    AssetRegistry.Storage storage assetRegistry,
+    BalanceTracking.Storage storage balanceTracking
+  ) internal {
+    (
+      uint256 outputBaseAssetQuantityInAssetUnits,
+      uint256 outputQuoteAssetQuantityInAssetUnits
+    ) =
+      balanceTracking.updateForRemoveLiquidity(
+        removal,
+        execution,
+        feeWallet,
+        exchangeAddress,
+        pairTokenAddress,
+        assetRegistry
+      );
+
+    if (outputBaseAssetQuantityInAssetUnits > 0) {
+      custodian.withdraw(
+        removal.to,
+        execution.baseAssetAddress,
+        outputBaseAssetQuantityInAssetUnits
+      );
+    }
+    if (outputQuoteAssetQuantityInAssetUnits > 0) {
+      custodian.withdraw(
+        removal.to,
+        execution.quoteAssetAddress,
+        outputQuoteAssetQuantityInAssetUnits
+      );
+    }
   }
 }

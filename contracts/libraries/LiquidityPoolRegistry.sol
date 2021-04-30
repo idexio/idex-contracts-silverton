@@ -14,25 +14,17 @@ import { AssetTransfers } from './AssetTransfers.sol';
 import { AssetUnitConversions } from './AssetUnitConversions.sol';
 import { BalanceTracking } from './BalanceTracking.sol';
 import { Depositing } from './Depositing.sol';
-import { UUID } from './/UUID.sol';
+import { UUID } from './UUID.sol';
+import { Validations } from './Validations.sol';
+import { Withdrawing } from './Withdrawing.sol';
 import { Enums, ICustodian, IWETH9, Structs } from './Interfaces.sol';
 
 library LiquidityPoolRegistry {
   using AssetRegistry for AssetRegistry.Storage;
   using BalanceTracking for BalanceTracking.Storage;
 
-  struct LiquidityPool {
-    // Flag to distinguish from empty struct
-    bool exists;
-    uint64 baseAssetReserveInPips;
-    uint8 baseAssetDecimals;
-    uint64 quoteAssetReserveInPips;
-    uint8 quoteAssetDecimals;
-    IPair pairTokenAddress;
-  }
-
   struct Storage {
-    mapping(address => mapping(address => LiquidityPool)) poolsByAddresses;
+    mapping(address => mapping(address => Structs.LiquidityPool)) poolsByAddresses;
     mapping(bytes32 => Enums.LiquidityChangeState) changes;
   }
 
@@ -51,7 +43,8 @@ library LiquidityPoolRegistry {
     AssetRegistry.Storage storage assetRegistry
   ) public {
     {
-      // Extra verification to prevent user error
+      // To prevent user error, additionaly verify that the provided Pair token address matches
+      // that returned by the Factory contract
       IPair factoryPairTokenAddress =
         IPair(
           pairFactoryAddress.getPair(
@@ -76,15 +69,14 @@ library LiquidityPoolRegistry {
     }
 
     // Create internally tracked pool
-    LiquidityPool storage pool =
+    Structs.LiquidityPool storage pool =
       self.poolsByAddresses[baseAssetAddress][quoteAssetAddress];
     require(!pool.exists, 'Pool already exists');
-
     pool.pairTokenAddress = pairTokenAddress;
     pool.exists = true;
 
     {
-      // Map reserves to base/quote
+      // Map Pair token reserve addresses to provided market base/quote addresses
       (
         uint256 baseAssetQuantityInAssetUnits,
         uint256 quoteAssetQuantityInAssetUnits
@@ -93,9 +85,10 @@ library LiquidityPoolRegistry {
           ? (reserve0, reserve1)
           : (reserve1, reserve0);
 
-      // Convert reserve amounts to pips and store
+      // Convert transferred reserve amounts to pips and store
       Structs.Asset memory asset;
       asset = assetRegistry.loadAssetByAddress(baseAssetAddress);
+      // Store asset decimals to avoid redundant asset registry lookups
       pool.baseAssetDecimals = asset.decimals;
       pool.baseAssetReserveInPips = AssetUnitConversions.assetUnitsToPips(
         baseAssetQuantityInAssetUnits,
@@ -114,89 +107,51 @@ library LiquidityPoolRegistry {
 
   function addLiquidity(
     Storage storage self,
-    address tokenA,
-    address tokenB,
-    uint256 amountADesired,
-    uint256 amountBDesired,
-    uint256 amountAMin,
-    uint256 amountBMin,
-    address to,
-    uint256 deadline,
+    Structs.LiquidityAddition memory addition,
     address payable custodian,
     AssetRegistry.Storage storage assetRegistry,
     BalanceTracking.Storage storage balanceTracking
   ) public {
-    require(deadline >= block.timestamp, 'IDEX: EXPIRED');
+    require(addition.deadline >= block.timestamp, 'IDEX: EXPIRED');
 
+    // Transfer assets to Custodian and credit balances
     Depositing.depositLiquidityReserves(
-      msg.sender,
-      tokenA,
-      tokenB,
-      amountADesired,
-      amountBDesired,
+      addition.wallet,
+      addition.assetA,
+      addition.assetB,
+      addition.amountADesired,
+      addition.amountBDesired,
       custodian,
       assetRegistry,
       balanceTracking
     );
 
-    bytes32 hash =
-      keccak256(
-        abi.encodePacked(
-          uint8(Enums.LiquidityChangeType.Addition),
-          msg.sender,
-          tokenA,
-          tokenB,
-          amountADesired,
-          amountBDesired,
-          amountAMin,
-          amountBMin,
-          to,
-          deadline
-        )
-      );
+    bytes32 hash = getAdditionHash(addition);
     self.changes[hash] = Enums.LiquidityChangeState.Initiated;
   }
 
   function addLiquidityETH(
     Storage storage self,
-    address token,
-    uint256 amountTokenDesired,
-    uint256 amountTokenMin,
-    uint256 amountETHMin,
-    address to,
-    uint256 deadline,
+    Structs.LiquidityAddition memory addition,
     address payable custodian,
     AssetRegistry.Storage storage assetRegistry,
     BalanceTracking.Storage storage balanceTracking
   ) public {
-    require(deadline >= block.timestamp, 'IDEX: EXPIRED');
+    require(addition.deadline >= block.timestamp, 'IDEX: EXPIRED');
 
+    // Transfer reserve assets to Custodian and credit balances
     Depositing.depositLiquidityReserves(
-      msg.sender,
-      token,
-      address(0x0),
-      amountTokenDesired,
-      msg.value,
+      addition.wallet,
+      addition.assetA,
+      addition.assetB,
+      addition.amountADesired,
+      addition.amountBDesired,
       custodian,
       assetRegistry,
       balanceTracking
     );
 
-    bytes32 hash =
-      keccak256(
-        abi.encodePacked(
-          uint8(Enums.LiquidityChangeType.Addition),
-          msg.sender,
-          token,
-          address(0x0),
-          amountTokenDesired,
-          msg.value,
-          amountTokenMin,
-          amountETHMin,
-          to,
-          deadline
-        )
-      );
+    bytes32 hash = getAdditionHash(addition);
     self.changes[hash] = Enums.LiquidityChangeState.Initiated;
   }
 
@@ -205,73 +160,58 @@ library LiquidityPoolRegistry {
     Structs.LiquidityAddition memory addition,
     Structs.LiquidityChangeExecution memory execution,
     address feeWallet,
-    AssetRegistry.Storage storage assetRegistry,
     BalanceTracking.Storage storage balanceTracking
   ) external {
-    bytes32 hash =
-      keccak256(
-        abi.encodePacked(
-          uint8(Enums.LiquidityChangeType.Addition),
-          addition.wallet,
-          addition.assetA,
-          addition.assetB,
-          addition.amountADesired,
-          addition.amountBDesired,
-          addition.amountAMin,
-          addition.amountBMin,
-          addition.to,
-          addition.deadline
-        )
-      );
+    bytes32 hash = getAdditionHash(addition);
     Enums.LiquidityChangeState state = self.changes[hash];
     require(state == Enums.LiquidityChangeState.Initiated, 'Not executable');
+    self.changes[hash] = Enums.LiquidityChangeState.Executed;
 
-    balanceTracking.executeAddLiquidity(
-      assetRegistry,
-      addition,
-      execution,
-      feeWallet
-    );
-
-    (
-      uint256 netBaseAssetQuantityInAssetUnits,
-      uint256 netQuoteAssetQuantityInAssetUnits
-    ) =
-      execution.baseAssetAddress == addition.assetA
-        ? (
-          execution.amountA - execution.feeAmountA,
-          execution.amountB - execution.feeAmountB
-        )
-        : (
-          execution.amountB - execution.feeAmountB,
-          execution.amountA - execution.feeAmountA
-        );
-
-    LiquidityPool storage pool =
+    Structs.LiquidityPool storage pool =
       loadLiquidityPoolByAssetAddresses(
         self,
         execution.baseAssetAddress,
         execution.quoteAssetAddress
       );
 
-    Structs.Asset memory asset;
-    uint64 quantityInPips;
+    (
+      uint256 netBaseAssetQuantityInAssetUnits,
+      uint256 netQuoteAssetQuantityInAssetUnits
+    ) = Validations.validateLiquidityAddition(addition, execution, pool);
 
-    asset = assetRegistry.loadAssetByAddress(execution.baseAssetAddress);
-    quantityInPips = AssetUnitConversions.assetUnitsToPips(
-      netBaseAssetQuantityInAssetUnits,
-      asset.decimals
+    // Debit wallet Pair token balance and credit fee wallet reserve asset balances
+    balanceTracking.updateForAddLiquidity(
+      addition,
+      execution,
+      pool.baseAssetDecimals,
+      pool.quoteAssetDecimals,
+      feeWallet
     );
+
+    // Credit pool base asset reserves with gross deposit minus fees
+    uint64 quantityInPips =
+      AssetUnitConversions.assetUnitsToPips(
+        netBaseAssetQuantityInAssetUnits,
+        pool.baseAssetDecimals
+      );
     pool.baseAssetReserveInPips += quantityInPips;
 
-    asset = assetRegistry.loadAssetByAddress(execution.quoteAssetAddress);
+    // Credit pool quote asset reserves with gross deposit minus fees
     quantityInPips = AssetUnitConversions.assetUnitsToPips(
       netQuoteAssetQuantityInAssetUnits,
-      asset.decimals
+      pool.quoteAssetDecimals
     );
     pool.quoteAssetReserveInPips += quantityInPips;
 
-    pool.pairTokenAddress.hybridMint(addition.to, execution.liquidity);
+    // Mint Pair tokens to destination wallet
+    pool.pairTokenAddress.hybridMint(
+      addition.wallet,
+      execution.liquidity,
+      // TODO Should this be gross quantity?
+      netBaseAssetQuantityInAssetUnits,
+      netQuoteAssetQuantityInAssetUnits,
+      addition.to
+    );
   }
 
   // Remove liquidity //
@@ -287,6 +227,7 @@ library LiquidityPoolRegistry {
   ) public {
     require(removal.deadline >= block.timestamp, 'IDEX: EXPIRED');
 
+    // Transfer Pair tokens to Custodian and credit balances
     Depositing.depositLiquidityTokens(
       removal.wallet,
       removal.assetA,
@@ -313,80 +254,66 @@ library LiquidityPoolRegistry {
     AssetRegistry.Storage storage assetRegistry,
     BalanceTracking.Storage storage balanceTracking
   ) public {
-    LiquidityPool storage pool =
+    IPair pairTokenAddress =
+      validateAndUpdateForLiquidityRemoval(self, removal, execution);
+
+    Withdrawing.withdrawLiquidity(
+      removal,
+      execution,
+      custodian,
+      exchangeAddress,
+      feeWallet,
+      pairTokenAddress,
+      assetRegistry,
+      balanceTracking
+    );
+  }
+
+  function validateAndUpdateForLiquidityRemoval(
+    Storage storage self,
+    Structs.LiquidityRemoval memory removal,
+    Structs.LiquidityChangeExecution memory execution
+  ) private returns (IPair pairTokenAddress) {
+    bytes32 hash = getRemovalHash(removal);
+    Enums.LiquidityChangeState state = self.changes[hash];
+    require(state == Enums.LiquidityChangeState.Initiated, 'Not executable');
+    self.changes[hash] = Enums.LiquidityChangeState.Executed;
+
+    Structs.LiquidityPool storage pool =
       loadLiquidityPoolByAssetAddresses(
         self,
         execution.baseAssetAddress,
         execution.quoteAssetAddress
       );
+    pairTokenAddress = pool.pairTokenAddress;
 
-    {
-      bytes32 hash = getRemovalHash(removal);
-      Enums.LiquidityChangeState state = self.changes[hash];
-      require(state == Enums.LiquidityChangeState.Initiated, 'Not executable');
+    (
+      uint256 grossBaseAssetQuantityInAssetUnits,
+      uint256 grossQuoteAssetQuantityInAssetUnits
+    ) = Validations.validateLiquidityRemoval(removal, execution, pool);
 
-      (
-        uint256 outputBaseAssetQuantityInAssetUnits,
-        uint256 outputQuoteAssetQuantityInAssetUnits
-      ) =
-        balanceTracking.executeRemoveLiquidity(
-          removal,
-          execution,
-          feeWallet,
-          exchangeAddress,
-          assetRegistry
-        );
-
-      if (outputBaseAssetQuantityInAssetUnits > 0) {
-        custodian.withdraw(
-          removal.to,
-          execution.baseAssetAddress,
-          outputBaseAssetQuantityInAssetUnits
-        );
-      }
-      if (outputQuoteAssetQuantityInAssetUnits > 0) {
-        custodian.withdraw(
-          removal.to,
-          execution.quoteAssetAddress,
-          outputQuoteAssetQuantityInAssetUnits
-        );
-      }
-    }
-
-    {
-      (
-        uint256 baseAssetQuantityInAssetUnits,
-        uint256 quoteAssetQuantityInAssetUnits
-      ) =
-        execution.baseAssetAddress == removal.assetA
-          ? (execution.amountA, execution.amountB)
-          : (execution.amountB, execution.amountA);
-
-      Structs.Asset memory asset;
-      uint64 quantityInPips;
-
-      asset = assetRegistry.loadAssetByAddress(execution.baseAssetAddress);
-      quantityInPips = AssetUnitConversions.assetUnitsToPips(
-        baseAssetQuantityInAssetUnits,
-        asset.decimals
+    // Debit pool base asset reserves with gross withdrawal
+    uint64 quantityInPips =
+      AssetUnitConversions.assetUnitsToPips(
+        grossBaseAssetQuantityInAssetUnits,
+        pool.baseAssetDecimals
       );
-      pool.baseAssetReserveInPips -= quantityInPips;
+    pool.baseAssetReserveInPips -= quantityInPips;
 
-      asset = assetRegistry.loadAssetByAddress(execution.quoteAssetAddress);
-      quantityInPips = AssetUnitConversions.assetUnitsToPips(
-        quoteAssetQuantityInAssetUnits,
-        asset.decimals
-      );
-      pool.quoteAssetReserveInPips -= quantityInPips;
+    // Debit pool quote asset reserves with gross withdrawal
+    quantityInPips = AssetUnitConversions.assetUnitsToPips(
+      grossQuoteAssetQuantityInAssetUnits,
+      pool.quoteAssetDecimals
+    );
+    pool.quoteAssetReserveInPips -= quantityInPips;
 
-      pool.pairTokenAddress.hybridBurn(removal.wallet, execution.liquidity);
-
-      balanceTracking.burnLiquidityTokens(
-        address(pool.pairTokenAddress),
-        removal.wallet,
-        execution.liquidity
-      );
-    }
+    pool.pairTokenAddress.hybridBurn(
+      removal.wallet,
+      execution.liquidity,
+      grossBaseAssetQuantityInAssetUnits,
+      grossQuoteAssetQuantityInAssetUnits,
+      removal.to
+    );
   }
 
   // Exit liquidity //
@@ -405,7 +332,7 @@ library LiquidityPoolRegistry {
       uint256 outputQuoteAssetQuantityInAssetUnits
     )
   {
-    LiquidityPool storage pool =
+    Structs.LiquidityPool storage pool =
       loadLiquidityPoolByAssetAddresses(
         self,
         baseAssetAddress,
@@ -427,7 +354,14 @@ library LiquidityPoolRegistry {
     pool.baseAssetReserveInPips -= outputBaseAssetQuantityInPips;
     pool.quoteAssetReserveInPips -= outputQuoteAssetQuantityInPips;
 
-    pool.pairTokenAddress.hybridBurn(msg.sender, liquidityToBurnInAssetUnits);
+    // Burn deposited Pair tokens
+    pool.pairTokenAddress.hybridBurn(
+      msg.sender,
+      liquidityToBurnInAssetUnits,
+      outputBaseAssetQuantityInPips,
+      outputQuoteAssetQuantityInPips,
+      msg.sender
+    );
 
     Structs.Asset memory asset;
     asset = assetRegistry.loadAssetByAddress(baseAssetAddress);
@@ -440,6 +374,7 @@ library LiquidityPoolRegistry {
     outputQuoteAssetQuantityInAssetUnits = AssetUnitConversions
       .pipsToAssetUnits(outputQuoteAssetQuantityInPips, asset.decimals);
 
+    // Transfer reserve assets to wallet
     custodian.withdraw(
       payable(msg.sender),
       baseAssetAddress,
@@ -458,8 +393,11 @@ library LiquidityPoolRegistry {
     Storage storage self,
     Structs.PoolTrade memory poolTrade,
     Enums.OrderSide orderSide
-  ) internal {
-    LiquidityPool storage pool =
+  )
+    internal
+    returns (uint64 baseAssetReserveInPips, uint64 quoteAssetReserveInPips)
+  {
+    Structs.LiquidityPool storage pool =
       loadLiquidityPoolByAssetAddresses(
         self,
         poolTrade.baseAssetAddress,
@@ -503,12 +441,14 @@ library LiquidityPoolRegistry {
       updatedProduct >= initialProduct,
       'Constant product cannot decrease'
     );
+
+    return (pool.baseAssetReserveInPips, pool.quoteAssetReserveInPips);
   }
 
   // Helpers //
 
   function getOutputAssetQuantities(
-    LiquidityPool storage pool,
+    Structs.LiquidityPool storage pool,
     uint64 liquidityToBurnInPips
   )
     internal
@@ -518,13 +458,14 @@ library LiquidityPoolRegistry {
       uint64 outputQuoteAssetQuantityInPips
     )
   {
-    // Convert total LP supply to pips to calculate ratios
+    // Convert total Pair token supply to pips to calculate ratios
     uint64 totalLiquidityInPips =
       AssetUnitConversions.assetUnitsToPips(
         pool.pairTokenAddress.totalSupply(),
         pool.pairTokenAddress.decimals()
       );
 
+    // https://github.com/Uniswap/uniswap-v2-core/blob/master/contracts/UniswapV2Pair.sol#L123
     outputBaseAssetQuantityInPips =
       (liquidityToBurnInPips * pool.baseAssetReserveInPips) /
       totalLiquidityInPips;
@@ -535,6 +476,28 @@ library LiquidityPoolRegistry {
       outputBaseAssetQuantityInPips > 0 && outputQuoteAssetQuantityInPips > 0,
       'Insufficient liquidity burned'
     );
+  }
+
+  function getAdditionHash(Structs.LiquidityAddition memory addition)
+    private
+    pure
+    returns (bytes32)
+  {
+    return
+      keccak256(
+        abi.encodePacked(
+          uint8(Enums.LiquidityChangeType.Addition),
+          addition.wallet,
+          addition.assetA,
+          addition.assetB,
+          addition.amountADesired,
+          addition.amountBDesired,
+          addition.amountAMin,
+          addition.amountBMin,
+          addition.to,
+          addition.deadline
+        )
+      );
   }
 
   function getRemovalHash(Structs.LiquidityRemoval memory removal)
@@ -562,8 +525,12 @@ library LiquidityPoolRegistry {
     Storage storage self,
     address baseAssetAddress,
     address quoteAssetAddress
-  ) internal view returns (LiquidityPool storage pool) {
+  ) internal view returns (Structs.LiquidityPool storage pool) {
     pool = self.poolsByAddresses[baseAssetAddress][quoteAssetAddress];
     require(pool.exists, 'No pool found for address pair');
+  }
+
+  function min(uint256 x, uint256 y) private pure returns (uint256 z) {
+    z = x < y ? x : y;
   }
 }

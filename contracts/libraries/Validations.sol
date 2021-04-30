@@ -3,13 +3,15 @@
 pragma solidity 0.8.2;
 
 import { AssetRegistry } from './AssetRegistry.sol';
-import { Enums, Structs } from './Interfaces.sol';
+import { AssetUnitConversions } from './AssetUnitConversions.sol';
 import { Signatures } from './Signatures.sol';
 import { UUID } from './UUID.sol';
+import { Enums, Structs } from './Interfaces.sol';
 
 library Validations {
   using AssetRegistry for AssetRegistry.Storage;
 
+  uint64 public constant _basisPointsInTotal = 100 * 100; // 100 basis points/percent * 100 percent/total
   uint64 public constant _maxTradeFeeBasisPoints = 20 * 100; // 20%;
 
   function getFeeBasisPoints(uint64 fee, uint64 total)
@@ -17,8 +19,156 @@ library Validations {
     pure
     returns (uint64)
   {
-    uint64 basisPointsInTotal = 100 * 100; // 100 basis points/percent * 100 percent/total
-    return (fee * basisPointsInTotal) / total;
+    return (fee * _basisPointsInTotal) / total;
+  }
+
+  function validateLiquidityAddition(
+    Structs.LiquidityAddition memory addition,
+    Structs.LiquidityChangeExecution memory execution,
+    Structs.LiquidityPool memory pool
+  )
+    internal
+    view
+    returns (
+      uint256 netBaseAssetQuantityInAssetUnits,
+      uint256 netQuoteAssetQuantityInAssetUnits
+    )
+  {
+    require(
+      ((execution.baseAssetAddress == addition.assetA &&
+        execution.quoteAssetAddress == addition.assetB) ||
+        (execution.baseAssetAddress == addition.assetB &&
+          execution.quoteAssetAddress == addition.assetA)),
+      'Asset address mismatch'
+    );
+
+    require(
+      execution.amountA >= addition.amountAMin &&
+        execution.amountA <= addition.amountADesired,
+      'Invalid amountA'
+    );
+    require(
+      execution.amountB >= addition.amountBMin &&
+        execution.amountB <= addition.amountBDesired,
+      'Invalid amountB'
+    );
+
+    require(
+      getFeeBasisPoints256(execution.feeAmountA, execution.amountA) <=
+        _maxTradeFeeBasisPoints,
+      'Excessive A fee'
+    );
+    require(
+      getFeeBasisPoints256(execution.feeAmountB, execution.amountB) <=
+        _maxTradeFeeBasisPoints,
+      'Excessive B fee'
+    );
+
+    (
+      netBaseAssetQuantityInAssetUnits,
+      netQuoteAssetQuantityInAssetUnits
+    ) = execution.baseAssetAddress == addition.assetA
+      ? (
+        execution.amountA - execution.feeAmountA,
+        execution.amountB - execution.feeAmountB
+      )
+      : (
+        execution.amountB - execution.feeAmountB,
+        execution.amountA - execution.feeAmountA
+      );
+
+    uint256 totalLiquidityInAssetUnits = pool.pairTokenAddress.totalSupply();
+    require(
+      execution.liquidity ==
+        min(
+          // TODO Should this be gross quantity?
+          (netBaseAssetQuantityInAssetUnits * (totalLiquidityInAssetUnits)) /
+            AssetUnitConversions.pipsToAssetUnits(
+              pool.baseAssetReserveInPips,
+              pool.pairTokenAddress.decimals()
+            ),
+          (netQuoteAssetQuantityInAssetUnits * (totalLiquidityInAssetUnits)) /
+            AssetUnitConversions.pipsToAssetUnits(
+              pool.quoteAssetReserveInPips,
+              pool.pairTokenAddress.decimals()
+            )
+        ),
+      'Invalid liquidity minted'
+    );
+  }
+
+  function validateLiquidityRemoval(
+    Structs.LiquidityRemoval memory removal,
+    Structs.LiquidityChangeExecution memory execution,
+    Structs.LiquidityPool memory pool
+  )
+    internal
+    view
+    returns (
+      uint256 grossBaseAssetQuantityInAssetUnits,
+      uint256 grossQuoteAssetQuantityInAssetUnits
+    )
+  {
+    require(
+      ((execution.baseAssetAddress == removal.assetA &&
+        execution.quoteAssetAddress == removal.assetB) ||
+        (execution.baseAssetAddress == removal.assetB &&
+          execution.quoteAssetAddress == removal.assetA)),
+      'Asset address mismatch'
+    );
+
+    require(execution.amountA >= removal.amountAMin, 'Invalid amountA');
+    require(execution.amountB >= removal.amountBMin, 'Invalid amountB');
+
+    require(
+      getFeeBasisPoints256(execution.feeAmountA, execution.amountA) <=
+        _maxTradeFeeBasisPoints,
+      'Excessive A fee'
+    );
+    require(
+      getFeeBasisPoints256(execution.feeAmountB, execution.amountB) <=
+        _maxTradeFeeBasisPoints,
+      'Excessive B fee'
+    );
+
+    (
+      grossBaseAssetQuantityInAssetUnits,
+      grossQuoteAssetQuantityInAssetUnits
+    ) = execution.baseAssetAddress == removal.assetA
+      ? (execution.amountA, execution.amountB)
+      : (execution.amountB, execution.amountA);
+
+    require(
+      removal.liquidity == execution.liquidity,
+      'Invalid liquidity burned'
+    );
+
+    // https://github.com/Uniswap/uniswap-v2-core/blob/master/contracts/UniswapV2Pair.sol#L143
+    uint256 totalLiquidityInAssetUnits = pool.pairTokenAddress.totalSupply();
+    uint256 baseAssetReservesInAssetUnits =
+      AssetUnitConversions.pipsToAssetUnits(
+        pool.baseAssetReserveInPips,
+        pool.baseAssetDecimals
+      );
+    uint256 quoteAssetReservesInAssetUnits =
+      AssetUnitConversions.pipsToAssetUnits(
+        pool.quoteAssetReserveInPips,
+        pool.quoteAssetDecimals
+      );
+    require(
+      removal.liquidity == execution.liquidity &&
+        grossBaseAssetQuantityInAssetUnits ==
+        (execution.liquidity * baseAssetReservesInAssetUnits) /
+          totalLiquidityInAssetUnits,
+      'Invalid base amount'
+    );
+    require(
+      removal.liquidity == execution.liquidity &&
+        grossQuoteAssetQuantityInAssetUnits ==
+        (execution.liquidity * quoteAssetReservesInAssetUnits) /
+          totalLiquidityInAssetUnits,
+      'Invalid quote amount'
+    );
   }
 
   function validateCounterpartyTrade(
@@ -219,6 +369,36 @@ library Validations {
     }
   }
 
+  function validateLimitPrice(
+    Structs.Order memory order,
+    uint64 baseAssetReserveInPips,
+    uint64 quoteAssetReserveInPips
+  ) internal pure {
+    if (
+      order.side == Enums.OrderSide.Buy && isLimitOrderType(order.orderType)
+    ) {
+      require(
+        getImpliedQuoteQuantityInPips(
+          baseAssetReserveInPips,
+          order.limitPriceInPips
+        ) <= quoteAssetReserveInPips,
+        'Pool marginal buy price exceeded'
+      );
+    }
+
+    if (
+      order.side == Enums.OrderSide.Sell && isLimitOrderType(order.orderType)
+    ) {
+      require(
+        getImpliedQuoteQuantityInPips(
+          quoteAssetReserveInPips,
+          order.limitPriceInPips
+        ) >= quoteAssetReserveInPips,
+        'Pool marginal sell price exceeded'
+      );
+    }
+  }
+
   function validateTradeFees(Structs.Trade memory trade) internal pure {
     uint64 makerTotalQuantityInPips =
       trade.makerFeeAssetAddress == trade.baseAssetAddress
@@ -349,16 +529,12 @@ library Validations {
 
   // Utils //
 
-  function isLimitOrderType(Enums.OrderType orderType)
+  function getFeeBasisPoints256(uint256 fee, uint256 total)
     private
     pure
-    returns (bool)
+    returns (uint256)
   {
-    return
-      orderType == Enums.OrderType.Limit ||
-      orderType == Enums.OrderType.LimitMaker ||
-      orderType == Enums.OrderType.StopLossLimit ||
-      orderType == Enums.OrderType.TakeProfitLimit;
+    return (fee * _basisPointsInTotal) / total;
   }
 
   function getImpliedQuoteQuantityInPips(
@@ -377,5 +553,21 @@ library Validations {
     );
 
     return uint64(impliedQuoteQuantityInPips);
+  }
+
+  function isLimitOrderType(Enums.OrderType orderType)
+    private
+    pure
+    returns (bool)
+  {
+    return
+      orderType == Enums.OrderType.Limit ||
+      orderType == Enums.OrderType.LimitMaker ||
+      orderType == Enums.OrderType.StopLossLimit ||
+      orderType == Enums.OrderType.TakeProfitLimit;
+  }
+
+  function min(uint256 x, uint256 y) private pure returns (uint256 z) {
+    z = x < y ? x : y;
   }
 }

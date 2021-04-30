@@ -34,9 +34,6 @@ import {
  * @notice The Exchange contract. Implements all deposit, trade, and withdrawal logic and associated balance tracking
  *
  * @dev The term `asset` refers collectively to BNB and ERC-20 tokens, the term `token` refers only to the latter
- * @dev Events with indexed string parameters (Deposited and TradeExecuted) only log the hash values for those
- * parameters, from which the original raw string values cannot be retrieved. For convenience these events contain
- * the un-indexed string parameter values in addition to the indexed values
  */
 contract Exchange is IExchange, Owned {
   using AssetRegistry for AssetRegistry.Storage;
@@ -55,9 +52,8 @@ contract Exchange is IExchange, Owned {
    */
   event Deposited(
     uint64 index,
-    address indexed wallet,
-    address indexed assetAddress,
-    string indexed assetSymbolIndex,
+    address wallet,
+    address assetAddress,
     string assetSymbol,
     uint64 quantityInPips,
     uint64 newExchangeBalanceInPips,
@@ -75,20 +71,19 @@ contract Exchange is IExchange, Owned {
    * @notice TODO
    */
   event LiquidityAdded(
-    address indexed sender,
-    address indexed baseAssetAddress,
-    address indexed quoteAssetAddress,
+    address wallet,
+    address baseAssetAddress,
+    address quoteAssetAddress,
     uint64 baseAssetQuantityInPips,
-    uint64 quoteAssetQuantityInPips,
-    uint64 liquidityShareQuantity
+    uint64 quoteAssetQuantityInPips
   );
   /**
    * @notice TODO
    */
   event LiquidityRemoved(
-    address indexed sender,
-    address indexed baseAssetAddress,
-    address indexed quoteAssetAddress,
+    address sender,
+    address baseAssetAddress,
+    address quoteAssetAddress,
     uint64 baseAssetQuantityInPips,
     uint64 quoteAssetQuantityInPips,
     uint64 liquidityShareQuantity
@@ -130,8 +125,6 @@ contract Exchange is IExchange, Owned {
   event TradeExecuted(
     address buyWallet,
     address sellWallet,
-    string indexed baseAssetSymbolIndex,
-    string indexed quoteAssetSymbolIndex,
     string baseAssetSymbol,
     string quoteAssetSymbol,
     uint64 baseQuantityInPips,
@@ -148,8 +141,8 @@ contract Exchange is IExchange, Owned {
    * @notice Emitted when a user withdraws an asset balance through the Exit Wallet mechanism with `withdrawExit`
    */
   event WalletExitWithdrawn(
-    address indexed wallet,
-    address indexed assetAddress,
+    address wallet,
+    address assetAddress,
     string assetSymbol,
     uint64 quantityInPips,
     uint64 newExchangeBalanceInPips,
@@ -163,8 +156,8 @@ contract Exchange is IExchange, Owned {
    * @notice Emitted when the Dispatcher Wallet submits a withdrawal with `withdraw`
    */
   event Withdrawn(
-    address indexed wallet,
-    address indexed assetAddress,
+    address wallet,
+    address assetAddress,
     string assetSymbol,
     uint64 quantityInPips,
     uint64 newExchangeBalanceInPips,
@@ -517,7 +510,6 @@ contract Exchange is IExchange, Owned {
       wallet,
       asset.assetAddress,
       asset.symbol,
-      asset.symbol,
       quantityInPips,
       newExchangeBalanceInPips,
       newExchangeBalanceInAssetUnits
@@ -572,8 +564,6 @@ contract Exchange is IExchange, Owned {
     emit TradeExecuted(
       buy.walletAddress,
       sell.walletAddress,
-      trade.baseAssetSymbol,
-      trade.quoteAssetSymbol,
       trade.baseAssetSymbol,
       trade.quoteAssetSymbol,
       trade.grossBaseQuantityInPips,
@@ -676,11 +666,222 @@ contract Exchange is IExchange, Owned {
     );
   }
 
+  // Liquidity pools //
+
+  function loadLiquidityPoolByAssetAddresses(
+    address baseAssetAddress,
+    address quoteAssetAddress
+  ) public view returns (Structs.LiquidityPool memory) {
+    return
+      _liquidityPoolRegistry.loadLiquidityPoolByAssetAddresses(
+        baseAssetAddress,
+        quoteAssetAddress
+      );
+  }
+
+  function promotePool(
+    address baseAssetAddress,
+    address quoteAssetAddress,
+    IPair pairTokenAddress
+  ) external onlyAdmin {
+    _liquidityPoolRegistry.promotePool(
+      baseAssetAddress,
+      quoteAssetAddress,
+      pairTokenAddress,
+      _custodian,
+      _pairFactoryContractAddress,
+      _WETH,
+      _assetRegistry
+    );
+  }
+
+  /**
+   * @notice Adds liquidity to a BEP-20⇄BEP-20 pool
+   *
+   * @dev To cover all possible scenarios, `msg.sender` should have already given the Exchange an allowance
+   * of at least amountADesired/amountBDesired on tokenA/tokenB
+   */
+  function addLiquidity(
+    address tokenA,
+    address tokenB,
+    uint256 amountADesired,
+    uint256 amountBDesired,
+    uint256 amountAMin,
+    uint256 amountBMin,
+    address to,
+    uint256 deadline
+  ) external {
+    _liquidityPoolRegistry.addLiquidity(
+      Structs.LiquidityAddition(
+        msg.sender,
+        tokenA,
+        tokenB,
+        amountADesired,
+        amountBDesired,
+        amountAMin,
+        amountBMin,
+        to,
+        deadline
+      ),
+      _custodian,
+      _assetRegistry,
+      _balanceTracking
+    );
+  }
+
+  /**
+   * @notice Adds liquidity to a BEP-20⇄BNB pool
+   *
+   * @dev To cover all possible scenarios, msg.sender should have already given the router an allowance
+   * of at least amountTokenDesired on token. `msg.value` is treated as amountETHDesired
+   */
+  function addLiquidityETH(
+    address token,
+    uint256 amountTokenDesired,
+    uint256 amountTokenMin,
+    uint256 amountETHMin,
+    address to,
+    uint256 deadline
+  ) external payable {
+    _liquidityPoolRegistry.addLiquidityETH(
+      Structs.LiquidityAddition(
+        msg.sender,
+        token,
+        address(0x0),
+        amountTokenDesired,
+        msg.value,
+        amountTokenMin,
+        amountETHMin,
+        to,
+        deadline
+      ),
+      _custodian,
+      _assetRegistry,
+      _balanceTracking
+    );
+  }
+
+  /**
+   * @notice Settles a liquidity addition by adjusting pool reserves and minting LP tokens
+   */
+  function executeAddLiquidity(
+    Structs.LiquidityAddition calldata addition,
+    Structs.LiquidityChangeExecution calldata execution
+  ) external onlyDispatcher {
+    _liquidityPoolRegistry.executeAddLiquidity(
+      addition,
+      execution,
+      _feeWallet,
+      _balanceTracking
+    );
+  }
+
+  /**
+   * @notice Removes liquidity from an BEP-20⇄BEP-20 pool
+   *
+   * @dev `msg.sender` should have already given the Exchange an allowance of at least liquidity on the pool
+   */
+  function removeLiquidity(
+    address tokenA,
+    address tokenB,
+    uint256 liquidity,
+    uint256 amountAMin,
+    uint256 amountBMin,
+    address to,
+    uint256 deadline
+  ) public {
+    _liquidityPoolRegistry.removeLiquidity(
+      // Use struct to avoid stack too deep
+      Structs.LiquidityRemoval(
+        msg.sender,
+        tokenA,
+        tokenB,
+        liquidity,
+        amountAMin,
+        amountBMin,
+        payable(to),
+        deadline
+      ),
+      _custodian,
+      _pairFactoryContractAddress,
+      address(_WETH),
+      _assetRegistry,
+      _balanceTracking
+    );
+  }
+
+  /**
+   * @notice Removes liquidity from an BEP-20⇄BNB pool and receive ETH
+   *
+   * @dev `msg.sender` should have already given the Exchange an allowance of at least liquidity on the pool
+   */
+  function removeLiquidityETH(
+    address token,
+    uint256 liquidity,
+    uint256 amountTokenMin,
+    uint256 amountETHMin,
+    address to,
+    uint256 deadline
+  ) external {
+    _liquidityPoolRegistry.removeLiquidity(
+      // Use struct to avoid stack too deep
+      Structs.LiquidityRemoval(
+        msg.sender,
+        token,
+        address(0x0),
+        liquidity,
+        amountTokenMin,
+        amountETHMin,
+        payable(to),
+        deadline
+      ),
+      _custodian,
+      _pairFactoryContractAddress,
+      address(_WETH),
+      _assetRegistry,
+      _balanceTracking
+    );
+  }
+
+  /**
+   * @notice Settles a liquidity removal by adjusting pool reserves, burning LP tokens, and
+   * transferring output assets
+   */
+  function executeRemoveLiquidity(
+    Structs.LiquidityRemoval calldata removal,
+    Structs.LiquidityChangeExecution calldata execution
+  ) external onlyDispatcher {
+    _liquidityPoolRegistry.executeRemoveLiquidity(
+      removal,
+      execution,
+      ICustodian(_custodian),
+      address(this),
+      _feeWallet,
+      _assetRegistry,
+      _balanceTracking
+    );
+  }
+
+  function removeLiquidityExit(
+    address baseAssetAddress,
+    address quoteAssetAddress
+  ) external {
+    require(isWalletExitFinalized(msg.sender), 'Wallet exit not finalized');
+
+    _liquidityPoolRegistry.removeLiquidityExit(
+      baseAssetAddress,
+      quoteAssetAddress,
+      ICustodian(_custodian),
+      _assetRegistry,
+      _balanceTracking
+    );
+  }
+
   // Wallet exits //
 
   /**
-   * @notice Flags the sending wallet as exited, immediately disabling deposits upon mining.
-   * After the Chain Propagation Period passes trades and withdrawals are also disabled for the wallet,
+   * @notice Flags the sending wallet as exited, immediately disabling deposits upon mining. After
+   * the Chain Propagation Period passes trades and withdrawals are also disabled for the wallet,
    * and assets may then be withdrawn one at a time via `withdrawExit`
    */
   function exitWallet() external {
@@ -894,193 +1095,6 @@ contract Exchange is IExchange, Owned {
   modifier onlyDispatcher() {
     require(msg.sender == _dispatcherWallet, 'Caller is not dispatcher');
     _;
-  }
-
-  // Liquidity pools //
-
-  function loadLiquidityPoolByAssetAddresses(
-    address baseAssetAddress,
-    address quoteAssetAddress
-  ) public view returns (LiquidityPoolRegistry.LiquidityPool memory) {
-    return
-      _liquidityPoolRegistry.loadLiquidityPoolByAssetAddresses(
-        baseAssetAddress,
-        quoteAssetAddress
-      );
-  }
-
-  function promotePool(
-    address baseAssetAddress,
-    address quoteAssetAddress,
-    IPair pairTokenAddress
-  ) external onlyAdmin {
-    _liquidityPoolRegistry.promotePool(
-      baseAssetAddress,
-      quoteAssetAddress,
-      pairTokenAddress,
-      _custodian,
-      _pairFactoryContractAddress,
-      _WETH,
-      _assetRegistry
-    );
-  }
-
-  /** @dev Adds liquidity to an ERC-20⇄ERC-20 pool
-   *
-   * To cover all possible scenarios, `msg.sender` should have already given the Exchange an allowance
-   * of at least amountADesired/amountBDesired on tokenA/tokenB
-   */
-  function addLiquidity(
-    address tokenA,
-    address tokenB,
-    uint256 amountADesired,
-    uint256 amountBDesired,
-    uint256 amountAMin,
-    uint256 amountBMin,
-    address to,
-    uint256 deadline
-  ) external {
-    _liquidityPoolRegistry.addLiquidity(
-      tokenA,
-      tokenB,
-      amountADesired,
-      amountBDesired,
-      amountAMin,
-      amountBMin,
-      to,
-      deadline,
-      _custodian,
-      _assetRegistry,
-      _balanceTracking
-    );
-  }
-
-  /** @dev Adds liquidity to an ERC-20⇄ETH pool
-   *
-   * To cover all possible scenarios, msg.sender should have already given the router an allowance
-   * of at least amountTokenDesired on token. `msg.value` is treated as a amountETHDesired
-   */
-  function addLiquidityETH(
-    address token,
-    uint256 amountTokenDesired,
-    uint256 amountTokenMin,
-    uint256 amountETHMin,
-    address to,
-    uint256 deadline
-  ) external payable {
-    _liquidityPoolRegistry.addLiquidityETH(
-      token,
-      amountTokenDesired,
-      amountTokenMin,
-      amountETHMin,
-      to,
-      deadline,
-      _custodian,
-      _assetRegistry,
-      _balanceTracking
-    );
-  }
-
-  /** @dev Settles a liquidity addition by adjusting pool reserves and minting LP tokens
-   */
-  function executeAddLiquidity(
-    Structs.LiquidityAddition calldata addition,
-    Structs.LiquidityChangeExecution calldata execution
-  ) external onlyDispatcher {
-    _liquidityPoolRegistry.executeAddLiquidity(
-      addition,
-      execution,
-      _feeWallet,
-      _assetRegistry,
-      _balanceTracking
-    );
-  }
-
-  function removeLiquidity(
-    address tokenA,
-    address tokenB,
-    uint256 liquidity,
-    uint256 amountAMin,
-    uint256 amountBMin,
-    address to,
-    uint256 deadline
-  ) public {
-    _liquidityPoolRegistry.removeLiquidity(
-      // Use struct to avoid stack too deep
-      Structs.LiquidityRemoval(
-        msg.sender,
-        tokenA,
-        tokenB,
-        liquidity,
-        amountAMin,
-        amountBMin,
-        payable(to),
-        deadline
-      ),
-      _custodian,
-      _pairFactoryContractAddress,
-      address(_WETH),
-      _assetRegistry,
-      _balanceTracking
-    );
-  }
-
-  function removeLiquidityETH(
-    address token,
-    uint256 liquidity,
-    uint256 amountTokenMin,
-    uint256 amountETHMin,
-    address to,
-    uint256 deadline
-  ) external {
-    _liquidityPoolRegistry.removeLiquidity(
-      // Use struct to avoid stack too deep
-      Structs.LiquidityRemoval(
-        msg.sender,
-        token,
-        address(0x0),
-        liquidity,
-        amountTokenMin,
-        amountETHMin,
-        payable(to),
-        deadline
-      ),
-      _custodian,
-      _pairFactoryContractAddress,
-      address(_WETH),
-      _assetRegistry,
-      _balanceTracking
-    );
-  }
-
-  function executeRemoveLiquidity(
-    Structs.LiquidityRemoval calldata removal,
-    Structs.LiquidityChangeExecution calldata execution
-  ) external onlyDispatcher {
-    _liquidityPoolRegistry.executeRemoveLiquidity(
-      removal,
-      execution,
-      ICustodian(_custodian),
-      address(this),
-      _feeWallet,
-      _assetRegistry,
-      _balanceTracking
-    );
-  }
-
-  function removeLiquidityExit(
-    address baseAssetAddress,
-    address quoteAssetAddress
-  ) external {
-    require(isWalletExitFinalized(msg.sender), 'Wallet exit not finalized');
-
-    _liquidityPoolRegistry.removeLiquidityExit(
-      baseAssetAddress,
-      quoteAssetAddress,
-      ICustodian(_custodian),
-      _assetRegistry,
-      _balanceTracking
-    );
   }
 
   // Private methods - validations //

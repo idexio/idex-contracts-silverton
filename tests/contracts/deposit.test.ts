@@ -2,7 +2,7 @@ import {
   deployAndAssociateContracts,
   deployAndRegisterToken,
   minimumTokenQuantity,
-  ethSymbol,
+  bnbSymbol,
 } from './helpers';
 import { assetUnitsToPips, bnbAddress } from '../../lib';
 
@@ -58,7 +58,7 @@ contract('Exchange (deposits)', (accounts) => {
 
       expect(wallet).to.equal(accounts[0]);
       expect(assetAddress).to.equal(bnbAddress);
-      expect(assetSymbol).to.equal(ethSymbol);
+      expect(assetSymbol).to.equal(bnbSymbol);
 
       expect(
         (
@@ -75,12 +75,12 @@ contract('Exchange (deposits)', (accounts) => {
       ).to.equal(assetUnitsToPips(minimumTokenQuantity, 18));
       expect(
         (
-          await exchange.loadBalanceInAssetUnitsBySymbol(accounts[0], ethSymbol)
+          await exchange.loadBalanceInAssetUnitsBySymbol(accounts[0], bnbSymbol)
         ).toString(),
       ).to.equal(minimumTokenQuantity);
       expect(
         (
-          await exchange.loadBalanceInPipsBySymbol(accounts[0], ethSymbol)
+          await exchange.loadBalanceInPipsBySymbol(accounts[0], bnbSymbol)
         ).toString(),
       ).to.equal(assetUnitsToPips(minimumTokenQuantity, 18));
     });
