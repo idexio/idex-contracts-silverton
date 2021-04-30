@@ -68,25 +68,42 @@ contract Exchange is IExchange, Owned {
    */
   event FeeWalletChanged(address previousValue, address newValue);
   /**
+   * @notice Emitted when the Dispatcher Wallet submits a hybrid trade for execution with `executeHybridTrade`
+   */
+  event HybridTradeExecuted(
+    address buyWallet,
+    address sellWallet,
+    string baseAssetSymbol,
+    string quoteAssetSymbol,
+    uint64 poolBaseQuantityInPips,
+    uint64 poolQuoteQuantityInPips,
+    uint64 baseQuantityInPips,
+    uint64 quoteQuantityInPips
+  );
+  /**
    * @notice TODO
    */
   event LiquidityAdded(
     address wallet,
-    address baseAssetAddress,
-    address quoteAssetAddress,
-    uint64 baseAssetQuantityInPips,
-    uint64 quoteAssetQuantityInPips
+    address assetA,
+    address assetB,
+    uint256 amountADesired,
+    uint256 amountBDesired,
+    uint256 amountAMin,
+    uint256 amountBMin,
+    address to
   );
   /**
    * @notice TODO
    */
   event LiquidityRemoved(
-    address sender,
-    address baseAssetAddress,
-    address quoteAssetAddress,
-    uint64 baseAssetQuantityInPips,
-    uint64 quoteAssetQuantityInPips,
-    uint64 liquidityShareQuantity
+    address wallet,
+    address assetA,
+    address assetB,
+    uint256 liquidity,
+    uint256 amountAMin,
+    uint256 amountBMin,
+    address to
   );
   /**
    * @notice Emitted when a user invalidates an order nonce with `invalidateOrderNonce`
@@ -96,6 +113,19 @@ contract Exchange is IExchange, Owned {
     uint128 nonce,
     uint128 timestampInMs,
     uint256 effectiveBlockNumber
+  );
+  /**
+   * @notice Emitted when the Dispatcher Wallet submits a pool trade for execution with `executePoolTrade`
+   */
+  event PoolTradeExecuted(
+    address buyWallet,
+    address sellWallet,
+    string baseAssetSymbol,
+    string quoteAssetSymbol,
+    uint64 poolBaseQuantityInPips,
+    uint64 poolQuoteQuantityInPips,
+    uint64 baseQuantityInPips,
+    uint64 quoteQuantityInPips
   );
   /**
    * @notice Emitted when an admin initiates the token registration process with `registerToken`
@@ -128,10 +158,7 @@ contract Exchange is IExchange, Owned {
     string baseAssetSymbol,
     string quoteAssetSymbol,
     uint64 baseQuantityInPips,
-    uint64 quoteQuantityInPips,
-    uint64 tradePriceInPips,
-    bytes32 buyOrderHash,
-    bytes32 sellOrderHash
+    uint64 quoteQuantityInPips
   );
   /**
    * @notice Emitted when a user invokes the Exit Wallet mechanism with `exitWallet`
@@ -549,17 +576,16 @@ contract Exchange is IExchange, Owned {
 
     validateOrderNonces(buy, sell);
 
-    (bytes32 buyHash, bytes32 sellHash) =
-      Trading.executeCounterpartyTrade(
-        buy,
-        sell,
-        trade,
-        _feeWallet,
-        _assetRegistry,
-        _balanceTracking,
-        _completedOrderHashes,
-        _partiallyFilledOrderQuantitiesInPips
-      );
+    Trading.executeCounterpartyTrade(
+      buy,
+      sell,
+      trade,
+      _feeWallet,
+      _assetRegistry,
+      _balanceTracking,
+      _completedOrderHashes,
+      _partiallyFilledOrderQuantitiesInPips
+    );
 
     emit TradeExecuted(
       buy.walletAddress,
@@ -567,10 +593,7 @@ contract Exchange is IExchange, Owned {
       trade.baseAssetSymbol,
       trade.quoteAssetSymbol,
       trade.grossBaseQuantityInPips,
-      trade.grossQuoteQuantityInPips,
-      trade.priceInPips,
-      buyHash,
-      sellHash
+      trade.grossQuoteQuantityInPips
     );
   }
 
@@ -629,6 +652,17 @@ contract Exchange is IExchange, Owned {
       _balanceTracking,
       _completedOrderHashes,
       _partiallyFilledOrderQuantitiesInPips
+    );
+
+    emit HybridTradeExecuted(
+      buy.walletAddress,
+      sell.walletAddress,
+      trade.baseAssetSymbol,
+      trade.quoteAssetSymbol,
+      poolTrade.grossBaseQuantityInPips,
+      poolTrade.grossQuoteQuantityInPips,
+      trade.grossBaseQuantityInPips,
+      trade.grossQuoteQuantityInPips
     );
   }
 
@@ -727,6 +761,17 @@ contract Exchange is IExchange, Owned {
       _assetRegistry,
       _balanceTracking
     );
+
+    emit LiquidityAdded(
+      msg.sender,
+      tokenA,
+      tokenB,
+      amountADesired,
+      amountBDesired,
+      amountAMin,
+      amountBMin,
+      to
+    );
   }
 
   /**
@@ -758,6 +803,17 @@ contract Exchange is IExchange, Owned {
       _custodian,
       _assetRegistry,
       _balanceTracking
+    );
+
+    emit LiquidityAdded(
+      msg.sender,
+      token,
+      address(0x0),
+      amountTokenDesired,
+      msg.value,
+      amountTokenMin,
+      amountETHMin,
+      to
     );
   }
 
@@ -808,6 +864,16 @@ contract Exchange is IExchange, Owned {
       _assetRegistry,
       _balanceTracking
     );
+
+    emit LiquidityRemoved(
+      msg.sender,
+      tokenA,
+      tokenB,
+      liquidity,
+      amountAMin,
+      amountBMin,
+      to
+    );
   }
 
   /**
@@ -840,6 +906,16 @@ contract Exchange is IExchange, Owned {
       address(_WETH),
       _assetRegistry,
       _balanceTracking
+    );
+
+    emit LiquidityRemoved(
+      msg.sender,
+      token,
+      address(0x0),
+      liquidity,
+      amountTokenMin,
+      amountETHMin,
+      payable(to)
     );
   }
 

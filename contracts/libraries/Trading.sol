@@ -24,13 +24,9 @@ library Trading {
     BalanceTracking.Storage storage balanceTracking,
     mapping(bytes32 => bool) storage completedOrderHashes,
     mapping(bytes32 => uint64) storage partiallyFilledOrderQuantitiesInPips
-  ) public returns (bytes32 buyHash, bytes32 sellHash) {
-    (buyHash, sellHash) = Validations.validateCounterpartyTrade(
-      buy,
-      sell,
-      trade,
-      assetRegistry
-    );
+  ) public {
+    (bytes32 buyHash, bytes32 sellHash) =
+      Validations.validateCounterpartyTrade(buy, sell, trade, assetRegistry);
 
     updateOrderFilledQuantities(
       buy,
@@ -56,14 +52,15 @@ library Trading {
     BalanceTracking.Storage storage balanceTracking,
     mapping(bytes32 => bool) storage completedOrderHashes,
     mapping(bytes32 => uint64) storage partiallyFilledOrderQuantitiesInPips
-  ) public returns (bytes32 buyHash, bytes32 sellHash) {
-    (buyHash, sellHash) = Validations.validateHybridTrade(
-      buy,
-      sell,
-      trade,
-      poolTrade,
-      assetRegistry
-    );
+  ) public {
+    (bytes32 buyHash, bytes32 sellHash) =
+      Validations.validateHybridTrade(
+        buy,
+        sell,
+        trade,
+        poolTrade,
+        assetRegistry
+      );
 
     {
       // Pool trade
