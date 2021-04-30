@@ -2,6 +2,10 @@
 
 pragma solidity 0.8.2;
 
+import {
+  IPair
+} from '@idexio/pancake-swap-core/contracts/interfaces/IPair.sol';
+
 import { AssetRegistry } from './AssetRegistry.sol';
 import { AssetUnitConversions } from './AssetUnitConversions.sol';
 import { BalanceTracking } from './BalanceTracking.sol';
@@ -79,12 +83,13 @@ library Withdrawing {
     completedWithdrawalHashes[withdrawalHash] = true;
   }
 
-  function executeRemoveLiquidity(
+  function withdrawLiquidity(
     Structs.LiquidityRemoval memory removal,
     Structs.LiquidityChangeExecution memory execution,
     ICustodian custodian,
     address exchangeAddress,
     address feeWallet,
+    IPair pairTokenAddress,
     AssetRegistry.Storage storage assetRegistry,
     BalanceTracking.Storage storage balanceTracking
   ) internal {
@@ -92,11 +97,12 @@ library Withdrawing {
       uint256 outputBaseAssetQuantityInAssetUnits,
       uint256 outputQuoteAssetQuantityInAssetUnits
     ) =
-      balanceTracking.executeRemoveLiquidity(
+      balanceTracking.updateForRemoveLiquidity(
         removal,
         execution,
         feeWallet,
         exchangeAddress,
+        pairTokenAddress,
         assetRegistry
       );
 

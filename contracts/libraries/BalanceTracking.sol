@@ -26,6 +26,8 @@ library BalanceTracking {
     IExchange migrationSource;
   }
 
+  // Depositing //
+
   function updateForDeposit(
     Storage storage self,
     address wallet,
@@ -39,7 +41,12 @@ library BalanceTracking {
     return balance.balanceInPips;
   }
 
-  // Updates buyer, seller, and fee wallet balances for both assets in trade pair according to trade parameters
+  // Trading //
+
+  /**
+   * @dev Updates buyer, seller, and fee wallet balances for both assets in trade pair according to
+   * trade parameters
+   */
   function updateForTrade(
     Storage storage self,
     Structs.Order memory buy,
@@ -79,13 +86,14 @@ library BalanceTracking {
     );
     balance.balanceInPips += trade.netQuoteQuantityInPips;
 
-    // Maker and taker fees to fee wallet
+    // Maker fee to fee wallet
     balance = loadBalanceAndMigrateIfNeeded(
       self,
       feeWallet,
       trade.makerFeeAssetAddress
     );
     balance.balanceInPips += trade.makerFeeQuantityInPips;
+    // Taker fee to fee wallet
     balance = loadBalanceAndMigrateIfNeeded(
       self,
       feeWallet,
@@ -132,8 +140,10 @@ library BalanceTracking {
     );
     balance.balanceInPips += poolTrade.takerGasFeeQuantityInPips;
 
-    // Liquidity pool reserves are updated separately
+    // Liquidity pool reserves are updated in LiquidityPoolRegistry
   }
+
+  // Withdrawing //
 
   function updateForWithdrawal(
     Storage storage self,
@@ -160,6 +170,8 @@ library BalanceTracking {
     return balance.balanceInPips;
   }
 
+  // Wallet exits //
+
   function updateForExit(
     Storage storage self,
     address wallet,
@@ -175,11 +187,14 @@ library BalanceTracking {
     balance.balanceInPips = 0;
   }
 
-  function executeAddLiquidity(
+  // Liquidity pools //
+
+  function updateForAddLiquidity(
     Storage storage self,
-    AssetRegistry.Storage storage assetRegistry,
     Structs.LiquidityAddition memory addition,
     Structs.LiquidityChangeExecution memory execution,
+    uint8 baseAssetDecimals,
+    uint8 quoteAssetDecimals,
     address feeWallet
   ) internal {
     (
@@ -202,29 +217,24 @@ library BalanceTracking {
           execution.feeAmountA
         );
 
-    Structs.Asset memory asset;
-    Balance storage balance;
-    uint64 quantityInPips;
-
-    // Base asset updates
-    asset = assetRegistry.loadAssetByAddress(execution.baseAssetAddress);
-
     // Base gross debit
-    quantityInPips = AssetUnitConversions.assetUnitsToPips(
-      grossBaseAssetQuantityInAssetUnits,
-      asset.decimals
-    );
-    balance = loadBalanceAndMigrateIfNeeded(
-      self,
-      addition.wallet,
-      execution.baseAssetAddress
-    );
+    uint64 quantityInPips =
+      AssetUnitConversions.assetUnitsToPips(
+        grossBaseAssetQuantityInAssetUnits,
+        baseAssetDecimals
+      );
+    Balance storage balance =
+      loadBalanceAndMigrateIfNeeded(
+        self,
+        addition.wallet,
+        execution.baseAssetAddress
+      );
     balance.balanceInPips -= quantityInPips;
 
     // Base fee credit
     quantityInPips = AssetUnitConversions.assetUnitsToPips(
       feeBaseAssetQuantityInAssetUnits,
-      asset.decimals
+      baseAssetDecimals
     );
     balance = loadBalanceAndMigrateIfNeeded(
       self,
@@ -233,13 +243,10 @@ library BalanceTracking {
     );
     balance.balanceInPips += quantityInPips;
 
-    // Quote asset updates
-    asset = assetRegistry.loadAssetByAddress(execution.quoteAssetAddress);
-
     // Quote gross debit
     quantityInPips = AssetUnitConversions.assetUnitsToPips(
       grossQuoteAssetQuantityInAssetUnits,
-      asset.decimals
+      quoteAssetDecimals
     );
     balance = loadBalanceAndMigrateIfNeeded(
       self,
@@ -251,7 +258,7 @@ library BalanceTracking {
     // Quote fee credit
     quantityInPips = AssetUnitConversions.assetUnitsToPips(
       feeQuoteAssetQuantityInAssetUnits,
-      asset.decimals
+      quoteAssetDecimals
     );
     balance = loadBalanceAndMigrateIfNeeded(
       self,
@@ -261,12 +268,17 @@ library BalanceTracking {
     balance.balanceInPips += quantityInPips;
   }
 
-  function executeRemoveLiquidity(
+  /**
+   * @dev Uses disjoint scopes for base asset, quote asset, and Pair token updates to avoid stack
+   * too deep error
+   */
+  function updateForRemoveLiquidity(
     Storage storage self,
     Structs.LiquidityRemoval memory removal,
     Structs.LiquidityChangeExecution memory execution,
     address feeWallet,
     address exchangeAddress,
+    IPair pairTokenAddress,
     AssetRegistry.Storage storage assetRegistry
   )
     internal
@@ -275,33 +287,20 @@ library BalanceTracking {
       uint256 outputQuoteAssetQuantityInAssetUnits
     )
   {
-    (
-      uint256 netBaseAssetQuantityInAssetUnits,
-      uint256 feeBaseAssetQuantityInAssetUnits,
-      uint256 netQuoteAssetQuantityInAssetUnits,
-      uint256 feeQuoteAssetQuantityInAssetUnits
-    ) =
-      execution.baseAssetAddress == removal.assetA
-        ? (
-          execution.amountA - execution.feeAmountA,
-          execution.feeAmountA,
-          execution.amountB - execution.feeAmountB,
-          execution.feeAmountB
-        )
-        : (
-          execution.amountB - execution.feeAmountB,
-          execution.feeAmountB,
-          execution.amountA - execution.feeAmountA,
-          execution.feeAmountA
-        );
-
-    Structs.Asset memory asset;
     Balance storage balance;
     uint64 quantityInPips;
 
+    // Base asset updates
     {
-      // Base asset updates
-      asset = assetRegistry.loadAssetByAddress(execution.baseAssetAddress);
+      Structs.Asset memory asset =
+        assetRegistry.loadAssetByAddress(execution.baseAssetAddress);
+      (
+        uint256 netBaseAssetQuantityInAssetUnits,
+        uint256 feeBaseAssetQuantityInAssetUnits
+      ) =
+        execution.baseAssetAddress == removal.assetA
+          ? (execution.amountA - execution.feeAmountA, execution.feeAmountA)
+          : (execution.amountB - execution.feeAmountB, execution.feeAmountB);
 
       // Only add output assets to wallet's balances in the Exchange if latter is target
       if (removal.to == exchangeAddress) {
@@ -331,9 +330,20 @@ library BalanceTracking {
         execution.baseAssetAddress
       );
       balance.balanceInPips += quantityInPips;
+    }
 
-      // Quote asset updates
-      asset = assetRegistry.loadAssetByAddress(execution.quoteAssetAddress);
+    // Quote asset updates
+    {
+      (
+        uint256 netQuoteAssetQuantityInAssetUnits,
+        uint256 feeQuoteAssetQuantityInAssetUnits
+      ) =
+        execution.baseAssetAddress == removal.assetA
+          ? (execution.amountB - execution.feeAmountB, execution.feeAmountB)
+          : (execution.amountA - execution.feeAmountA, execution.feeAmountA);
+
+      Structs.Asset memory asset =
+        assetRegistry.loadAssetByAddress(execution.quoteAssetAddress);
 
       // Only add output assets to wallet's balances in the Exchange if latter is target
       if (removal.to == exchangeAddress) {
@@ -364,23 +374,23 @@ library BalanceTracking {
       );
       balance.balanceInPips += quantityInPips;
     }
+
+    // Pair token burn
+    {
+      quantityInPips = AssetUnitConversions.assetUnitsToPips(
+        execution.liquidity,
+        pairTokenAddress.decimals()
+      );
+      balance = loadBalanceAndMigrateIfNeeded(
+        self,
+        removal.wallet,
+        address(pairTokenAddress)
+      );
+      balance.balanceInPips -= quantityInPips;
+    }
   }
 
-  function burnLiquidityTokens(
-    Storage storage self,
-    address pairTokenAddress,
-    address wallet,
-    uint256 liquidity
-  ) internal {
-    uint64 quantityInPips =
-      AssetUnitConversions.assetUnitsToPips(
-        liquidity,
-        IPair(pairTokenAddress).decimals()
-      );
-    Balance storage balance =
-      loadBalanceAndMigrateIfNeeded(self, wallet, pairTokenAddress);
-    balance.balanceInPips -= quantityInPips;
-  }
+  // Helpers //
 
   function loadBalanceAndMigrateIfNeeded(
     Storage storage self,

@@ -671,7 +671,7 @@ contract Exchange is IExchange, Owned {
   function loadLiquidityPoolByAssetAddresses(
     address baseAssetAddress,
     address quoteAssetAddress
-  ) public view returns (LiquidityPoolRegistry.LiquidityPool memory) {
+  ) public view returns (Structs.LiquidityPool memory) {
     return
       _liquidityPoolRegistry.loadLiquidityPoolByAssetAddresses(
         baseAssetAddress,
@@ -696,7 +696,7 @@ contract Exchange is IExchange, Owned {
   }
 
   /**
-   * @notice Adds liquidity to an BEP-20⇄BEP-20 pool
+   * @notice Adds liquidity to a BEP-20⇄BEP-20 pool
    *
    * @dev To cover all possible scenarios, `msg.sender` should have already given the Exchange an allowance
    * of at least amountADesired/amountBDesired on tokenA/tokenB
@@ -712,14 +712,17 @@ contract Exchange is IExchange, Owned {
     uint256 deadline
   ) external {
     _liquidityPoolRegistry.addLiquidity(
-      tokenA,
-      tokenB,
-      amountADesired,
-      amountBDesired,
-      amountAMin,
-      amountBMin,
-      to,
-      deadline,
+      Structs.LiquidityAddition(
+        msg.sender,
+        tokenA,
+        tokenB,
+        amountADesired,
+        amountBDesired,
+        amountAMin,
+        amountBMin,
+        to,
+        deadline
+      ),
       _custodian,
       _assetRegistry,
       _balanceTracking
@@ -727,7 +730,7 @@ contract Exchange is IExchange, Owned {
   }
 
   /**
-   * @notice Adds liquidity to an BEP-20⇄BNB pool
+   * @notice Adds liquidity to a BEP-20⇄BNB pool
    *
    * @dev To cover all possible scenarios, msg.sender should have already given the router an allowance
    * of at least amountTokenDesired on token. `msg.value` is treated as amountETHDesired
@@ -741,12 +744,17 @@ contract Exchange is IExchange, Owned {
     uint256 deadline
   ) external payable {
     _liquidityPoolRegistry.addLiquidityETH(
-      token,
-      amountTokenDesired,
-      amountTokenMin,
-      amountETHMin,
-      to,
-      deadline,
+      Structs.LiquidityAddition(
+        msg.sender,
+        token,
+        address(0x0),
+        amountTokenDesired,
+        msg.value,
+        amountTokenMin,
+        amountETHMin,
+        to,
+        deadline
+      ),
       _custodian,
       _assetRegistry,
       _balanceTracking
@@ -764,7 +772,6 @@ contract Exchange is IExchange, Owned {
       addition,
       execution,
       _feeWallet,
-      _assetRegistry,
       _balanceTracking
     );
   }

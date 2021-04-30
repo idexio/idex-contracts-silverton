@@ -82,9 +82,14 @@ library Trading {
 
       balanceTracking.updateForPoolTrade(order, poolTrade, feeWallet);
 
-      liquidityPoolRegistry.updateReservesForPoolTrade(poolTrade, order.side);
+      (uint64 baseAssetReserveInPips, uint64 quoteAssetReserveInPips) =
+        liquidityPoolRegistry.updateReservesForPoolTrade(poolTrade, order.side);
 
-      // TODO Validate pool did not fill order past counterparty order's price
+      Validations.validateLimitPrice(
+        order,
+        baseAssetReserveInPips,
+        quoteAssetReserveInPips
+      );
     }
 
     {
