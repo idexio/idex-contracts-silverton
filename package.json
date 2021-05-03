@@ -31,7 +31,8 @@
     "build:ts": "tsc -p .",
     "lint:markdown": "markdownlint README.md",
     "prettier": "prettier --write **/*.sol",
-    "test": "multi='spec=- json=./coverage/mocha-summary.json' truffle test ./build/tests/contracts/*.test.js"
+    "test": "multi='spec=- json=./coverage/mocha-summary.json' truffle test ./build/tests/contracts/*.test.js",
+    "test:coverage": "multi='spec=- json=./coverage/mocha-summary.json' truffle run coverage --file=\"./build/tests/contracts/*.test.js\""
   },
   "dependencies": {
     "@idexio/pancake-swap-core": "^0.1.0-alpha.1",

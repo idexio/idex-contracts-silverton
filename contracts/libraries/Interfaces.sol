@@ -6,6 +6,13 @@ import {
   IPair
 } from '@idexio/pancake-swap-core/contracts/interfaces/IPair.sol';
 
+library Constants {
+  // 1 week at 15s/block
+  uint256 constant maxChainPropagationPeriod = (7 * 24 * 60 * 60) / 15;
+  // https://github.com/idexio/pancake-swap-core/blob/master/contracts/ERC20.sol#L11
+  uint8 public constant pairTokenDecimals = 18;
+}
+
 /**
  * @notice Enums used in `Order` and `Withdrawal` structs
  */

@@ -17,7 +17,13 @@ import { Depositing } from './Depositing.sol';
 import { UUID } from './UUID.sol';
 import { Validations } from './Validations.sol';
 import { Withdrawing } from './Withdrawing.sol';
-import { Enums, ICustodian, IWETH9, Structs } from './Interfaces.sol';
+import {
+  Constants,
+  Enums,
+  ICustodian,
+  IWETH9,
+  Structs
+} from './Interfaces.sol';
 
 library LiquidityPoolRegistry {
   using AssetRegistry for AssetRegistry.Storage;
@@ -344,7 +350,7 @@ library LiquidityPoolRegistry {
     uint256 liquidityToBurnInAssetUnits =
       AssetUnitConversions.pipsToAssetUnits(
         liquidityToBurnInPips,
-        pool.pairTokenAddress.decimals()
+        Constants.pairTokenDecimals
       );
 
     (
@@ -353,15 +359,6 @@ library LiquidityPoolRegistry {
     ) = getOutputAssetQuantities(pool, liquidityToBurnInPips);
     pool.baseAssetReserveInPips -= outputBaseAssetQuantityInPips;
     pool.quoteAssetReserveInPips -= outputQuoteAssetQuantityInPips;
-
-    // Burn deposited Pair tokens
-    pool.pairTokenAddress.hybridBurn(
-      msg.sender,
-      liquidityToBurnInAssetUnits,
-      outputBaseAssetQuantityInPips,
-      outputQuoteAssetQuantityInPips,
-      msg.sender
-    );
 
     Structs.Asset memory asset;
     asset = assetRegistry.loadAssetByAddress(baseAssetAddress);
@@ -373,6 +370,15 @@ library LiquidityPoolRegistry {
     asset = assetRegistry.loadAssetByAddress(quoteAssetAddress);
     outputQuoteAssetQuantityInAssetUnits = AssetUnitConversions
       .pipsToAssetUnits(outputQuoteAssetQuantityInPips, asset.decimals);
+
+    // Burn deposited Pair tokens
+    pool.pairTokenAddress.hybridBurn(
+      msg.sender,
+      liquidityToBurnInAssetUnits,
+      outputBaseAssetQuantityInAssetUnits,
+      outputQuoteAssetQuantityInAssetUnits,
+      msg.sender
+    );
 
     // Transfer reserve assets to wallet
     custodian.withdraw(
@@ -462,7 +468,7 @@ library LiquidityPoolRegistry {
     uint64 totalLiquidityInPips =
       AssetUnitConversions.assetUnitsToPips(
         pool.pairTokenAddress.totalSupply(),
-        pool.pairTokenAddress.decimals()
+        Constants.pairTokenDecimals
       );
 
     // https://github.com/Uniswap/uniswap-v2-core/blob/master/contracts/UniswapV2Pair.sol#L123

@@ -6,7 +6,7 @@ import { AssetRegistry } from './AssetRegistry.sol';
 import { AssetUnitConversions } from './AssetUnitConversions.sol';
 import { Signatures } from './Signatures.sol';
 import { UUID } from './UUID.sol';
-import { Enums, Structs } from './Interfaces.sol';
+import { Constants, Enums, Structs } from './Interfaces.sol';
 
 library Validations {
   using AssetRegistry for AssetRegistry.Storage;
@@ -85,12 +85,12 @@ library Validations {
           (netBaseAssetQuantityInAssetUnits * (totalLiquidityInAssetUnits)) /
             AssetUnitConversions.pipsToAssetUnits(
               pool.baseAssetReserveInPips,
-              pool.pairTokenAddress.decimals()
+              Constants.pairTokenDecimals
             ),
           (netQuoteAssetQuantityInAssetUnits * (totalLiquidityInAssetUnits)) /
             AssetUnitConversions.pipsToAssetUnits(
               pool.quoteAssetReserveInPips,
-              pool.pairTokenAddress.decimals()
+              Constants.pairTokenDecimals
             )
         ),
       'Invalid liquidity minted'

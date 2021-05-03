@@ -8,8 +8,8 @@ import {
 
 import { AssetRegistry } from './AssetRegistry.sol';
 import { AssetUnitConversions } from './AssetUnitConversions.sol';
-import { IExchange, Structs } from './Interfaces.sol';
 import { PoolTradeHelpers } from './PoolTradeHelpers.sol';
+import { Constants, IExchange, Structs } from './Interfaces.sol';
 
 library BalanceTracking {
   using AssetRegistry for AssetRegistry.Storage;
@@ -379,7 +379,7 @@ library BalanceTracking {
     {
       quantityInPips = AssetUnitConversions.assetUnitsToPips(
         execution.liquidity,
-        pairTokenAddress.decimals()
+        Constants.pairTokenDecimals
       );
       balance = loadBalanceAndMigrateIfNeeded(
         self,

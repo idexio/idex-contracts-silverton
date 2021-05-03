@@ -135,7 +135,7 @@ contract('Exchange (deposits)', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/use depositEther for BNB/i);
+      expect(error.message).to.match(/use depositEther/i);
     });
 
     it('should revert for exited wallet', async () => {
@@ -231,7 +231,7 @@ contract('Exchange (deposits)', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/use depositEther for BNB/i);
+      expect(error.message).to.match(/use depositEther/i);
     });
 
     it('should revert for unknown token', async () => {

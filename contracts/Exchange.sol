@@ -22,6 +22,7 @@ import { Trading } from './libraries/Trading.sol';
 import { Withdrawing } from './libraries/Withdrawing.sol';
 import { UUID } from './libraries/UUID.sol';
 import {
+  Constants,
   Enums,
   ICustodian,
   IERC20,
@@ -232,10 +233,6 @@ contract Exchange is IExchange, Owned {
   address _dispatcherWallet;
   address _feeWallet;
 
-  // Constant values //
-
-  uint256 constant _maxChainPropagationPeriod = (7 * 24 * 60 * 60) / 15; // 1 week at 15s/block
-
   /**
    * @notice Instantiate a new `Exchange` contract
    *
@@ -276,14 +273,14 @@ contract Exchange is IExchange, Owned {
    * are respected by `executeTrade` and wallet exits are respected by `executeTrade` and `withdraw`
    *
    * @param newChainPropagationPeriod The new Chain Propagation Period expressed as a number of blocks. Must
-   * be less than `_maxChainPropagationPeriod`
+   * be less than `Constants.maxChainPropagationPeriod`
    */
   function setChainPropagationPeriod(uint256 newChainPropagationPeriod)
     external
     onlyAdmin
   {
     require(
-      newChainPropagationPeriod < _maxChainPropagationPeriod,
+      newChainPropagationPeriod < Constants.maxChainPropagationPeriod,
       'Must be less than 1 week'
     );
 
@@ -483,7 +480,7 @@ contract Exchange is IExchange, Owned {
     Structs.Asset memory asset =
       _assetRegistry.loadAssetByAddress(tokenAddress);
 
-    require(address(tokenAddress) != address(0x0), 'Use depositEther for BNB');
+    require(address(tokenAddress) != address(0x0), 'Use depositEther');
 
     deposit(address(msg.sender), asset, quantityInAssetUnits);
   }
