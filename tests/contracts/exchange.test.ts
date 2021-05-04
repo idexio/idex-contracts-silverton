@@ -9,11 +9,25 @@ contract('Exchange (tunable parameters)', (accounts) => {
 
   const bnbAddress = web3.utils.bytesToHex([...Buffer.alloc(20)]);
 
-  it('should deploy', async () => {
-    await Exchange.new(
-      (await BalanceMigrationSourceMock.new()).address,
-      (await WBNB.new()).address,
-    );
+  describe.only('constructor', () => {
+    it('should work', async () => {
+      await Exchange.new(
+        (await BalanceMigrationSourceMock.new()).address,
+        (await WBNB.new()).address,
+      );
+    });
+
+    it('should revert for invalid balance migration source', async () => {
+      let error;
+      try {
+        await Exchange.new(bnbAddress, (await WBNB.new()).address);
+      } catch (e) {
+        error = e;
+      }
+
+      expect(error).to.not.be.undefined;
+      expect(error.message).to.match(/invalid migration source/i);
+    });
   });
 
   it('should revert when receiving BNB directly', async () => {

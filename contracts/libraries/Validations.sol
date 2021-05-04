@@ -1,31 +1,40 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 
-pragma solidity 0.8.2;
+pragma solidity 0.8.4;
 
 import { AssetRegistry } from './AssetRegistry.sol';
 import { AssetUnitConversions } from './AssetUnitConversions.sol';
-import { Signatures } from './Signatures.sol';
+import { Constants } from './Constants.sol';
+import { Hashing } from './Hashing.sol';
 import { UUID } from './UUID.sol';
-import { Constants, Enums, Structs } from './Interfaces.sol';
+import { OrderSide, OrderType } from './Enums.sol';
+import {
+  Asset,
+  LiquidityAddition,
+  LiquidityChangeExecution,
+  LiquidityPool,
+  LiquidityRemoval,
+  Order,
+  PoolTrade,
+  Trade,
+  Withdrawal
+} from './Structs.sol';
 
 library Validations {
   using AssetRegistry for AssetRegistry.Storage;
-
-  uint64 public constant _basisPointsInTotal = 100 * 100; // 100 basis points/percent * 100 percent/total
-  uint64 public constant _maxTradeFeeBasisPoints = 20 * 100; // 20%;
 
   function getFeeBasisPoints(uint64 fee, uint64 total)
     internal
     pure
     returns (uint64)
   {
-    return (fee * _basisPointsInTotal) / total;
+    return (fee * Constants.basisPointsInTotal) / total;
   }
 
   function validateLiquidityAddition(
-    Structs.LiquidityAddition memory addition,
-    Structs.LiquidityChangeExecution memory execution,
-    Structs.LiquidityPool memory pool
+    LiquidityAddition memory addition,
+    LiquidityChangeExecution memory execution,
+    LiquidityPool memory pool
   )
     internal
     view
@@ -55,12 +64,12 @@ library Validations {
 
     require(
       getFeeBasisPoints256(execution.feeAmountA, execution.amountA) <=
-        _maxTradeFeeBasisPoints,
+        Constants.maxTradeFeeBasisPoints,
       'Excessive A fee'
     );
     require(
       getFeeBasisPoints256(execution.feeAmountB, execution.amountB) <=
-        _maxTradeFeeBasisPoints,
+        Constants.maxTradeFeeBasisPoints,
       'Excessive B fee'
     );
 
@@ -98,9 +107,9 @@ library Validations {
   }
 
   function validateLiquidityRemoval(
-    Structs.LiquidityRemoval memory removal,
-    Structs.LiquidityChangeExecution memory execution,
-    Structs.LiquidityPool memory pool
+    LiquidityRemoval memory removal,
+    LiquidityChangeExecution memory execution,
+    LiquidityPool memory pool
   )
     internal
     view
@@ -122,12 +131,12 @@ library Validations {
 
     require(
       getFeeBasisPoints256(execution.feeAmountA, execution.amountA) <=
-        _maxTradeFeeBasisPoints,
+        Constants.maxTradeFeeBasisPoints,
       'Excessive A fee'
     );
     require(
       getFeeBasisPoints256(execution.feeAmountB, execution.amountB) <=
-        _maxTradeFeeBasisPoints,
+        Constants.maxTradeFeeBasisPoints,
       'Excessive B fee'
     );
 
@@ -171,31 +180,31 @@ library Validations {
     );
   }
 
-  function validateCounterpartyTrade(
-    Structs.Order memory buy,
-    Structs.Order memory sell,
-    Structs.Trade memory trade,
+  function validateOrderBookTrade(
+    Order memory buy,
+    Order memory sell,
+    Trade memory trade,
     AssetRegistry.Storage storage assetRegistry
   ) internal view returns (bytes32, bytes32) {
-    // Counterparty trade validations
+    // Order book trade validations
     validateAssetPair(buy, sell, trade, assetRegistry);
     validateLimitPrices(buy, sell, trade);
     (bytes32 buyHash, bytes32 sellHash) =
-      validateOrderSignatures(buy, sell, trade);
+      validateOrderHashing(buy, sell, trade);
     validateTradeFees(trade);
 
     return (buyHash, sellHash);
   }
 
   function validateHybridTrade(
-    Structs.Order memory buy,
-    Structs.Order memory sell,
-    Structs.Trade memory trade,
-    Structs.PoolTrade memory poolTrade,
+    Order memory buy,
+    Order memory sell,
+    Trade memory trade,
+    PoolTrade memory poolTrade,
     AssetRegistry.Storage storage assetRegistry
   ) internal view returns (bytes32 buyHash, bytes32 sellHash) {
-    // Counterparty trade validations
-    (buyHash, sellHash) = validateOrderSignatures(buy, sell, trade);
+    // Order book trade validations
+    (buyHash, sellHash) = validateOrderHashing(buy, sell, trade);
     validateAssetPair(buy, sell, trade, assetRegistry);
     validateLimitPrices(buy, sell, trade);
     validateTradeFees(trade);
@@ -206,15 +215,14 @@ library Validations {
         trade.quoteAssetAddress == poolTrade.quoteAssetAddress,
       'Mismatched trades'
     );
-    Structs.Order memory order =
-      trade.makerSide == Enums.OrderSide.Buy ? sell : buy;
+    Order memory order = trade.makerSide == OrderSide.Buy ? sell : buy;
     validateLimitPrice(order, poolTrade);
     validatePoolTradeFees(order.side, poolTrade);
   }
 
   function validatePoolTrade(
-    Structs.Order memory order,
-    Structs.PoolTrade memory poolTrade,
+    Order memory order,
+    PoolTrade memory poolTrade,
     AssetRegistry.Storage storage assetRegistry
   ) internal view returns (bytes32 orderHash) {
     orderHash = validateOrderSignature(
@@ -228,9 +236,9 @@ library Validations {
   }
 
   function validateAssetPair(
-    Structs.Order memory buy,
-    Structs.Order memory sell,
-    Structs.Trade memory trade,
+    Order memory buy,
+    Order memory sell,
+    Trade memory trade,
     AssetRegistry.Storage storage assetRegistry
   ) internal view {
     require(
@@ -256,14 +264,14 @@ library Validations {
   }
 
   function validateAssetPair(
-    Structs.Order memory order,
-    Structs.Trade memory trade,
+    Order memory order,
+    Trade memory trade,
     AssetRegistry.Storage storage assetRegistry
   ) internal view {
     uint64 nonce = UUID.getTimestampInMsFromUuidV1(order.nonce);
-    Structs.Asset memory baseAsset =
+    Asset memory baseAsset =
       assetRegistry.loadAssetBySymbol(trade.baseAssetSymbol, nonce);
-    Structs.Asset memory quoteAsset =
+    Asset memory quoteAsset =
       assetRegistry.loadAssetBySymbol(trade.quoteAssetSymbol, nonce);
 
     require(
@@ -274,8 +282,8 @@ library Validations {
   }
 
   function validateAssetPair(
-    Structs.Order memory order,
-    Structs.PoolTrade memory poolTrade,
+    Order memory order,
+    PoolTrade memory poolTrade,
     AssetRegistry.Storage storage assetRegistry
   ) internal view {
     require(
@@ -284,9 +292,9 @@ library Validations {
     );
 
     uint64 nonce = UUID.getTimestampInMsFromUuidV1(order.nonce);
-    Structs.Asset memory baseAsset =
+    Asset memory baseAsset =
       assetRegistry.loadAssetBySymbol(poolTrade.baseAssetSymbol, nonce);
-    Structs.Asset memory quoteAsset =
+    Asset memory quoteAsset =
       assetRegistry.loadAssetBySymbol(poolTrade.quoteAssetSymbol, nonce);
 
     require(
@@ -297,9 +305,9 @@ library Validations {
   }
 
   function validateLimitPrices(
-    Structs.Order memory buy,
-    Structs.Order memory sell,
-    Structs.Trade memory trade
+    Order memory buy,
+    Order memory sell,
+    Trade memory trade
   ) internal pure {
     require(
       trade.grossBaseQuantityInPips > 0,
@@ -331,10 +339,10 @@ library Validations {
     }
   }
 
-  function validateLimitPrice(
-    Structs.Order memory order,
-    Structs.PoolTrade memory poolTrade
-  ) internal pure {
+  function validateLimitPrice(Order memory order, PoolTrade memory poolTrade)
+    internal
+    pure
+  {
     require(
       poolTrade.grossBaseQuantityInPips > 0,
       'Base quantity must be greater than zero'
@@ -344,9 +352,7 @@ library Validations {
       'Quote quantity must be greater than zero'
     );
 
-    if (
-      order.side == Enums.OrderSide.Buy && isLimitOrderType(order.orderType)
-    ) {
+    if (order.side == OrderSide.Buy && isLimitOrderType(order.orderType)) {
       require(
         getImpliedQuoteQuantityInPips(
           poolTrade.grossBaseQuantityInPips,
@@ -356,9 +362,7 @@ library Validations {
       );
     }
 
-    if (
-      order.side == Enums.OrderSide.Sell && isLimitOrderType(order.orderType)
-    ) {
+    if (order.side == OrderSide.Sell && isLimitOrderType(order.orderType)) {
       require(
         getImpliedQuoteQuantityInPips(
           poolTrade.grossBaseQuantityInPips,
@@ -370,13 +374,11 @@ library Validations {
   }
 
   function validateLimitPrice(
-    Structs.Order memory order,
+    Order memory order,
     uint64 baseAssetReserveInPips,
     uint64 quoteAssetReserveInPips
   ) internal pure {
-    if (
-      order.side == Enums.OrderSide.Buy && isLimitOrderType(order.orderType)
-    ) {
+    if (order.side == OrderSide.Buy && isLimitOrderType(order.orderType)) {
       require(
         getImpliedQuoteQuantityInPips(
           baseAssetReserveInPips,
@@ -386,9 +388,7 @@ library Validations {
       );
     }
 
-    if (
-      order.side == Enums.OrderSide.Sell && isLimitOrderType(order.orderType)
-    ) {
+    if (order.side == OrderSide.Sell && isLimitOrderType(order.orderType)) {
       require(
         getImpliedQuoteQuantityInPips(
           quoteAssetReserveInPips,
@@ -399,7 +399,7 @@ library Validations {
     }
   }
 
-  function validateTradeFees(Structs.Trade memory trade) internal pure {
+  function validateTradeFees(Trade memory trade) internal pure {
     uint64 makerTotalQuantityInPips =
       trade.makerFeeAssetAddress == trade.baseAssetAddress
         ? trade.grossBaseQuantityInPips
@@ -408,7 +408,7 @@ library Validations {
       getFeeBasisPoints(
         trade.makerFeeQuantityInPips,
         makerTotalQuantityInPips
-      ) <= _maxTradeFeeBasisPoints,
+      ) <= Constants.maxTradeFeeBasisPoints,
       'Excessive maker fee'
     );
 
@@ -420,7 +420,7 @@ library Validations {
       getFeeBasisPoints(
         trade.takerFeeQuantityInPips,
         takerTotalQuantityInPips
-      ) <= _maxTradeFeeBasisPoints,
+      ) <= Constants.maxTradeFeeBasisPoints,
       'Excessive taker fee'
     );
 
@@ -447,11 +447,11 @@ library Validations {
   }
 
   function validatePoolTradeFees(
-    Enums.OrderSide orderSide,
-    Structs.PoolTrade memory poolTrade
+    OrderSide orderSide,
+    PoolTrade memory poolTrade
   ) internal pure {
     uint64 totalQuantityInPips =
-      orderSide == Enums.OrderSide.Buy
+      orderSide == OrderSide.Buy
         ? poolTrade.grossQuoteQuantityInPips
         : poolTrade.grossBaseQuantityInPips;
     uint64 totalFeeQuantityInPips =
@@ -460,15 +460,15 @@ library Validations {
 
     require(
       getFeeBasisPoints(totalFeeQuantityInPips, totalQuantityInPips) <=
-        _maxTradeFeeBasisPoints,
+        Constants.maxTradeFeeBasisPoints,
       'Excessive fee'
     );
   }
 
-  function validateOrderSignatures(
-    Structs.Order memory buy,
-    Structs.Order memory sell,
-    Structs.Trade memory trade
+  function validateOrderHashing(
+    Order memory buy,
+    Order memory sell,
+    Trade memory trade
   ) internal pure returns (bytes32, bytes32) {
     bytes32 buyOrderHash =
       validateOrderSignature(
@@ -487,20 +487,20 @@ library Validations {
   }
 
   function validateOrderSignature(
-    Structs.Order memory order,
+    Order memory order,
     string memory baseAssetSymbol,
     string memory quoteAssetSymbol
   ) internal pure returns (bytes32) {
     bytes32 orderHash =
-      Signatures.getOrderWalletHash(order, baseAssetSymbol, quoteAssetSymbol);
+      Hashing.getOrderHash(order, baseAssetSymbol, quoteAssetSymbol);
 
     require(
-      Signatures.isSignatureValid(
+      Hashing.isSignatureValid(
         orderHash,
         order.walletSignature,
         order.walletAddress
       ),
-      order.side == Enums.OrderSide.Buy
+      order.side == OrderSide.Buy
         ? 'Invalid wallet signature for buy order'
         : 'Invalid wallet signature for sell order'
     );
@@ -508,15 +508,15 @@ library Validations {
     return orderHash;
   }
 
-  function validateWithdrawalSignature(Structs.Withdrawal memory withdrawal)
+  function validateWithdrawalSignature(Withdrawal memory withdrawal)
     internal
     pure
     returns (bytes32)
   {
-    bytes32 withdrawalHash = Signatures.getWithdrawalWalletHash(withdrawal);
+    bytes32 withdrawalHash = Hashing.getWithdrawalHash(withdrawal);
 
     require(
-      Signatures.isSignatureValid(
+      Hashing.isSignatureValid(
         withdrawalHash,
         withdrawal.walletSignature,
         withdrawal.walletAddress
@@ -534,7 +534,7 @@ library Validations {
     pure
     returns (uint256)
   {
-    return (fee * _basisPointsInTotal) / total;
+    return (fee * Constants.basisPointsInTotal) / total;
   }
 
   function getImpliedQuoteQuantityInPips(
@@ -555,16 +555,12 @@ library Validations {
     return uint64(impliedQuoteQuantityInPips);
   }
 
-  function isLimitOrderType(Enums.OrderType orderType)
-    private
-    pure
-    returns (bool)
-  {
+  function isLimitOrderType(OrderType orderType) private pure returns (bool) {
     return
-      orderType == Enums.OrderType.Limit ||
-      orderType == Enums.OrderType.LimitMaker ||
-      orderType == Enums.OrderType.StopLossLimit ||
-      orderType == Enums.OrderType.TakeProfitLimit;
+      orderType == OrderType.Limit ||
+      orderType == OrderType.LimitMaker ||
+      orderType == OrderType.StopLossLimit ||
+      orderType == OrderType.TakeProfitLimit;
   }
 
   function min(uint256 x, uint256 y) private pure returns (uint256 z) {

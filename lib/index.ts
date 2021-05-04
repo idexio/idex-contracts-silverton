@@ -133,7 +133,7 @@ export const getTradeArguments = (
   sellOrder: Order,
   sellWalletSignature: string,
   trade: Trade,
-): ExchangeInstance['executeTrade']['arguments'] => {
+): ExchangeInstance['executeOrderBookTrade']['arguments'] => {
   return [
     orderToArgumentStruct(buyOrder, buyWalletSignature),
     orderToArgumentStruct(sellOrder, sellWalletSignature),

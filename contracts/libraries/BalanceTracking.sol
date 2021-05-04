@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 
-pragma solidity 0.8.2;
+pragma solidity 0.8.4;
 
 import {
   IPair
@@ -8,12 +8,23 @@ import {
 
 import { AssetRegistry } from './AssetRegistry.sol';
 import { AssetUnitConversions } from './AssetUnitConversions.sol';
+import { Constants } from './Constants.sol';
+import { IExchange } from './Interfaces.sol';
 import { PoolTradeHelpers } from './PoolTradeHelpers.sol';
-import { Constants, IExchange, Structs } from './Interfaces.sol';
+import {
+  Asset,
+  LiquidityAddition,
+  LiquidityChangeExecution,
+  LiquidityRemoval,
+  Order,
+  PoolTrade,
+  Trade,
+  Withdrawal
+} from './Structs.sol';
 
 library BalanceTracking {
   using AssetRegistry for AssetRegistry.Storage;
-  using PoolTradeHelpers for Structs.PoolTrade;
+  using PoolTradeHelpers for PoolTrade;
 
   struct Balance {
     bool isMigrated;
@@ -49,9 +60,9 @@ library BalanceTracking {
    */
   function updateForTrade(
     Storage storage self,
-    Structs.Order memory buy,
-    Structs.Order memory sell,
-    Structs.Trade memory trade,
+    Order memory buy,
+    Order memory sell,
+    Trade memory trade,
     address feeWallet
   ) internal {
     Balance storage balance;
@@ -104,8 +115,8 @@ library BalanceTracking {
 
   function updateForPoolTrade(
     Storage storage self,
-    Structs.Order memory order,
-    Structs.PoolTrade memory poolTrade,
+    Order memory order,
+    PoolTrade memory poolTrade,
     address feeWallet
   ) internal {
     Balance storage balance;
@@ -147,7 +158,7 @@ library BalanceTracking {
 
   function updateForWithdrawal(
     Storage storage self,
-    Structs.Withdrawal memory withdrawal,
+    Withdrawal memory withdrawal,
     address assetAddress,
     address feeWallet
   ) internal returns (uint64 newExchangeBalanceInPips) {
@@ -191,8 +202,8 @@ library BalanceTracking {
 
   function updateForAddLiquidity(
     Storage storage self,
-    Structs.LiquidityAddition memory addition,
-    Structs.LiquidityChangeExecution memory execution,
+    LiquidityAddition memory addition,
+    LiquidityChangeExecution memory execution,
     uint8 baseAssetDecimals,
     uint8 quoteAssetDecimals,
     address feeWallet
@@ -274,8 +285,8 @@ library BalanceTracking {
    */
   function updateForRemoveLiquidity(
     Storage storage self,
-    Structs.LiquidityRemoval memory removal,
-    Structs.LiquidityChangeExecution memory execution,
+    LiquidityRemoval memory removal,
+    LiquidityChangeExecution memory execution,
     address feeWallet,
     address exchangeAddress,
     IPair pairTokenAddress,
@@ -292,7 +303,7 @@ library BalanceTracking {
 
     // Base asset updates
     {
-      Structs.Asset memory asset =
+      Asset memory asset =
         assetRegistry.loadAssetByAddress(execution.baseAssetAddress);
       (
         uint256 netBaseAssetQuantityInAssetUnits,
@@ -342,7 +353,7 @@ library BalanceTracking {
           ? (execution.amountB - execution.feeAmountB, execution.feeAmountB)
           : (execution.amountA - execution.feeAmountA, execution.feeAmountA);
 
-      Structs.Asset memory asset =
+      Asset memory asset =
         assetRegistry.loadAssetByAddress(execution.quoteAssetAddress);
 
       // Only add output assets to wallet's balances in the Exchange if latter is target

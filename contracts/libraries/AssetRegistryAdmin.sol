@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 
-pragma solidity 0.8.2;
+pragma solidity 0.8.4;
 
 import { Address } from '@openzeppelin/contracts/utils/Address.sol';
 import { AssetRegistry } from './AssetRegistry.sol';
 
-import { IERC20, Structs } from './Interfaces.sol';
+import { Asset } from './Structs.sol';
+import { IERC20 } from './Interfaces.sol';
 
 /**
  * @notice Library helper functions for managing a registry of asset descriptors indexed by address and symbol
@@ -30,7 +31,7 @@ library AssetRegistryAdmin {
       'Token already finalized'
     );
 
-    self.assetsByAddress[address(tokenAddress)] = Structs.Asset({
+    self.assetsByAddress[address(tokenAddress)] = Asset({
       exists: true,
       assetAddress: address(tokenAddress),
       symbol: symbol,
@@ -46,7 +47,7 @@ library AssetRegistryAdmin {
     string memory symbol,
     uint8 decimals
   ) external {
-    Structs.Asset memory asset = self.assetsByAddress[address(tokenAddress)];
+    Asset memory asset = self.assetsByAddress[address(tokenAddress)];
     require(asset.exists, 'Unknown token');
     require(!asset.isConfirmed, 'Token already finalized');
     require(isStringEqual(asset.symbol, symbol), 'Symbols do not match');
@@ -63,7 +64,7 @@ library AssetRegistryAdmin {
     IERC20 tokenAddress,
     string memory symbol
   ) external {
-    Structs.Asset memory asset = self.assetsByAddress[address(tokenAddress)];
+    Asset memory asset = self.assetsByAddress[address(tokenAddress)];
     require(
       asset.exists && asset.isConfirmed,
       'Registration of token not finalized'

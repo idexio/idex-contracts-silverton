@@ -31,7 +31,7 @@ const marketSymbol = `${tokenSymbol}-${bnbSymbol}`;
 contract('Exchange (trades)', (accounts) => {
   const Token = artifacts.require('TestToken');
 
-  describe('executeTrade', () => {
+  describe('executeOrderBookTrade', () => {
     it('should work for matching limit orders', async () => {
       const { exchange } = await deployAndAssociateContracts();
       const token = await deployAndRegisterToken(exchange, tokenSymbol);
@@ -129,7 +129,7 @@ contract('Exchange (trades)', (accounts) => {
         'BASE-QUOTE',
       );
 
-      await executeTrade(
+      await executeOrderBookTrade(
         exchange,
         buyWallet,
         sellWallet,
@@ -229,7 +229,7 @@ contract('Exchange (trades)', (accounts) => {
 
       let error;
       try {
-        await executeTrade(
+        await executeOrderBookTrade(
           exchange,
           buyWallet,
           sellWallet,
@@ -258,7 +258,7 @@ contract('Exchange (trades)', (accounts) => {
         sellWallet,
       );
 
-      await executeTrade(
+      await executeOrderBookTrade(
         exchange,
         buyWallet,
         sellWallet,
@@ -332,7 +332,7 @@ contract('Exchange (trades)', (accounts) => {
       fill.netQuoteQuantity = quoteQuantity; // No fee
       fill.price = price;
 
-      await executeTrade(
+      await executeOrderBookTrade(
         exchange,
         buyWallet,
         sellWallet,
@@ -406,7 +406,7 @@ contract('Exchange (trades)', (accounts) => {
       buyOrder.type = OrderType.StopLossLimit;
       sellOrder.type = OrderType.StopLossLimit;
 
-      await executeTrade(
+      await executeOrderBookTrade(
         exchange,
         buyWallet,
         sellWallet,
@@ -466,7 +466,7 @@ contract('Exchange (trades)', (accounts) => {
       buyOrder.type = OrderType.StopLoss;
       sellOrder.type = OrderType.TakeProfit;
 
-      await executeTrade(
+      await executeOrderBookTrade(
         exchange,
         buyWallet,
         sellWallet,
@@ -527,7 +527,7 @@ contract('Exchange (trades)', (accounts) => {
       buyOrder.quantity = fill.grossQuoteQuantity;
       buyOrder.isQuantityInQuote = true;
 
-      await executeTrade(
+      await executeOrderBookTrade(
         exchange,
         buyWallet,
         sellWallet,
@@ -593,7 +593,7 @@ contract('Exchange (trades)', (accounts) => {
         .toString();
       fill.netQuoteQuantity = fill.grossQuoteQuantity;
 
-      await executeTrade(
+      await executeOrderBookTrade(
         exchange,
         buyWallet,
         sellWallet,
@@ -662,7 +662,7 @@ contract('Exchange (trades)', (accounts) => {
         .toString();
       fill.netQuoteQuantity = fill.grossQuoteQuantity;
 
-      await executeTrade(
+      await executeOrderBookTrade(
         exchange,
         buyWallet,
         sellWallet,
@@ -723,7 +723,7 @@ contract('Exchange (trades)', (accounts) => {
 
       let error;
       try {
-        await executeTrade(
+        await executeOrderBookTrade(
           exchange,
           buyWallet,
           sellWallet,
@@ -755,7 +755,7 @@ contract('Exchange (trades)', (accounts) => {
 
       let error;
       try {
-        await executeTrade(
+        await executeOrderBookTrade(
           exchange,
           buyWallet,
           sellWallet,
@@ -791,7 +791,7 @@ contract('Exchange (trades)', (accounts) => {
 
       let error;
       try {
-        await executeTrade(
+        await executeOrderBookTrade(
           exchange,
           buyWallet,
           sellWallet,
@@ -827,7 +827,7 @@ contract('Exchange (trades)', (accounts) => {
 
       let error;
       try {
-        await executeTrade(
+        await executeOrderBookTrade(
           exchange,
           buyWallet,
           sellWallet,
@@ -866,7 +866,7 @@ contract('Exchange (trades)', (accounts) => {
         .toString();
       fill.netQuoteQuantity = fill.grossQuoteQuantity;
 
-      await executeTrade(
+      await executeOrderBookTrade(
         exchange,
         buyWallet,
         sellWallet,
@@ -877,7 +877,7 @@ contract('Exchange (trades)', (accounts) => {
 
       let error;
       try {
-        await executeTrade(
+        await executeOrderBookTrade(
           exchange,
           buyWallet,
           sellWallet,
@@ -917,7 +917,7 @@ contract('Exchange (trades)', (accounts) => {
         .toString();
       fill.netQuoteQuantity = fill.grossQuoteQuantity;
 
-      await executeTrade(
+      await executeOrderBookTrade(
         exchange,
         buyWallet,
         sellWallet,
@@ -928,7 +928,7 @@ contract('Exchange (trades)', (accounts) => {
 
       let error;
       try {
-        await executeTrade(
+        await executeOrderBookTrade(
           exchange,
           buyWallet,
           sellWallet,
@@ -1059,7 +1059,7 @@ contract('Exchange (trades)', (accounts) => {
 
       let error;
       try {
-        await executeTrade(
+        await executeOrderBookTrade(
           exchange,
           buyWallet,
           sellWallet,
@@ -1090,7 +1090,7 @@ contract('Exchange (trades)', (accounts) => {
 
       let error;
       try {
-        await executeTrade(
+        await executeOrderBookTrade(
           exchange,
           buyWallet,
           sellWallet,
@@ -1126,7 +1126,7 @@ contract('Exchange (trades)', (accounts) => {
       let error;
       try {
         // https://github.com/microsoft/TypeScript/issues/28486
-        await (exchange.executeTrade as any)(
+        await (exchange.executeOrderBookTrade as any)(
           ...getTradeArguments(
             buyOrder,
             buySignature,
@@ -1165,7 +1165,7 @@ contract('Exchange (trades)', (accounts) => {
       let error;
       try {
         // https://github.com/microsoft/TypeScript/issues/28486
-        await (exchange.executeTrade as any)(
+        await (exchange.executeOrderBookTrade as any)(
           ...getTradeArguments(
             buyOrder,
             buySignature,
@@ -1197,7 +1197,7 @@ contract('Exchange (trades)', (accounts) => {
 
       let error;
       try {
-        await executeTrade(
+        await executeOrderBookTrade(
           exchange,
           buyWallet,
           sellWallet,
@@ -1228,7 +1228,7 @@ contract('Exchange (trades)', (accounts) => {
 
       let error;
       try {
-        await executeTrade(
+        await executeOrderBookTrade(
           exchange,
           buyWallet,
           sellWallet,
@@ -1259,7 +1259,7 @@ contract('Exchange (trades)', (accounts) => {
 
       let error;
       try {
-        await executeTrade(
+        await executeOrderBookTrade(
           exchange,
           buyWallet,
           sellWallet,
@@ -1292,7 +1292,7 @@ contract('Exchange (trades)', (accounts) => {
 
       let error;
       try {
-        await executeTrade(
+        await executeOrderBookTrade(
           exchange,
           buyWallet,
           sellWallet,
@@ -1327,7 +1327,7 @@ contract('Exchange (trades)', (accounts) => {
 
       let error;
       try {
-        await executeTrade(
+        await executeOrderBookTrade(
           exchange,
           buyWallet,
           sellWallet,
@@ -1360,7 +1360,7 @@ contract('Exchange (trades)', (accounts) => {
 
       let error;
       try {
-        await executeTrade(
+        await executeOrderBookTrade(
           exchange,
           buyWallet,
           sellWallet,
@@ -1393,7 +1393,7 @@ contract('Exchange (trades)', (accounts) => {
 
       let error;
       try {
-        await executeTrade(
+        await executeOrderBookTrade(
           exchange,
           buyWallet,
           sellWallet,
@@ -1428,7 +1428,7 @@ contract('Exchange (trades)', (accounts) => {
 
       let error;
       try {
-        await executeTrade(
+        await executeOrderBookTrade(
           exchange,
           buyWallet,
           sellWallet,
@@ -1461,7 +1461,7 @@ contract('Exchange (trades)', (accounts) => {
 
       let error;
       try {
-        await executeTrade(
+        await executeOrderBookTrade(
           exchange,
           buyWallet,
           sellWallet,
@@ -1492,7 +1492,7 @@ contract('Exchange (trades)', (accounts) => {
 
       let error;
       try {
-        await executeTrade(
+        await executeOrderBookTrade(
           exchange,
           buyWallet,
           sellWallet,
@@ -1523,7 +1523,7 @@ contract('Exchange (trades)', (accounts) => {
         sellWallet,
       );
 
-      await executeTrade(
+      await executeOrderBookTrade(
         exchange,
         buyWallet,
         sellWallet,
@@ -1534,7 +1534,7 @@ contract('Exchange (trades)', (accounts) => {
 
       let error;
       try {
-        await executeTrade(
+        await executeOrderBookTrade(
           exchange,
           buyWallet,
           sellWallet,
@@ -1628,7 +1628,7 @@ export const depositTokenPair = async (
   );
 };
 
-export const executeTrade = async (
+export const executeOrderBookTrade = async (
   exchange: ExchangeInstance,
   buyWallet: string,
   sellWallet: string,
@@ -1642,7 +1642,7 @@ export const executeTrade = async (
   ]);
 
   // https://github.com/microsoft/TypeScript/issues/28486
-  await (exchange.executeTrade as any)(
+  await (exchange.executeOrderBookTrade as any)(
     ...getTradeArguments(
       buyOrder,
       buySignature,
@@ -1730,7 +1730,7 @@ const generateAndExecuteTrade = async (
     buyWallet,
     sellWallet,
   );
-  await executeTrade(
+  await executeOrderBookTrade(
     exchange,
     buyWallet,
     sellWallet,

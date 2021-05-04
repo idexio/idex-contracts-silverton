@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 
-pragma solidity 0.8.2;
+pragma solidity 0.8.4;
 
 import {
   IFactory
@@ -13,7 +13,8 @@ import { AssetRegistry } from './AssetRegistry.sol';
 import { AssetTransfers } from './AssetTransfers.sol';
 import { AssetUnitConversions } from './AssetUnitConversions.sol';
 import { BalanceTracking } from './BalanceTracking.sol';
-import { IERC20, Structs } from './Interfaces.sol';
+import { IERC20 } from './Interfaces.sol';
+import { Asset } from './Structs.sol';
 
 library Depositing {
   using AssetRegistry for AssetRegistry.Storage;
@@ -21,7 +22,7 @@ library Depositing {
 
   function deposit(
     address wallet,
-    Structs.Asset memory asset,
+    Asset memory asset,
     uint256 quantityInAssetUnits,
     address payable custodian,
     BalanceTracking.Storage storage balanceTracking
@@ -53,7 +54,7 @@ library Depositing {
     AssetRegistry.Storage storage assetRegistry,
     BalanceTracking.Storage storage balanceTracking
   ) internal {
-    Structs.Asset memory asset;
+    Asset memory asset;
 
     asset = assetRegistry.loadAssetByAddress(assetA);
     depositAsset(
@@ -91,8 +92,7 @@ library Depositing {
         assetB == address(0x0) ? address(WETH) : assetB
       );
 
-    Structs.Asset memory asset =
-      assetRegistry.loadAssetByAddress(pairTokenAddress);
+    Asset memory asset = assetRegistry.loadAssetByAddress(pairTokenAddress);
 
     depositAsset(
       wallet,
@@ -105,7 +105,7 @@ library Depositing {
 
   function depositAsset(
     address wallet,
-    Structs.Asset memory asset,
+    Asset memory asset,
     uint256 quantityInAssetUnits,
     address payable custodian,
     BalanceTracking.Storage storage balanceTracking

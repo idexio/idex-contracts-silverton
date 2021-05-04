@@ -2,7 +2,11 @@ import { v1 as uuidv1 } from 'uuid';
 
 import { bnbAddress } from '../../lib';
 import { deployAndAssociateContracts, deployAndRegisterToken } from './helpers';
-import { deposit, executeTrade, generateOrdersAndFill } from './trade.test';
+import {
+  deposit,
+  executeOrderBookTrade,
+  generateOrdersAndFill,
+} from './trade.test';
 
 const tokenSymbol = 'TKN';
 
@@ -10,7 +14,7 @@ const tokenSymbol = 'TKN';
 // registry. Changing the block timestamp causes side effects for other tests that don't specifically
 // handle it, so isolate these tests here
 contract('Exchange (trades)', (accounts) => {
-  describe('executeTrade', () => {
+  describe('executeOrderBookTrade', () => {
     it('should revert when buy order base asset is mismatched with trade', async () => {
       const { exchange } = await deployAndAssociateContracts();
       await deployAndRegisterToken(exchange, tokenSymbol);
@@ -35,7 +39,7 @@ contract('Exchange (trades)', (accounts) => {
 
       let error;
       try {
-        await executeTrade(
+        await executeOrderBookTrade(
           exchange,
           buyWallet,
           sellWallet,
@@ -76,7 +80,7 @@ contract('Exchange (trades)', (accounts) => {
 
       let error;
       try {
-        await executeTrade(
+        await executeOrderBookTrade(
           exchange,
           buyWallet,
           sellWallet,

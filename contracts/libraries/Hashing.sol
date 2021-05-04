@@ -1,15 +1,21 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 
-pragma solidity 0.8.2;
+pragma solidity 0.8.4;
 
 import { ECDSA } from '@openzeppelin/contracts/utils/cryptography/ECDSA.sol';
 
-import { Enums, Structs } from './Interfaces.sol';
+import { LiquidityChangeType, WithdrawalType } from './Enums.sol';
+import {
+  LiquidityAddition,
+  LiquidityRemoval,
+  Order,
+  Withdrawal
+} from './Structs.sol';
 
 /**
- * Library helpers for building hashes and verifying wallet signatures on `Order` and `Withdrawal` structs
+ * @notice Library helpers for building hashes and verifying wallet signatures
  */
-library Signatures {
+library Hashing {
   function isSignatureValid(
     bytes32 hash,
     bytes memory signature,
@@ -19,8 +25,57 @@ library Signatures {
       ECDSA.recover(ECDSA.toEthSignedMessageHash(hash), signature) == signer;
   }
 
-  function getOrderWalletHash(
-    Structs.Order memory order,
+  // Hash construction //
+
+  function getLiquidityAdditionHash(LiquidityAddition memory addition)
+    internal
+    pure
+    returns (bytes32)
+  {
+    return
+      keccak256(
+        abi.encodePacked(
+          uint8(LiquidityChangeType.Addition),
+          uint8(addition.origination),
+          addition.nonce,
+          addition.wallet,
+          addition.assetA,
+          addition.assetB,
+          addition.amountADesired,
+          addition.amountBDesired,
+          addition.amountAMin,
+          addition.amountBMin,
+          addition.to,
+          addition.deadline
+        )
+      );
+  }
+
+  function getLiquidityRemovalHash(LiquidityRemoval memory removal)
+    internal
+    pure
+    returns (bytes32)
+  {
+    return
+      keccak256(
+        abi.encodePacked(
+          uint8(LiquidityChangeType.Removal),
+          uint8(removal.origination),
+          removal.nonce,
+          removal.wallet,
+          removal.assetA,
+          removal.assetB,
+          removal.liquidity,
+          removal.amountAMin,
+          removal.amountBMin,
+          removal.to,
+          removal.deadline
+        )
+      );
+  }
+
+  function getOrderHash(
+    Order memory order,
     string memory baseSymbol,
     string memory quoteSymbol
   ) internal pure returns (bytes32) {
@@ -59,7 +114,7 @@ library Signatures {
       );
   }
 
-  function getWithdrawalWalletHash(Structs.Withdrawal memory withdrawal)
+  function getWithdrawalHash(Withdrawal memory withdrawal)
     internal
     pure
     returns (bytes32)
@@ -70,7 +125,7 @@ library Signatures {
           withdrawal.nonce,
           withdrawal.walletAddress,
           // Ternary branches must resolve to the same type, so wrap in idempotent encodePacked
-          withdrawal.withdrawalType == Enums.WithdrawalType.BySymbol
+          withdrawal.withdrawalType == WithdrawalType.BySymbol
             ? abi.encodePacked(withdrawal.assetSymbol)
             : abi.encodePacked(withdrawal.assetAddress),
           pipToDecimal(withdrawal.quantityInPips),
