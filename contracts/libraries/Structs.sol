@@ -100,7 +100,7 @@ struct Asset {
 }
 
 /**
- * @notice Argument type for `Exchange.executeTrade` and `Signatures.getOrderWalletHash`
+ * @notice Argument type for `Exchange.executeOrderBookTrade` and `Hashing.getOrderWalletHash`
  */
 struct Order {
   // Not currently used but reserved for future use. Must be 2
@@ -129,12 +129,12 @@ struct Order {
   OrderSelfTradePrevention selfTradePrevention;
   // Cancellation time specified by wallet for GTT TIF order
   uint64 cancelAfter;
-  // The ECDSA signature of the order hash as produced by Signatures.getOrderWalletHash
+  // The ECDSA signature of the order hash as produced by Hashing.getOrderWalletHash
   bytes walletSignature;
 }
 
 /**
- * @notice Argument type for `Exchange.executeTrade` specifying execution parameters for matching orders
+ * @notice Argument type for `Exchange.executeOrderBookTrade` specifying execution parameters for matching orders
  */
 struct Trade {
   // Base asset symbol
@@ -196,7 +196,7 @@ struct HybridTradeExecution {
 }
 
 /**
- * @notice Argument type for `Exchange.withdraw` and `Signatures.getWithdrawalWalletHash`
+ * @notice Argument type for `Exchange.withdraw` and `Hashing.getWithdrawalWalletHash`
  */
 struct Withdrawal {
   // Distinguishes between withdrawals by asset symbol or address
@@ -215,6 +215,6 @@ struct Withdrawal {
   uint64 gasFeeInPips;
   // Not currently used but reserved for future use. Must be true
   bool autoDispatchEnabled;
-  // The ECDSA signature of the withdrawal hash as produced by Signatures.getWithdrawalWalletHash
+  // The ECDSA signature of the withdrawal hash as produced by Hashing.getWithdrawalWalletHash
   bytes walletSignature;
 }

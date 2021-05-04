@@ -161,7 +161,7 @@ contract Exchange is IExchange, Owned {
    */
   event TokenSymbolAdded(IERC20 indexed assetAddress, string assetSymbol);
   /**
-   * @notice Emitted when the Dispatcher Wallet submits a trade for execution with `executeTrade`
+   * @notice Emitted when the Dispatcher Wallet submits a trade for execution with `executeOrderBookTrade`
    */
   event TradeExecuted(
     address buyWallet,
@@ -280,7 +280,7 @@ contract Exchange is IExchange, Owned {
 
   /**
    * @notice Sets a new Chain Propagation Period - the block delay after which order nonce invalidations
-   * are respected by `executeTrade` and wallet exits are respected by `executeTrade` and `withdraw`
+   * are respected by `executeOrderBookTrade` and wallet exits are respected by `executeOrderBookTrade` and `withdraw`
    *
    * @param newChainPropagationPeriod The new Chain Propagation Period expressed as a number of blocks. Must
    * be less than `Constants.maxChainPropagationPeriod`
@@ -1047,7 +1047,7 @@ contract Exchange is IExchange, Owned {
    * @notice Invalidate all order nonces with a timestampInMs lower than the one provided
    *
    * @param nonce A Version 1 UUID. After calling and once the Chain Propagation Period has elapsed,
-   * `executeTrade` will reject order nonces from this wallet with a timestampInMs component lower than
+   * `executeOrderBookTrade` will reject order nonces from this wallet with a timestampInMs component lower than
    * the one provided
    */
   function invalidateOrderNonce(uint128 nonce) external {
@@ -1159,7 +1159,7 @@ contract Exchange is IExchange, Owned {
   // Dispatcher whitelisting //
 
   /**
-   * @notice Sets the wallet whitelisted to dispatch transactions calling the `executeTrade` and `withdraw` functions
+   * @notice Sets the wallet whitelisted to dispatch transactions calling the `executeOrderBookTrade` and `withdraw` functions
    *
    * @param newDispatcherWallet The new whitelisted dispatcher wallet. Must be different from the current one
    */
@@ -1177,7 +1177,7 @@ contract Exchange is IExchange, Owned {
 
   /**
    * @notice Clears the currently set whitelisted dispatcher wallet, effectively disabling calling the
-   * `executeTrade` and `withdraw` functions until a new wallet is set with `setDispatcher`
+   * `executeOrderBookTrade` and `withdraw` functions until a new wallet is set with `setDispatcher`
    */
   function removeDispatcher() external onlyAdmin {
     emit DispatcherChanged(_dispatcherWallet, address(0x0));

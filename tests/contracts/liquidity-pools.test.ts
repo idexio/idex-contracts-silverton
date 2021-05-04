@@ -35,7 +35,7 @@ const token1Symbol = 'USD';
 const marketSymbol = `${token0Symbol}-${token1Symbol}`;
 const ethMarketSymbol = `${token0Symbol}-${bnbSymbol}`;
 
-contract(
+contract.only(
   'Exchange (liquidity pools)',
   ([ownerWallet, buyWallet, sellWallet]) => {
     describe('promotePool', () => {
@@ -555,6 +555,8 @@ async function addLiquidityAndExecute(
 
   await exchange.executeAddLiquidity(
     {
+      origination: 0,
+      nonce: 0,
       wallet: ownerWallet,
       assetA: token0.address,
       assetB: token1.address,
@@ -564,6 +566,7 @@ async function addLiquidityAndExecute(
       amountBMin: depositQuantityInAssetUnits,
       to: ownerWallet,
       deadline,
+      signature: '0x',
     },
     {
       liquidity: depositQuantityInAssetUnits,
@@ -607,6 +610,8 @@ async function addLiquidityETHAndExecute(
 
   await exchange.executeAddLiquidity(
     {
+      origination: 0,
+      nonce: 0,
       wallet: ownerWallet,
       assetA: token.address,
       assetB: bnbAddress,
@@ -616,6 +621,7 @@ async function addLiquidityETHAndExecute(
       amountBMin: depositQuantityInAssetUnits,
       to: ownerWallet,
       deadline,
+      signature: '0x',
     },
     {
       liquidity: depositQuantityInAssetUnits,
@@ -660,6 +666,8 @@ async function removeLiquidityAndExecute(
 
   await exchange.executeRemoveLiquidity(
     {
+      origination: 0,
+      nonce: 0,
       wallet: ownerWallet,
       assetA: token0.address,
       assetB: token1.address,
@@ -668,6 +676,7 @@ async function removeLiquidityAndExecute(
       amountBMin: depositQuantityInAssetUnits,
       to: ownerWallet,
       deadline,
+      signature: '0x',
     },
     {
       liquidity: depositQuantityInAssetUnits,
@@ -710,6 +719,8 @@ async function removeLiquidityETHAndExecute(
 
   await exchange.executeRemoveLiquidity(
     {
+      origination: 0,
+      nonce: 0,
       wallet: ownerWallet,
       assetA: token.address,
       assetB: bnbAddress,
@@ -718,6 +729,7 @@ async function removeLiquidityETHAndExecute(
       amountBMin: depositQuantityInAssetUnits,
       to: ownerWallet,
       deadline,
+      signature: '0x',
     },
     {
       liquidity: depositQuantityInAssetUnits,

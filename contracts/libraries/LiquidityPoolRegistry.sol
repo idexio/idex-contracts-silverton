@@ -15,7 +15,7 @@ import { AssetUnitConversions } from './AssetUnitConversions.sol';
 import { BalanceTracking } from './BalanceTracking.sol';
 import { Constants } from './Constants.sol';
 import { Depositing } from './Depositing.sol';
-import { Signatures } from './Signatures.sol';
+import { Hashing } from './Hashing.sol';
 import { UUID } from './UUID.sol';
 import { Validations } from './Validations.sol';
 import { Withdrawing } from './Withdrawing.sol';
@@ -142,7 +142,7 @@ library LiquidityPoolRegistry {
       balanceTracking
     );
 
-    bytes32 hash = Signatures.getLiquidityAdditionHash(addition);
+    bytes32 hash = Hashing.getLiquidityAdditionHash(addition);
     self.changes[hash] = LiquidityChangeState.Initiated;
   }
 
@@ -167,7 +167,7 @@ library LiquidityPoolRegistry {
       balanceTracking
     );
 
-    bytes32 hash = Signatures.getLiquidityAdditionHash(addition);
+    bytes32 hash = Hashing.getLiquidityAdditionHash(addition);
     self.changes[hash] = LiquidityChangeState.Initiated;
   }
 
@@ -178,14 +178,14 @@ library LiquidityPoolRegistry {
     address feeWallet,
     BalanceTracking.Storage storage balanceTracking
   ) external {
-    bytes32 hash = Signatures.getLiquidityAdditionHash(addition);
+    bytes32 hash = Hashing.getLiquidityAdditionHash(addition);
     if (addition.origination == LiquidityChangeOrigination.OnChain) {
       LiquidityChangeState state = self.changes[hash];
       require(state == LiquidityChangeState.Initiated, 'Not executable');
       self.changes[hash] = LiquidityChangeState.Executed;
     } else {
       require(
-        Signatures.isSignatureValid(hash, addition.signature, addition.wallet),
+        Hashing.isSignatureValid(hash, addition.signature, addition.wallet),
         'Invalid signature'
       );
     }
@@ -263,7 +263,7 @@ library LiquidityPoolRegistry {
       balanceTracking
     );
 
-    bytes32 hash = Signatures.getLiquidityRemovalHash(removal);
+    bytes32 hash = Hashing.getLiquidityRemovalHash(removal);
     self.changes[hash] = LiquidityChangeState.Initiated;
   }
 
@@ -297,14 +297,14 @@ library LiquidityPoolRegistry {
     LiquidityRemoval memory removal,
     LiquidityChangeExecution memory execution
   ) private returns (IPair pairTokenAddress) {
-    bytes32 hash = Signatures.getLiquidityRemovalHash(removal);
+    bytes32 hash = Hashing.getLiquidityRemovalHash(removal);
     if (removal.origination == LiquidityChangeOrigination.OnChain) {
       LiquidityChangeState state = self.changes[hash];
       require(state == LiquidityChangeState.Initiated, 'Not executable');
       self.changes[hash] = LiquidityChangeState.Executed;
     } else {
       require(
-        Signatures.isSignatureValid(hash, removal.signature, removal.wallet),
+        Hashing.isSignatureValid(hash, removal.signature, removal.wallet),
         'Invalid signature'
       );
     }

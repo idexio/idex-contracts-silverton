@@ -5,7 +5,7 @@ pragma solidity 0.8.4;
 import { AssetRegistry } from './AssetRegistry.sol';
 import { AssetUnitConversions } from './AssetUnitConversions.sol';
 import { Constants } from './Constants.sol';
-import { Signatures } from './Signatures.sol';
+import { Hashing } from './Hashing.sol';
 import { UUID } from './UUID.sol';
 import { OrderSide, OrderType } from './Enums.sol';
 import {
@@ -190,7 +190,7 @@ library Validations {
     validateAssetPair(buy, sell, trade, assetRegistry);
     validateLimitPrices(buy, sell, trade);
     (bytes32 buyHash, bytes32 sellHash) =
-      validateOrderSignatures(buy, sell, trade);
+      validateOrderHashing(buy, sell, trade);
     validateTradeFees(trade);
 
     return (buyHash, sellHash);
@@ -204,7 +204,7 @@ library Validations {
     AssetRegistry.Storage storage assetRegistry
   ) internal view returns (bytes32 buyHash, bytes32 sellHash) {
     // Order book trade validations
-    (buyHash, sellHash) = validateOrderSignatures(buy, sell, trade);
+    (buyHash, sellHash) = validateOrderHashing(buy, sell, trade);
     validateAssetPair(buy, sell, trade, assetRegistry);
     validateLimitPrices(buy, sell, trade);
     validateTradeFees(trade);
@@ -465,7 +465,7 @@ library Validations {
     );
   }
 
-  function validateOrderSignatures(
+  function validateOrderHashing(
     Order memory buy,
     Order memory sell,
     Trade memory trade
@@ -492,10 +492,10 @@ library Validations {
     string memory quoteAssetSymbol
   ) internal pure returns (bytes32) {
     bytes32 orderHash =
-      Signatures.getOrderHash(order, baseAssetSymbol, quoteAssetSymbol);
+      Hashing.getOrderHash(order, baseAssetSymbol, quoteAssetSymbol);
 
     require(
-      Signatures.isSignatureValid(
+      Hashing.isSignatureValid(
         orderHash,
         order.walletSignature,
         order.walletAddress
@@ -513,10 +513,10 @@ library Validations {
     pure
     returns (bytes32)
   {
-    bytes32 withdrawalHash = Signatures.getWithdrawalHash(withdrawal);
+    bytes32 withdrawalHash = Hashing.getWithdrawalHash(withdrawal);
 
     require(
-      Signatures.isSignatureValid(
+      Hashing.isSignatureValid(
         withdrawalHash,
         withdrawal.walletSignature,
         withdrawal.walletAddress

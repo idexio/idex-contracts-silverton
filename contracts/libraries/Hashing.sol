@@ -15,7 +15,7 @@ import {
 /**
  * @notice Library helpers for building hashes and verifying wallet signatures
  */
-library Signatures {
+library Hashing {
   function isSignatureValid(
     bytes32 hash,
     bytes memory signature,
