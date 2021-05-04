@@ -1,20 +1,21 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 
-pragma solidity 0.8.2;
+pragma solidity 0.8.4;
 
 import { Address } from '@openzeppelin/contracts/utils/Address.sol';
 
-import { IERC20, Structs } from './Interfaces.sol';
+import { Asset } from './Structs.sol';
+import { IERC20 } from './Interfaces.sol';
 
 /**
  * @notice Library helper functions for reading from a registry of asset descriptors indexed by address and symbol
  */
 library AssetRegistry {
   struct Storage {
-    mapping(address => Structs.Asset) assetsByAddress;
+    mapping(address => Asset) assetsByAddress;
     // Mapping value is array since the same symbol can be re-used for a different address
     // (usually as a result of a token swap or upgrade)
-    mapping(string => Structs.Asset[]) assetsBySymbol;
+    mapping(string => Asset[]) assetsBySymbol;
   }
 
   /**
@@ -25,13 +26,13 @@ library AssetRegistry {
   function loadAssetByAddress(Storage storage self, address assetAddress)
     internal
     view
-    returns (Structs.Asset memory)
+    returns (Asset memory)
   {
     if (assetAddress == address(0x0)) {
       return getBnbAsset();
     }
 
-    Structs.Asset memory asset = self.assetsByAddress[assetAddress];
+    Asset memory asset = self.assetsByAddress[assetAddress];
     require(
       asset.exists && asset.isConfirmed,
       'No confirmed asset found for address'
@@ -52,12 +53,12 @@ library AssetRegistry {
     Storage storage self,
     string memory symbol,
     uint64 timestampInMs
-  ) internal view returns (Structs.Asset memory) {
+  ) internal view returns (Asset memory) {
     if (isStringEqual('BNB', symbol)) {
       return getBnbAsset();
     }
 
-    Structs.Asset memory asset;
+    Asset memory asset;
     if (self.assetsBySymbol[symbol].length > 0) {
       for (uint8 i = 0; i < self.assetsBySymbol[symbol].length; i++) {
         if (
@@ -78,8 +79,8 @@ library AssetRegistry {
   /**
    * @dev BNB is modeled as an always-confirmed Asset struct for programmatic consistency
    */
-  function getBnbAsset() private pure returns (Structs.Asset memory) {
-    return Structs.Asset(true, address(0x0), 'BNB', 18, true, 0);
+  function getBnbAsset() private pure returns (Asset memory) {
+    return Asset(true, address(0x0), 'BNB', 18, true, 0);
   }
 
   // See https://solidity.readthedocs.io/en/latest/types.html#bytes-and-strings-as-arrays

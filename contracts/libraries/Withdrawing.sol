@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 
-pragma solidity 0.8.2;
+pragma solidity 0.8.4;
 
 import {
   IPair
@@ -9,9 +9,16 @@ import {
 import { AssetRegistry } from './AssetRegistry.sol';
 import { AssetUnitConversions } from './AssetUnitConversions.sol';
 import { BalanceTracking } from './BalanceTracking.sol';
-import { Validations } from './Validations.sol';
+import { ICustodian } from './Interfaces.sol';
 import { UUID } from './UUID.sol';
-import { Enums, ICustodian, Structs } from './Interfaces.sol';
+import { Validations } from './Validations.sol';
+import { WithdrawalType } from './Enums.sol';
+import {
+  Asset,
+  LiquidityChangeExecution,
+  LiquidityRemoval,
+  Withdrawal
+} from './Structs.sol';
 
 library Withdrawing {
   using AssetRegistry for AssetRegistry.Storage;
@@ -20,7 +27,7 @@ library Withdrawing {
   uint64 constant _maxWithdrawalFeeBasisPoints = 20 * 100; // 20%;
 
   function withdraw(
-    Structs.Withdrawal memory withdrawal,
+    Withdrawal memory withdrawal,
     ICustodian custodian,
     address feeWallet,
     AssetRegistry.Storage storage assetRegistry,
@@ -49,8 +56,8 @@ library Withdrawing {
     );
 
     // If withdrawal is by asset symbol (most common) then resolve to asset address
-    Structs.Asset memory asset =
-      withdrawal.withdrawalType == Enums.WithdrawalType.BySymbol
+    Asset memory asset =
+      withdrawal.withdrawalType == WithdrawalType.BySymbol
         ? assetRegistry.loadAssetBySymbol(
           withdrawal.assetSymbol,
           UUID.getTimestampInMsFromUuidV1(withdrawal.nonce)
@@ -84,8 +91,8 @@ library Withdrawing {
   }
 
   function withdrawLiquidity(
-    Structs.LiquidityRemoval memory removal,
-    Structs.LiquidityChangeExecution memory execution,
+    LiquidityRemoval memory removal,
+    LiquidityChangeExecution memory execution,
     ICustodian custodian,
     address exchangeAddress,
     address feeWallet,

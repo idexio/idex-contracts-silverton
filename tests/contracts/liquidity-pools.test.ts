@@ -812,7 +812,7 @@ const generateAndExecuteHybridTrade = async (
   price = '0.00121000',
   takerOrderBaseQuantity = '1818.18181818',
   poolTradeBaseQuantity = '909.09090909',
-  counterpartyTradeBaseQuantity = poolTradeBaseQuantity,
+  orderBookTradeBaseQuantity = poolTradeBaseQuantity,
   poolTradeQuoteQuantity = '1.00000000',
 ): Promise<void> => {
   const { buyOrder, poolTrade } = await generateOrderAndPoolTrade(
@@ -835,7 +835,7 @@ const generateAndExecuteHybridTrade = async (
     bnbAddress,
     buyWallet,
     sellWallet,
-    counterpartyTradeBaseQuantity,
+    orderBookTradeBaseQuantity,
     price,
     ethMarketSymbol,
   );

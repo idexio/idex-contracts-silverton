@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 
-pragma solidity 0.8.2;
+pragma solidity 0.8.4;
 
 import { Address } from '@openzeppelin/contracts/utils/Address.sol';
 import { ECDSA } from '@openzeppelin/contracts/utils/cryptography/ECDSA.sol';
@@ -15,21 +15,31 @@ import { AssetRegistry } from './libraries/AssetRegistry.sol';
 import { AssetRegistryAdmin } from './libraries/AssetRegistryAdmin.sol';
 import { AssetUnitConversions } from './libraries/AssetUnitConversions.sol';
 import { BalanceTracking } from './libraries/BalanceTracking.sol';
+import { Constants } from './libraries/Constants.sol';
 import { Depositing } from './libraries/Depositing.sol';
 import { LiquidityPoolRegistry } from './libraries/LiquidityPoolRegistry.sol';
 import { Owned } from './Owned.sol';
 import { Trading } from './libraries/Trading.sol';
 import { Withdrawing } from './libraries/Withdrawing.sol';
 import { UUID } from './libraries/UUID.sol';
+import { LiquidityAdditionType } from './libraries/Enums.sol';
 import {
-  Constants,
-  Enums,
   ICustodian,
   IERC20,
   IExchange,
-  IWETH9,
-  Structs
+  IWETH9
 } from './libraries/Interfaces.sol';
+import {
+  Asset,
+  LiquidityAddition,
+  LiquidityChangeExecution,
+  LiquidityPool,
+  LiquidityRemoval,
+  Order,
+  PoolTrade,
+  Trade,
+  Withdrawal
+} from './libraries/Structs.sol';
 
 /**
  * @notice The Exchange contract. Implements all deposit, trade, and withdrawal logic and associated balance tracking
@@ -240,7 +250,7 @@ contract Exchange is IExchange, Owned {
   constructor(IExchange balanceMigrationSource, IWETH9 WETH) Owned() {
     require(
       Address.isContract(address(balanceMigrationSource)),
-      'Invalid migration address'
+      'Invalid migration source'
     );
     _balanceTracking.migrationSource = balanceMigrationSource;
 
@@ -343,8 +353,7 @@ contract Exchange is IExchange, Owned {
   ) external view returns (uint256) {
     require(wallet != address(0x0), 'Invalid wallet address');
 
-    Structs.Asset memory asset =
-      _assetRegistry.loadAssetByAddress(assetAddress);
+    Asset memory asset = _assetRegistry.loadAssetByAddress(assetAddress);
     return
       AssetUnitConversions.pipsToAssetUnits(
         _balanceTracking.balancesByWalletAssetPair[wallet][assetAddress]
@@ -368,7 +377,7 @@ contract Exchange is IExchange, Owned {
   ) external view returns (uint256) {
     require(wallet != address(0x0), 'Invalid wallet address');
 
-    Structs.Asset memory asset =
+    Asset memory asset =
       _assetRegistry.loadAssetBySymbol(assetSymbol, getCurrentTimestampInMs());
     return
       AssetUnitConversions.pipsToAssetUnits(
@@ -477,8 +486,7 @@ contract Exchange is IExchange, Owned {
     address tokenAddress,
     uint256 quantityInAssetUnits
   ) external {
-    Structs.Asset memory asset =
-      _assetRegistry.loadAssetByAddress(tokenAddress);
+    Asset memory asset = _assetRegistry.loadAssetByAddress(tokenAddress);
 
     require(address(tokenAddress) != address(0x0), 'Use depositEther');
 
@@ -496,7 +504,7 @@ contract Exchange is IExchange, Owned {
     string memory assetSymbol,
     uint256 quantityInAssetUnits
   ) public {
-    Structs.Asset memory asset =
+    Asset memory asset =
       _assetRegistry.loadAssetBySymbol(assetSymbol, getCurrentTimestampInMs());
 
     require(address(asset.assetAddress) != address(0x0), 'Use depositEther');
@@ -506,7 +514,7 @@ contract Exchange is IExchange, Owned {
 
   function deposit(
     address wallet,
-    Structs.Asset memory asset,
+    Asset memory asset,
     uint256 quantityInAssetUnits
   ) private {
     // Calling exitWallet disables deposits immediately on mining, in contrast to withdrawals and
@@ -549,14 +557,14 @@ contract Exchange is IExchange, Owned {
    * the wallet hash, since this is cheaper than splitting the market symbol into its two constituent asset symbols
    * @dev Stack level too deep if declared external
    *
-   * @param buy A `Structs.Order` struct encoding the parameters of the buy-side order (receiving base, giving quote)
-   * @param sell A `Structs.Order` struct encoding the parameters of the sell-side order (giving base, receiving quote)
-   * @param trade A `Structs.Trade` struct encoding the parameters of this trade execution of the counterparty orders
+   * @param buy A `Order` struct encoding the parameters of the buy-side order (receiving base, giving quote)
+   * @param sell A `Order` struct encoding the parameters of the sell-side order (giving base, receiving quote)
+   * @param trade A `Trade` struct encoding the parameters of this trade execution of the two orders
    */
-  function executeTrade(
-    Structs.Order memory buy,
-    Structs.Order memory sell,
-    Structs.Trade memory trade
+  function executeOrderBookTrade(
+    Order memory buy,
+    Order memory sell,
+    Trade memory trade
   ) public override onlyDispatcher {
     require(
       !isWalletExitFinalized(buy.walletAddress),
@@ -573,7 +581,7 @@ contract Exchange is IExchange, Owned {
 
     validateOrderNonces(buy, sell);
 
-    Trading.executeCounterpartyTrade(
+    Trading.executeOrderBookTrade(
       buy,
       sell,
       trade,
@@ -594,10 +602,10 @@ contract Exchange is IExchange, Owned {
     );
   }
 
-  function executePoolTrade(
-    Structs.Order memory order,
-    Structs.PoolTrade memory poolTrade
-  ) public onlyDispatcher {
+  function executePoolTrade(Order memory order, PoolTrade memory poolTrade)
+    public
+    onlyDispatcher
+  {
     require(
       !isWalletExitFinalized(order.walletAddress),
       'Order wallet exit finalized'
@@ -617,12 +625,12 @@ contract Exchange is IExchange, Owned {
   }
 
   function executeHybridTrade(
-    Structs.Order memory buy,
-    Structs.Order memory sell,
-    Structs.Trade memory trade,
-    Structs.PoolTrade memory poolTrade
+    Order memory buy,
+    Order memory sell,
+    Trade memory trade,
+    PoolTrade memory poolTrade
   ) public onlyDispatcher {
-    // Counterparty trade validations
+    // OrderBook trade validations
     require(
       !isWalletExitFinalized(buy.walletAddress),
       'Buy wallet exit finalized'
@@ -668,9 +676,9 @@ contract Exchange is IExchange, Owned {
   /**
    * @notice Settles a user withdrawal submitted off-chain. Calls restricted to currently whitelisted Dispatcher wallet
    *
-   * @param withdrawal A `Structs.Withdrawal` struct encoding the parameters of the withdrawal
+   * @param withdrawal A `Withdrawal` struct encoding the parameters of the withdrawal
    */
-  function withdraw(Structs.Withdrawal memory withdrawal)
+  function withdraw(Withdrawal memory withdrawal)
     public
     override
     onlyDispatcher
@@ -702,7 +710,7 @@ contract Exchange is IExchange, Owned {
   function loadLiquidityPoolByAssetAddresses(
     address baseAssetAddress,
     address quoteAssetAddress
-  ) public view returns (Structs.LiquidityPool memory) {
+  ) public view returns (LiquidityPool memory) {
     return
       _liquidityPoolRegistry.loadLiquidityPoolByAssetAddresses(
         baseAssetAddress,
@@ -743,7 +751,9 @@ contract Exchange is IExchange, Owned {
     uint256 deadline
   ) external {
     _liquidityPoolRegistry.addLiquidity(
-      Structs.LiquidityAddition(
+      LiquidityAddition(
+        LiquidityAdditionType.InitiatedOnChain,
+        0,
         msg.sender,
         tokenA,
         tokenB,
@@ -786,7 +796,9 @@ contract Exchange is IExchange, Owned {
     uint256 deadline
   ) external payable {
     _liquidityPoolRegistry.addLiquidityETH(
-      Structs.LiquidityAddition(
+      LiquidityAddition(
+        LiquidityAdditionType.InitiatedOnChain,
+        0,
         msg.sender,
         token,
         address(0x0),
@@ -818,8 +830,8 @@ contract Exchange is IExchange, Owned {
    * @notice Settles a liquidity addition by adjusting pool reserves and minting LP tokens
    */
   function executeAddLiquidity(
-    Structs.LiquidityAddition calldata addition,
-    Structs.LiquidityChangeExecution calldata execution
+    LiquidityAddition calldata addition,
+    LiquidityChangeExecution calldata execution
   ) external onlyDispatcher {
     _liquidityPoolRegistry.executeAddLiquidity(
       addition,
@@ -845,7 +857,7 @@ contract Exchange is IExchange, Owned {
   ) public {
     _liquidityPoolRegistry.removeLiquidity(
       // Use struct to avoid stack too deep
-      Structs.LiquidityRemoval(
+      LiquidityRemoval(
         msg.sender,
         tokenA,
         tokenB,
@@ -888,7 +900,7 @@ contract Exchange is IExchange, Owned {
   ) external {
     _liquidityPoolRegistry.removeLiquidity(
       // Use struct to avoid stack too deep
-      Structs.LiquidityRemoval(
+      LiquidityRemoval(
         msg.sender,
         token,
         address(0x0),
@@ -921,8 +933,8 @@ contract Exchange is IExchange, Owned {
    * transferring output assets
    */
   function executeRemoveLiquidity(
-    Structs.LiquidityRemoval calldata removal,
-    Structs.LiquidityChangeExecution calldata execution
+    LiquidityRemoval calldata removal,
+    LiquidityChangeExecution calldata execution
   ) external onlyDispatcher {
     _liquidityPoolRegistry.executeRemoveLiquidity(
       removal,
@@ -982,8 +994,7 @@ contract Exchange is IExchange, Owned {
       _balanceTracking.updateForExit(msg.sender, assetAddress);
 
     // Transfer asset from Custodian to wallet
-    Structs.Asset memory asset =
-      _assetRegistry.loadAssetByAddress(assetAddress);
+    Asset memory asset = _assetRegistry.loadAssetByAddress(assetAddress);
     uint256 balanceInAssetUnits =
       AssetUnitConversions.pipsToAssetUnits(
         previousExchangeBalanceInPips,
@@ -1127,12 +1138,12 @@ contract Exchange is IExchange, Owned {
    * @param assetSymbol The asset's symbol
    * @param timestampInMs Point in time used to disambiguate multiple tokens with same symbol
    *
-   * @return A `Structs.Asset` record describing the asset
+   * @return A `Asset` record describing the asset
    */
   function loadAssetBySymbol(string calldata assetSymbol, uint64 timestampInMs)
     external
     view
-    returns (Structs.Asset memory)
+    returns (Asset memory)
   {
     return _assetRegistry.loadAssetBySymbol(assetSymbol, timestampInMs);
   }
@@ -1172,10 +1183,10 @@ contract Exchange is IExchange, Owned {
 
   // Private methods - validations //
 
-  function validateOrderNonces(
-    Structs.Order memory buy,
-    Structs.Order memory sell
-  ) private view {
+  function validateOrderNonces(Order memory buy, Order memory sell)
+    private
+    view
+  {
     require(
       UUID.getTimestampInMsFromUuidV1(buy.nonce) >
         getLastInvalidatedTimestamp(buy.walletAddress),
@@ -1188,7 +1199,7 @@ contract Exchange is IExchange, Owned {
     );
   }
 
-  function validateOrderNonce(Structs.Order memory order) private view {
+  function validateOrderNonce(Order memory order) private view {
     require(
       UUID.getTimestampInMsFromUuidV1(order.nonce) >
         getLastInvalidatedTimestamp(order.walletAddress),

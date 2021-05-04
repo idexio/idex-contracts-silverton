@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 
-pragma solidity 0.8.2;
+pragma solidity 0.8.4;
 
 import { ECDSA } from '@openzeppelin/contracts/utils/cryptography/ECDSA.sol';
 
-import { Enums, Structs } from './Interfaces.sol';
+import { WithdrawalType } from './Enums.sol';
+import { Order, Withdrawal } from './Structs.sol';
 
 /**
  * Library helpers for building hashes and verifying wallet signatures on `Order` and `Withdrawal` structs
@@ -20,7 +21,7 @@ library Signatures {
   }
 
   function getOrderWalletHash(
-    Structs.Order memory order,
+    Order memory order,
     string memory baseSymbol,
     string memory quoteSymbol
   ) internal pure returns (bytes32) {
@@ -59,7 +60,7 @@ library Signatures {
       );
   }
 
-  function getWithdrawalWalletHash(Structs.Withdrawal memory withdrawal)
+  function getWithdrawalWalletHash(Withdrawal memory withdrawal)
     internal
     pure
     returns (bytes32)
@@ -70,7 +71,7 @@ library Signatures {
           withdrawal.nonce,
           withdrawal.walletAddress,
           // Ternary branches must resolve to the same type, so wrap in idempotent encodePacked
-          withdrawal.withdrawalType == Enums.WithdrawalType.BySymbol
+          withdrawal.withdrawalType == WithdrawalType.BySymbol
             ? abi.encodePacked(withdrawal.assetSymbol)
             : abi.encodePacked(withdrawal.assetAddress),
           pipToDecimal(withdrawal.quantityInPips),

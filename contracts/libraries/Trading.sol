@@ -1,24 +1,25 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 
-pragma solidity 0.8.2;
+pragma solidity 0.8.4;
 
 import { AssetRegistry } from './AssetRegistry.sol';
 import { BalanceTracking } from './BalanceTracking.sol';
 import { LiquidityPoolRegistry } from './LiquidityPoolRegistry.sol';
 import { PoolTradeHelpers } from './PoolTradeHelpers.sol';
 import { Validations } from './Validations.sol';
-import { Enums, Structs } from './Interfaces.sol';
+import { OrderSide, OrderType } from './Enums.sol';
+import { Order, PoolTrade, Trade } from './Structs.sol';
 
 library Trading {
   using AssetRegistry for AssetRegistry.Storage;
   using BalanceTracking for BalanceTracking.Storage;
   using LiquidityPoolRegistry for LiquidityPoolRegistry.Storage;
-  using PoolTradeHelpers for Structs.PoolTrade;
+  using PoolTradeHelpers for PoolTrade;
 
-  function executeCounterpartyTrade(
-    Structs.Order memory buy,
-    Structs.Order memory sell,
-    Structs.Trade memory trade,
+  function executeOrderBookTrade(
+    Order memory buy,
+    Order memory sell,
+    Trade memory trade,
     address feeWallet,
     AssetRegistry.Storage storage assetRegistry,
     BalanceTracking.Storage storage balanceTracking,
@@ -26,7 +27,7 @@ library Trading {
     mapping(bytes32 => uint64) storage partiallyFilledOrderQuantitiesInPips
   ) public {
     (bytes32 buyHash, bytes32 sellHash) =
-      Validations.validateCounterpartyTrade(buy, sell, trade, assetRegistry);
+      Validations.validateOrderBookTrade(buy, sell, trade, assetRegistry);
 
     updateOrderFilledQuantities(
       buy,
@@ -42,10 +43,10 @@ library Trading {
   }
 
   function executeHybridTrade(
-    Structs.Order memory buy,
-    Structs.Order memory sell,
-    Structs.Trade memory trade,
-    Structs.PoolTrade memory poolTrade,
+    Order memory buy,
+    Order memory sell,
+    Trade memory trade,
+    PoolTrade memory poolTrade,
     address feeWallet,
     AssetRegistry.Storage storage assetRegistry,
     LiquidityPoolRegistry.Storage storage liquidityPoolRegistry,
@@ -64,10 +65,8 @@ library Trading {
 
     {
       // Pool trade
-      (Structs.Order memory order, bytes32 orderHash) =
-        trade.makerSide == Enums.OrderSide.Buy
-          ? (sell, sellHash)
-          : (buy, buyHash);
+      (Order memory order, bytes32 orderHash) =
+        trade.makerSide == OrderSide.Buy ? (sell, sellHash) : (buy, buyHash);
       updateOrderFilledQuantity(
         order,
         orderHash,
@@ -90,7 +89,7 @@ library Trading {
     }
 
     {
-      // Counterparty trade
+      // Order book trade
       updateOrderFilledQuantities(
         buy,
         buyHash,
@@ -106,8 +105,8 @@ library Trading {
   }
 
   function executePoolTrade(
-    Structs.Order memory order,
-    Structs.PoolTrade memory poolTrade,
+    Order memory order,
+    PoolTrade memory poolTrade,
     address feeWallet,
     AssetRegistry.Storage storage assetRegistry,
     LiquidityPoolRegistry.Storage storage liquidityPoolRegistry,
@@ -132,15 +131,15 @@ library Trading {
   }
 
   function updateOrderFilledQuantities(
-    Structs.Order memory buy,
+    Order memory buy,
     bytes32 buyHash,
-    Structs.Order memory sell,
+    Order memory sell,
     bytes32 sellHash,
-    Structs.Trade memory trade,
+    Trade memory trade,
     mapping(bytes32 => bool) storage completedOrderHashes,
     mapping(bytes32 => uint64) storage partiallyFilledOrderQuantitiesInPips
   ) private {
-    // Counterparty trade
+    // Order book trade
     updateOrderFilledQuantity(
       buy,
       buyHash,
@@ -161,7 +160,7 @@ library Trading {
 
   // Update filled quantities tracking for order to prevent over- or double-filling orders
   function updateOrderFilledQuantity(
-    Structs.Order memory order,
+    Order memory order,
     bytes32 orderHash,
     uint64 grossBaseQuantityInPips,
     uint64 grossQuoteQuantityInPips,
@@ -204,14 +203,10 @@ library Trading {
     }
   }
 
-  function isMarketOrderType(Enums.OrderType orderType)
-    private
-    pure
-    returns (bool)
-  {
+  function isMarketOrderType(OrderType orderType) private pure returns (bool) {
     return
-      orderType == Enums.OrderType.Market ||
-      orderType == Enums.OrderType.StopLoss ||
-      orderType == Enums.OrderType.TakeProfit;
+      orderType == OrderType.Market ||
+      orderType == OrderType.StopLoss ||
+      orderType == OrderType.TakeProfit;
   }
 }
