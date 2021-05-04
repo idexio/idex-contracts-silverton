@@ -7,7 +7,7 @@ import {
 } from '@idexio/pancake-swap-core/contracts/interfaces/IPair.sol';
 
 import {
-  LiquidityAdditionType,
+  LiquidityChangeOrigination,
   OrderSelfTradePrevention,
   OrderSide,
   OrderTimeInForce,
@@ -36,7 +36,7 @@ struct LiquidityPool {
  */
 struct LiquidityAddition {
   // Distinguishes between liquidity additions initated on- or off- chain
-  LiquidityAdditionType additionType;
+  LiquidityChangeOrigination origination;
   // UUIDv1 unique to wallet
   uint128 nonce;
   address wallet;
@@ -48,11 +48,15 @@ struct LiquidityAddition {
   uint256 amountBMin;
   address to;
   uint256 deadline;
+  bytes signature;
 }
 /**
  * @notice TODO
  */
 struct LiquidityRemoval {
+  // Distinguishes between liquidity additions initated on- or off- chain
+  LiquidityChangeOrigination origination;
+  uint128 nonce;
   address wallet;
   address assetA;
   address assetB;
@@ -61,6 +65,7 @@ struct LiquidityRemoval {
   uint256 amountBMin;
   address payable to;
   uint256 deadline;
+  bytes signature;
 }
 /**
  * @notice TODO

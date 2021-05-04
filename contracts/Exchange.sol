@@ -20,9 +20,9 @@ import { Depositing } from './libraries/Depositing.sol';
 import { LiquidityPoolRegistry } from './libraries/LiquidityPoolRegistry.sol';
 import { Owned } from './Owned.sol';
 import { Trading } from './libraries/Trading.sol';
-import { Withdrawing } from './libraries/Withdrawing.sol';
 import { UUID } from './libraries/UUID.sol';
-import { LiquidityAdditionType } from './libraries/Enums.sol';
+import { Withdrawing } from './libraries/Withdrawing.sol';
+import { LiquidityChangeOrigination } from './libraries/Enums.sol';
 import {
   ICustodian,
   IERC20,
@@ -752,7 +752,7 @@ contract Exchange is IExchange, Owned {
   ) external {
     _liquidityPoolRegistry.addLiquidity(
       LiquidityAddition(
-        LiquidityAdditionType.InitiatedOnChain,
+        LiquidityChangeOrigination.OnChain,
         0,
         msg.sender,
         tokenA,
@@ -762,7 +762,8 @@ contract Exchange is IExchange, Owned {
         amountAMin,
         amountBMin,
         to,
-        deadline
+        deadline,
+        bytes('')
       ),
       _custodian,
       _assetRegistry,
@@ -797,7 +798,7 @@ contract Exchange is IExchange, Owned {
   ) external payable {
     _liquidityPoolRegistry.addLiquidityETH(
       LiquidityAddition(
-        LiquidityAdditionType.InitiatedOnChain,
+        LiquidityChangeOrigination.OnChain,
         0,
         msg.sender,
         token,
@@ -807,7 +808,8 @@ contract Exchange is IExchange, Owned {
         amountTokenMin,
         amountETHMin,
         to,
-        deadline
+        deadline,
+        bytes('')
       ),
       _custodian,
       _assetRegistry,
@@ -858,6 +860,8 @@ contract Exchange is IExchange, Owned {
     _liquidityPoolRegistry.removeLiquidity(
       // Use struct to avoid stack too deep
       LiquidityRemoval(
+        LiquidityChangeOrigination.OnChain,
+        0,
         msg.sender,
         tokenA,
         tokenB,
@@ -865,7 +869,8 @@ contract Exchange is IExchange, Owned {
         amountAMin,
         amountBMin,
         payable(to),
-        deadline
+        deadline,
+        bytes('')
       ),
       _custodian,
       _pairFactoryContractAddress,
@@ -901,6 +906,8 @@ contract Exchange is IExchange, Owned {
     _liquidityPoolRegistry.removeLiquidity(
       // Use struct to avoid stack too deep
       LiquidityRemoval(
+        LiquidityChangeOrigination.OnChain,
+        0,
         msg.sender,
         token,
         address(0x0),
@@ -908,7 +915,8 @@ contract Exchange is IExchange, Owned {
         amountTokenMin,
         amountETHMin,
         payable(to),
-        deadline
+        deadline,
+        bytes('')
       ),
       _custodian,
       _pairFactoryContractAddress,

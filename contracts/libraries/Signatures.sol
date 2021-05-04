@@ -4,11 +4,16 @@ pragma solidity 0.8.4;
 
 import { ECDSA } from '@openzeppelin/contracts/utils/cryptography/ECDSA.sol';
 
-import { WithdrawalType } from './Enums.sol';
-import { Order, Withdrawal } from './Structs.sol';
+import { LiquidityChangeType, WithdrawalType } from './Enums.sol';
+import {
+  LiquidityAddition,
+  LiquidityRemoval,
+  Order,
+  Withdrawal
+} from './Structs.sol';
 
 /**
- * Library helpers for building hashes and verifying wallet signatures on `Order` and `Withdrawal` structs
+ * @notice Library helpers for building hashes and verifying wallet signatures
  */
 library Signatures {
   function isSignatureValid(
@@ -20,7 +25,56 @@ library Signatures {
       ECDSA.recover(ECDSA.toEthSignedMessageHash(hash), signature) == signer;
   }
 
-  function getOrderWalletHash(
+  // Hash construction //
+
+  function getLiquidityAdditionHash(LiquidityAddition memory addition)
+    internal
+    pure
+    returns (bytes32)
+  {
+    return
+      keccak256(
+        abi.encodePacked(
+          uint8(LiquidityChangeType.Addition),
+          uint8(addition.origination),
+          addition.nonce,
+          addition.wallet,
+          addition.assetA,
+          addition.assetB,
+          addition.amountADesired,
+          addition.amountBDesired,
+          addition.amountAMin,
+          addition.amountBMin,
+          addition.to,
+          addition.deadline
+        )
+      );
+  }
+
+  function getLiquidityRemovalHash(LiquidityRemoval memory removal)
+    internal
+    pure
+    returns (bytes32)
+  {
+    return
+      keccak256(
+        abi.encodePacked(
+          uint8(LiquidityChangeType.Removal),
+          uint8(removal.origination),
+          removal.nonce,
+          removal.wallet,
+          removal.assetA,
+          removal.assetB,
+          removal.liquidity,
+          removal.amountAMin,
+          removal.amountBMin,
+          removal.to,
+          removal.deadline
+        )
+      );
+  }
+
+  function getOrderHash(
     Order memory order,
     string memory baseSymbol,
     string memory quoteSymbol
@@ -60,7 +114,7 @@ library Signatures {
       );
   }
 
-  function getWithdrawalWalletHash(Withdrawal memory withdrawal)
+  function getWithdrawalHash(Withdrawal memory withdrawal)
     internal
     pure
     returns (bytes32)

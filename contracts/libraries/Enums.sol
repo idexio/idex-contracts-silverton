@@ -7,7 +7,8 @@ pragma solidity 0.8.4;
  */
 
 // Liquidity pools //
-enum LiquidityAdditionType { InitiatedOnChain, InitiatedOffChain }
+
+enum LiquidityChangeOrigination { OnChain, OffChain }
 
 enum LiquidityChangeType { Addition, Removal }
 

@@ -492,7 +492,7 @@ library Validations {
     string memory quoteAssetSymbol
   ) internal pure returns (bytes32) {
     bytes32 orderHash =
-      Signatures.getOrderWalletHash(order, baseAssetSymbol, quoteAssetSymbol);
+      Signatures.getOrderHash(order, baseAssetSymbol, quoteAssetSymbol);
 
     require(
       Signatures.isSignatureValid(
@@ -513,7 +513,7 @@ library Validations {
     pure
     returns (bytes32)
   {
-    bytes32 withdrawalHash = Signatures.getWithdrawalWalletHash(withdrawal);
+    bytes32 withdrawalHash = Signatures.getWithdrawalHash(withdrawal);
 
     require(
       Signatures.isSignatureValid(

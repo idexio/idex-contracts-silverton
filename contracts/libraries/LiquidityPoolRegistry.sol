@@ -15,11 +15,13 @@ import { AssetUnitConversions } from './AssetUnitConversions.sol';
 import { BalanceTracking } from './BalanceTracking.sol';
 import { Constants } from './Constants.sol';
 import { Depositing } from './Depositing.sol';
+import { Signatures } from './Signatures.sol';
 import { UUID } from './UUID.sol';
 import { Validations } from './Validations.sol';
 import { Withdrawing } from './Withdrawing.sol';
 import { ICustodian, IWETH9 } from './Interfaces.sol';
 import {
+  LiquidityChangeOrigination,
   LiquidityChangeState,
   LiquidityChangeType,
   OrderSide
@@ -140,7 +142,7 @@ library LiquidityPoolRegistry {
       balanceTracking
     );
 
-    bytes32 hash = getAdditionHash(addition);
+    bytes32 hash = Signatures.getLiquidityAdditionHash(addition);
     self.changes[hash] = LiquidityChangeState.Initiated;
   }
 
@@ -165,7 +167,7 @@ library LiquidityPoolRegistry {
       balanceTracking
     );
 
-    bytes32 hash = getAdditionHash(addition);
+    bytes32 hash = Signatures.getLiquidityAdditionHash(addition);
     self.changes[hash] = LiquidityChangeState.Initiated;
   }
 
@@ -176,10 +178,17 @@ library LiquidityPoolRegistry {
     address feeWallet,
     BalanceTracking.Storage storage balanceTracking
   ) external {
-    bytes32 hash = getAdditionHash(addition);
-    LiquidityChangeState state = self.changes[hash];
-    require(state == LiquidityChangeState.Initiated, 'Not executable');
-    self.changes[hash] = LiquidityChangeState.Executed;
+    bytes32 hash = Signatures.getLiquidityAdditionHash(addition);
+    if (addition.origination == LiquidityChangeOrigination.OnChain) {
+      LiquidityChangeState state = self.changes[hash];
+      require(state == LiquidityChangeState.Initiated, 'Not executable');
+      self.changes[hash] = LiquidityChangeState.Executed;
+    } else {
+      require(
+        Signatures.isSignatureValid(hash, addition.signature, addition.wallet),
+        'Invalid signature'
+      );
+    }
 
     LiquidityPool storage pool =
       loadLiquidityPoolByAssetAddresses(
@@ -254,7 +263,7 @@ library LiquidityPoolRegistry {
       balanceTracking
     );
 
-    bytes32 hash = getRemovalHash(removal);
+    bytes32 hash = Signatures.getLiquidityRemovalHash(removal);
     self.changes[hash] = LiquidityChangeState.Initiated;
   }
 
@@ -288,10 +297,17 @@ library LiquidityPoolRegistry {
     LiquidityRemoval memory removal,
     LiquidityChangeExecution memory execution
   ) private returns (IPair pairTokenAddress) {
-    bytes32 hash = getRemovalHash(removal);
-    LiquidityChangeState state = self.changes[hash];
-    require(state == LiquidityChangeState.Initiated, 'Not executable');
-    self.changes[hash] = LiquidityChangeState.Executed;
+    bytes32 hash = Signatures.getLiquidityRemovalHash(removal);
+    if (removal.origination == LiquidityChangeOrigination.OnChain) {
+      LiquidityChangeState state = self.changes[hash];
+      require(state == LiquidityChangeState.Initiated, 'Not executable');
+      self.changes[hash] = LiquidityChangeState.Executed;
+    } else {
+      require(
+        Signatures.isSignatureValid(hash, removal.signature, removal.wallet),
+        'Invalid signature'
+      );
+    }
 
     LiquidityPool storage pool =
       loadLiquidityPoolByAssetAddresses(
@@ -490,49 +506,6 @@ library LiquidityPoolRegistry {
       outputBaseAssetQuantityInPips > 0 && outputQuoteAssetQuantityInPips > 0,
       'Insufficient liquidity burned'
     );
-  }
-
-  function getAdditionHash(LiquidityAddition memory addition)
-    private
-    pure
-    returns (bytes32)
-  {
-    return
-      keccak256(
-        abi.encodePacked(
-          uint8(LiquidityChangeType.Addition),
-          addition.wallet,
-          addition.assetA,
-          addition.assetB,
-          addition.amountADesired,
-          addition.amountBDesired,
-          addition.amountAMin,
-          addition.amountBMin,
-          addition.to,
-          addition.deadline
-        )
-      );
-  }
-
-  function getRemovalHash(LiquidityRemoval memory removal)
-    private
-    pure
-    returns (bytes32)
-  {
-    return
-      keccak256(
-        abi.encodePacked(
-          uint8(LiquidityChangeType.Removal),
-          removal.wallet,
-          removal.assetA,
-          removal.assetB,
-          removal.liquidity,
-          removal.amountAMin,
-          removal.amountBMin,
-          removal.to,
-          removal.deadline
-        )
-      );
   }
 
   function loadLiquidityPoolByAssetAddresses(
