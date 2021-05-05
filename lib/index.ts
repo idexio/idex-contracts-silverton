@@ -298,6 +298,8 @@ export const decimalToAssetUnits = (
   decimals: number,
 ): string => pipsToAssetUnits(decimalToPips(decimal), decimals);
 
+// TODO The below are provided as support for legacy CLI commands
+
 export type LoadContractResult = {
   abi: any[];
   bytecode: string;
