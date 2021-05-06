@@ -5,7 +5,7 @@
     "type": "git",
     "url": "git+https://github.com/idexio/idex-contracts-silverton.git"
   },
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Collects source code, tests, and documentation for the IDEX Silverton release Ethereum contracts",
   "homepage": "https://github.com/idexio/idex-contracts-silverton",
   "main": "build/lib/index.js",
@@ -17,6 +17,13 @@
     "build/contracts/Custodian.json",
     "build/contracts/Exchange.json",
     "build/contracts/Governance.json",
+    "build/contracts/AssetRegistryAdmin.json",
+    "build/contracts/Depositing.json",
+    "build/contracts/LiquidityPoolRegistry.json",
+    "build/contracts/TestFactory.json",
+    "build/contracts/Trading.json",
+    "build/contracts/WBNB.json",
+    "build/contracts/Withdrawing.json",
     "build/lib",
     "build/types"
   ],
@@ -44,7 +51,6 @@
     "verify": "truffle run verify"
   },
   "dependencies": {
-    "@idexio/pancake-swap-periphery": "^0.0.1",
     "chai": "^4.2.0",
     "ethers": "^5.0.31",
     "merkletreejs": "^0.2.13",

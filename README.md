@@ -3,7 +3,7 @@
 
 ## Overview
 
-This repo collects source code, tests, and documentation for the IDEX P2P and Blackcomb release Ethereum contracts.
+This repo collects source code, tests, and documentation for the IDEX Silverton release Ethereum contracts.
 
 ## Install
 

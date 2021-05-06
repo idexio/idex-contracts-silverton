@@ -1804,10 +1804,10 @@
     normalize-path "^2.0.1"
     through2 "^2.0.3"
 
-"@idexio/pancake-swap-core@^0.1.0-alpha.2":
-  version "0.1.0-alpha.2"
-  resolved "https://registry.yarnpkg.com/@idexio/pancake-swap-core/-/pancake-swap-core-0.1.0-alpha.2.tgz#25ec1796a05a6e9833a59f96af137be34dd7a078"
-  integrity sha512-Ofhb1/AAFtCSecPIhKuFlohmeXYAMu9FV1DASX+oOlru6W0yv7NTBFYNxuKRXYJj1in4bfdjDKC6t7NDliUVEA==
+"@idexio/pancake-swap-core@0.0.1":
+  version "0.0.1"
+  resolved "https://registry.yarnpkg.com/@idexio/pancake-swap-core/-/pancake-swap-core-0.0.1.tgz#20e75810b042974948f38167179cd6a1f6f9d0f7"
+  integrity sha512-Np7fBujmJiIpTUfOo5QPLg0oMApFlQOftH//mLiL2KyLMZGYsSyJR0aoTWPrQGVOj4/ywfxC5zXFERy2RYmLHg==
   dependencies:
     truffle "^5.1.41"
     truffle-flattener "^1.4.4"
