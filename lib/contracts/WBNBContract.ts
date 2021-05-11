@@ -3,15 +3,12 @@ import { ethers } from 'ethers';
 import * as utils from './utils';
 import BaseContract from './BaseContract';
 
-import {
-  TestFactory,
-  TestFactory__factory,
-} from '../../types/ethers-contracts';
+import { WBNB, WBNB__factory } from '../../types/ethers-contracts';
 
-export default class TestFactoryContract extends BaseContract<TestFactory> {
+export default class WBNBContract extends BaseContract<WBNB> {
   public constructor(address: string, signerWalletPrivateKey?: string) {
     super(
-      TestFactory__factory.connect(
+      WBNB__factory.connect(
         address,
         signerWalletPrivateKey
           ? new ethers.Wallet(signerWalletPrivateKey, utils.loadProvider())
@@ -21,15 +18,14 @@ export default class TestFactoryContract extends BaseContract<TestFactory> {
   }
 
   public static async deploy(
-    args: Parameters<TestFactory__factory['deploy']>,
     ownerWalletPrivateKey: string,
-  ): Promise<TestFactoryContract> {
+  ): Promise<WBNBContract> {
     const owner = new ethers.Wallet(
       ownerWalletPrivateKey,
       utils.loadProvider(),
     );
 
-    const contract = await new TestFactory__factory(owner).deploy(...args);
+    const contract = await new WBNB__factory(owner).deploy();
     await contract.deployTransaction.wait();
 
     return new this(contract.address);

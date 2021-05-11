@@ -440,6 +440,14 @@ contract Exchange is IExchange, Owned {
     return _feeWallet;
   }
 
+  function loadPairFactoryContractAddress() external view returns (address) {
+    return address(_pairFactoryContractAddress);
+  }
+
+  function loadWETHAddress() external view returns (address) {
+    return address(_WETH);
+  }
+
   /**
    * @notice Load the quantity filled so far for a partially filled orders
 

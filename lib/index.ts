@@ -5,6 +5,10 @@ import { ethers } from 'ethers';
 
 import { ExchangeInstance } from '../types/truffle-contracts';
 
+import * as contracts from './contracts';
+
+export { contracts };
+
 /** The fixed number of digits following the decimal in quantities expressed as pips */
 export const pipsDecimals = 8;
 

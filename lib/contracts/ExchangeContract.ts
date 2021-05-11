@@ -18,7 +18,6 @@ export default class ExchangeContract extends BaseContract<Exchange> {
   }
 
   public static async deploy(
-    ownerWalletPrivateKey: string,
     args: Parameters<Exchange__factory['deploy']>,
     libraryAddresses: {
       assetRegistryAdmin: string;
@@ -27,6 +26,7 @@ export default class ExchangeContract extends BaseContract<Exchange> {
       trading: string;
       withdrawing: string;
     },
+    ownerWalletPrivateKey: string,
   ): Promise<ExchangeContract> {
     const linkLibraryAddresses: ConstructorParameters<
       typeof Exchange__factory

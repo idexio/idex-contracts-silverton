@@ -10,4 +10,8 @@ export default abstract class BaseContract<Contract extends ethers.Contract> {
   public getAddress(): string {
     return this.contract.address;
   }
+
+  public getEthersContract(): Contract {
+    return this.contract;
+  }
 }

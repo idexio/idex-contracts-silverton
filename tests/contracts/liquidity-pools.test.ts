@@ -35,11 +35,11 @@ const token1Symbol = 'USD';
 const marketSymbol = `${token0Symbol}-${token1Symbol}`;
 const ethMarketSymbol = `${token0Symbol}-${bnbSymbol}`;
 
-contract.only(
+contract(
   'Exchange (liquidity pools)',
   ([ownerWallet, buyWallet, sellWallet]) => {
     describe('promotePool', () => {
-      it('should work', async () => {
+      it.only('should work', async () => {
         const depositQuantity = '1.00000000';
         const {
           exchange,
@@ -514,8 +514,8 @@ async function deployPancakeCoreAndCreateETHPool(
   const IPair = artifacts.require('IPair');
   const factory = await TestFactory.new(feeWallet, custodian.address);
 
-  const pairAddress = (await factory.createPair(token.address, wbnb.address))
-    .logs[0].args.pair;
+  const tx = await factory.createPair(token.address, wbnb.address);
+  const pairAddress = tx.logs[0].args.pair;
   const pair = await IPair.at(pairAddress);
 
   return { factory, pair };
