@@ -3,8 +3,8 @@
 pragma solidity 0.8.4;
 
 import {
-  IPair
-} from '@idexio/pancake-swap-core/contracts/interfaces/IPair.sol';
+  IIDEXPair
+} from '@idexio/idex-swap-core/contracts/interfaces/IIDEXPair.sol';
 
 import { Order, Trade, Withdrawal } from './Structs.sol';
 

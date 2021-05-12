@@ -6,7 +6,7 @@ contract('Governance', (accounts) => {
   );
   const Exchange = artifacts.require('Exchange');
   const Governance = artifacts.require('Governance');
-  const WBNB = artifacts.require('WBNB');
+  const WETH = artifacts.require('WETH');
 
   const bnbAddress = web3.utils.bytesToHex([...Buffer.alloc(20)]);
 
@@ -100,7 +100,7 @@ contract('Governance', (accounts) => {
       } = await deployAndAssociateContracts();
       const newExchange = await Exchange.new(
         (await BalanceMigrationSourceMock.new()).address,
-        (await WBNB.new()).address,
+        (await WETH.new()).address,
       );
 
       await governance.initiateExchangeUpgrade(newExchange.address);
@@ -165,7 +165,7 @@ contract('Governance', (accounts) => {
       const { governance } = await deployAndAssociateContracts();
       const newExchange = await Exchange.new(
         (await BalanceMigrationSourceMock.new()).address,
-        (await WBNB.new()).address,
+        (await WETH.new()).address,
       );
       await governance.initiateExchangeUpgrade(newExchange.address);
 
@@ -188,7 +188,7 @@ contract('Governance', (accounts) => {
       } = await deployAndAssociateContracts();
       const newExchange = await Exchange.new(
         (await BalanceMigrationSourceMock.new()).address,
-        (await WBNB.new()).address,
+        (await WETH.new()).address,
       );
 
       await governance.initiateExchangeUpgrade(newExchange.address);
@@ -222,7 +222,7 @@ contract('Governance', (accounts) => {
       const { custodian, governance } = await deployAndAssociateContracts();
       const newExchange = await Exchange.new(
         (await BalanceMigrationSourceMock.new()).address,
-        (await WBNB.new()).address,
+        (await WETH.new()).address,
       );
 
       await governance.initiateExchangeUpgrade(newExchange.address);
@@ -256,7 +256,7 @@ contract('Governance', (accounts) => {
       const { governance } = await deployAndAssociateContracts();
       const newExchange = await Exchange.new(
         (await BalanceMigrationSourceMock.new()).address,
-        (await WBNB.new()).address,
+        (await WETH.new()).address,
       );
       await governance.initiateExchangeUpgrade(newExchange.address);
 
@@ -275,7 +275,7 @@ contract('Governance', (accounts) => {
       const { governance } = await deployAndAssociateContracts(blockDelay);
       const newExchange = await Exchange.new(
         (await BalanceMigrationSourceMock.new()).address,
-        (await WBNB.new()).address,
+        (await WETH.new()).address,
       );
       await governance.initiateExchangeUpgrade(newExchange.address);
 

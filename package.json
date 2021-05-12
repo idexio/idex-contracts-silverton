@@ -5,7 +5,7 @@
     "type": "git",
     "url": "git+https://github.com/idexio/idex-contracts-silverton.git"
   },
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Collects source code, tests, and documentation for the IDEX Silverton release Ethereum contracts",
   "homepage": "https://github.com/idexio/idex-contracts-silverton",
   "main": "build/lib/index.js",
@@ -43,11 +43,8 @@
     "postbuild": "cp types/ethers-contracts/*.d.ts build/types/ethers-contracts",
     "lint:markdown": "markdownlint README.md",
     "prettier": "prettier --write **/*.sol",
-    "test": "yarn test:contracts:dist && yarn test:lib:dist",
+    "test": "yarn test:contracts:dist",
     "test:contracts:dist": "multi='spec=- json=./coverage/mocha-summary.json' truffle test ./build/tests/contracts/*.test.js",
-    "test:lib": "mocha --unhandled-rejections=strict -r ts-node/register 'tests/lib/**/*.test.ts'",
-    "test:lib:dist": "mocha --unhandled-rejections=strict 'build/tests/lib/**/*.test.js'",
-    "test:lib:watch": "yarn test:lib --watch --watch-files .",
     "verify": "truffle run verify"
   },
   "dependencies": {
@@ -59,7 +56,7 @@
   "devDependencies": {
     "@commitlint/cli": "^11.0.0",
     "@commitlint/config-conventional": "^11.0.0",
-    "@idexio/pancake-swap-core": "0.0.1",
+    "@idexio/idex-swap-core": "0.0.2",
     "@openzeppelin/contracts": "4.1.0",
     "@typechain/ethers-v5": "^6.0.0",
     "@typechain/truffle-v5": "^4.0.1",

@@ -34,7 +34,7 @@ contract('Exchange (withdrawals)', (accounts) => {
   const NonCompliantToken = artifacts.require('NonCompliantToken');
   const SkimmingToken = artifacts.require('SkimmingTestToken');
   const Token = artifacts.require('TestToken');
-  const WBNB = artifacts.require('WBNB');
+  const WETH = artifacts.require('WETH');
 
   const tokenSymbol = 'TKN';
 
@@ -487,7 +487,7 @@ contract('Exchange (withdrawals)', (accounts) => {
     const [exchange, governance] = await Promise.all([
       Exchange.new(
         (await BalanceMigrationSourceMock.new()).address,
-        (await WBNB.new()).address,
+        (await WETH.new()).address,
       ),
       Governance.new(blockDelay),
     ]);

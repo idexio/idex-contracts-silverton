@@ -3,7 +3,7 @@ import type {
   ExchangeInstance,
   GovernanceInstance,
   TestTokenInstance,
-  WBNBInstance,
+  WETHInstance,
 } from '../../types/truffle-contracts';
 import type { Withdrawal } from '../../lib';
 
@@ -28,7 +28,7 @@ export const deployAndAssociateContracts = async (
   custodian: CustodianInstance;
   exchange: ExchangeInstance;
   governance: GovernanceInstance;
-  wbnb: WBNBInstance;
+  wbnb: WETHInstance;
 }> => {
   const BalanceMigrationSourceMock = artifacts.require(
     'BalanceMigrationSourceMock',
@@ -36,9 +36,9 @@ export const deployAndAssociateContracts = async (
   const Custodian = artifacts.require('Custodian');
   const Exchange = artifacts.require('Exchange');
   const Governance = artifacts.require('Governance');
-  const WBNB = artifacts.require('WBNB');
+  const WETH = artifacts.require('WETH');
 
-  const wbnb = await WBNB.new();
+  const wbnb = await WETH.new();
   const [exchange, governance] = await Promise.all([
     Exchange.new(
       balanceMigrationSource ??

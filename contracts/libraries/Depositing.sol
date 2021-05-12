@@ -3,11 +3,11 @@
 pragma solidity 0.8.4;
 
 import {
-  IFactory
-} from '@idexio/pancake-swap-core/contracts/interfaces/IFactory.sol';
+  IIDEXFactory
+} from '@idexio/idex-swap-core/contracts/interfaces/IIDEXFactory.sol';
 import {
-  IPair
-} from '@idexio/pancake-swap-core/contracts/interfaces/IPair.sol';
+  IIDEXPair
+} from '@idexio/idex-swap-core/contracts/interfaces/IIDEXPair.sol';
 
 import { AssetRegistry } from './AssetRegistry.sol';
 import { AssetTransfers } from './AssetTransfers.sol';
@@ -81,7 +81,7 @@ library Depositing {
     address assetB,
     uint256 quantityInAssetUnits,
     address payable custodian,
-    IFactory pairFactoryAddress,
+    IIDEXFactory pairFactoryAddress,
     address WETH,
     AssetRegistry.Storage storage assetRegistry,
     BalanceTracking.Storage storage balanceTracking
