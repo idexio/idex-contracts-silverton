@@ -20,14 +20,14 @@ contract('Custodian', (accounts) => {
   const GovernanceMock = artifacts.require('GovernanceMock');
   const ExchangeMock = artifacts.require('ExchangeMock');
   const Token = artifacts.require('TestToken');
-  const WBNB = artifacts.require('WBNB');
+  const WETH = artifacts.require('WETH');
 
   let exchange: ExchangeInstance;
   let governance: GovernanceInstance;
   beforeEach(async () => {
     exchange = await Exchange.new(
       (await BalanceMigrationSourceMock.new()).address,
-      (await WBNB.new()).address,
+      (await WETH.new()).address,
     );
     governance = await Governance.new(10);
   });
@@ -127,7 +127,7 @@ contract('Custodian', (accounts) => {
     it('should work when sent from governance address', async () => {
       const newExchange = await Exchange.new(
         (await BalanceMigrationSourceMock.new()).address,
-        (await WBNB.new()).address,
+        (await WETH.new()).address,
       );
 
       await governanceMock.setExchange(newExchange.address);

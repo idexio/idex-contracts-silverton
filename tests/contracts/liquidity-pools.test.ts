@@ -17,10 +17,10 @@ import {
 import {
   CustodianInstance,
   ExchangeInstance,
-  IPairInstance,
-  TestFactoryInstance,
+  IIDEXPairInstance,
+  FactoryInstance,
   TestTokenInstance,
-  WBNBInstance,
+  WETHInstance,
 } from '../../types/truffle-contracts';
 import {
   bnbSymbol,
@@ -42,27 +42,39 @@ contract.only(
       it('should work', async () => {
         const depositQuantity = '1.00000000';
         const {
+          custodian,
           exchange,
-          pair,
           token,
+          wbnb,
         } = await deployContractsAndCreateHybridETHPool(
           depositQuantity,
           depositQuantity,
           ownerWallet,
         );
 
-        const expectedLiquidity = new BigNumber(
-          decimalToAssetUnits(depositQuantity, 18),
-        ).minus(minimumLiquidity);
-        const events = await pair.getPastEvents('Transfer', {
+        const tokenEvents = await token.getPastEvents('Transfer', {
           fromBlock: 0,
         });
-        expect(events).to.be.an('array');
-        expect(events.length).to.equal(2);
-        expect(events[0].returnValues.value).to.equal(minimumLiquidity);
-        expect(events[1].returnValues.value).to.equal(
-          expectedLiquidity.toString(),
+        expect(tokenEvents).to.be.an('array');
+        expect(tokenEvents.length).to.equal(4);
+        expect(tokenEvents[2].returnValues.value).to.equal(
+          decimalToAssetUnits(depositQuantity, 18),
         );
+        expect(tokenEvents[2].returnValues.to).to.equal(exchange.address);
+        expect(tokenEvents[3].returnValues.value).to.equal(
+          decimalToAssetUnits(depositQuantity, 18),
+        );
+        expect(tokenEvents[3].returnValues.to).to.equal(custodian.address);
+
+        const wbnbEvents = await wbnb.getPastEvents('Transfer', {
+          fromBlock: 0,
+        });
+        expect(wbnbEvents).to.be.an('array');
+        expect(wbnbEvents.length).to.equal(2);
+        expect(wbnbEvents[1].returnValues.wad).to.equal(
+          decimalToAssetUnits(depositQuantity, 18),
+        );
+        expect(wbnbEvents[1].returnValues.dst).to.equal(exchange.address);
 
         const pool = await exchange.loadLiquidityPoolByAssetAddresses(
           token.address,
@@ -476,7 +488,7 @@ async function deployContractsAndCreateHybridETHPool(
 
   await exchange.promotePool(token.address, bnbAddress, pair.address);
 
-  return { exchange, pair, token };
+  return { custodian, exchange, pair, token, wbnb };
 }
 
 async function deployPancakeCoreAndCreatePool(
@@ -486,16 +498,16 @@ async function deployPancakeCoreAndCreatePool(
   token1: TestTokenInstance,
   feeWallet = ownerWallet,
 ): Promise<{
-  factory: TestFactoryInstance;
-  pair: IPairInstance;
+  factory: FactoryInstance;
+  pair: IIDEXPairInstance;
 }> {
-  const TestFactory = artifacts.require('TestFactory');
-  const IPair = artifacts.require('IPair');
-  const factory = await TestFactory.new(feeWallet, custodian.address);
+  const Factory = artifacts.require('Factory');
+  const IIDEXPair = artifacts.require('IIDEXPair');
+  const factory = await Factory.new(feeWallet, custodian.address);
 
   const pairAddress = (await factory.createPair(token0.address, token1.address))
     .logs[0].args.pair;
-  const pair = await IPair.at(pairAddress);
+  const pair = await IIDEXPair.at(pairAddress);
 
   return { factory, pair };
 }
@@ -504,19 +516,19 @@ async function deployPancakeCoreAndCreateETHPool(
   ownerWallet: string,
   custodian: CustodianInstance,
   token: TestTokenInstance,
-  wbnb: WBNBInstance,
+  wbnb: WETHInstance,
   feeWallet = ownerWallet,
 ): Promise<{
-  factory: TestFactoryInstance;
-  pair: IPairInstance;
+  factory: FactoryInstance;
+  pair: IIDEXPairInstance;
 }> {
-  const TestFactory = artifacts.require('TestFactory');
-  const IPair = artifacts.require('IPair');
-  const factory = await TestFactory.new(feeWallet, custodian.address);
+  const Factory = artifacts.require('Factory');
+  const IIDEXPair = artifacts.require('IIDEXPair');
+  const factory = await Factory.new(feeWallet, custodian.address);
 
-  const pairAddress = (await factory.createPair(token.address, wbnb.address))
-    .logs[0].args.pair;
-  const pair = await IPair.at(pairAddress);
+  const tx = await factory.createPair(token.address, wbnb.address);
+  const pairAddress = tx.logs[0].args.pair;
+  const pair = await IIDEXPair.at(pairAddress);
 
   return { factory, pair };
 }
@@ -640,7 +652,7 @@ async function removeLiquidityAndExecute(
   depositQuantity: string,
   ownerWallet: string,
   exchange: ExchangeInstance,
-  pair: IPairInstance,
+  pair: IIDEXPairInstance,
   token0: TestTokenInstance,
   token1: TestTokenInstance,
   decimals = 18,
@@ -695,7 +707,7 @@ async function removeLiquidityETHAndExecute(
   depositQuantity: string,
   ownerWallet: string,
   exchange: ExchangeInstance,
-  pair: IPairInstance,
+  pair: IIDEXPairInstance,
   token: TestTokenInstance,
   decimals = 18,
 ) {

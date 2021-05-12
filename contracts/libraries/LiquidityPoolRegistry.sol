@@ -3,11 +3,11 @@
 pragma solidity 0.8.4;
 
 import {
-  IFactory
-} from '@idexio/pancake-swap-core/contracts/interfaces/IFactory.sol';
+  IIDEXFactory
+} from '@idexio/idex-swap-core/contracts/interfaces/IIDEXFactory.sol';
 import {
-  IPair
-} from '@idexio/pancake-swap-core/contracts/interfaces/IPair.sol';
+  IIDEXPair
+} from '@idexio/idex-swap-core/contracts/interfaces/IIDEXPair.sol';
 
 import { AssetRegistry } from './AssetRegistry.sol';
 import { AssetTransfers } from './AssetTransfers.sol';
@@ -52,17 +52,17 @@ library LiquidityPoolRegistry {
     Storage storage self,
     address baseAssetAddress,
     address quoteAssetAddress,
-    IPair pairTokenAddress,
+    IIDEXPair pairTokenAddress,
     address payable custodian,
-    IFactory pairFactoryAddress,
+    IIDEXFactory pairFactoryAddress,
     IWETH9 WETH,
     AssetRegistry.Storage storage assetRegistry
   ) public {
     {
       // To prevent user error, additionaly verify that the provided Pair token address matches
       // that returned by the Factory contract
-      IPair factoryPairTokenAddress =
-        IPair(
+      IIDEXPair factoryPairTokenAddress =
+        IIDEXPair(
           pairFactoryAddress.getPair(
             baseAssetAddress == address(0x0) ? address(WETH) : baseAssetAddress,
             quoteAssetAddress == address(0x0)
@@ -76,13 +76,15 @@ library LiquidityPoolRegistry {
       );
     }
 
-    (uint112 reserve0, uint112 reserve1) = pairTokenAddress.promote();
-    // Unwrap WBNB
-    if (baseAssetAddress == address(0x0) || quoteAssetAddress == address(0x0)) {
-      uint256 ethBalance = IWETH9(WETH).balanceOf(address(this));
-      IWETH9(WETH).withdraw(ethBalance);
-      AssetTransfers.transferTo(custodian, address(0x0), ethBalance);
-    }
+    // Promote pool to hybrid and transfer token reserves to Exchange
+    (address token0, address token1, uint112 reserve0, uint112 reserve1) =
+      pairTokenAddress.promote();
+    // Transfer reserves to Custodian and unwrap WBNB if needed
+    transferTokenReserveToCustodian(token0, reserve0, custodian, WETH);
+    transferTokenReserveToCustodian(token1, reserve1, custodian, WETH);
+
+    // TODO Skim any remaining WBNB to the fee wallet
+    // uint256 ethBalance = IWETH9(WETH).balanceOf(address(this));
 
     // Create internally tracked pool
     LiquidityPool storage pool =
@@ -243,7 +245,7 @@ library LiquidityPoolRegistry {
     Storage storage self,
     LiquidityRemoval memory removal,
     address payable custodian,
-    IFactory pairFactoryContractAddress,
+    IIDEXFactory pairFactoryContractAddress,
     address WETH,
     AssetRegistry.Storage storage assetRegistry,
     BalanceTracking.Storage storage balanceTracking
@@ -277,7 +279,7 @@ library LiquidityPoolRegistry {
     AssetRegistry.Storage storage assetRegistry,
     BalanceTracking.Storage storage balanceTracking
   ) public {
-    IPair pairTokenAddress =
+    IIDEXPair pairTokenAddress =
       validateAndUpdateForLiquidityRemoval(self, removal, execution);
 
     Withdrawing.withdrawLiquidity(
@@ -296,7 +298,7 @@ library LiquidityPoolRegistry {
     Storage storage self,
     LiquidityRemoval memory removal,
     LiquidityChangeExecution memory execution
-  ) private returns (IPair pairTokenAddress) {
+  ) private returns (IIDEXPair pairTokenAddress) {
     bytes32 hash = Hashing.getLiquidityRemovalHash(removal);
     if (removal.origination == LiquidityChangeOrigination.OnChain) {
       LiquidityChangeState state = self.changes[hash];
@@ -517,7 +519,18 @@ library LiquidityPoolRegistry {
     require(pool.exists, 'No pool found for address pair');
   }
 
-  function min(uint256 x, uint256 y) private pure returns (uint256 z) {
-    z = x < y ? x : y;
+  function transferTokenReserveToCustodian(
+    address token,
+    uint112 reserve,
+    address payable custodian,
+    IWETH9 WETH
+  ) private {
+    // Unwrap WBNB
+    if (token == address(WETH)) {
+      IWETH9(WETH).withdraw(reserve);
+      AssetTransfers.transferTo(custodian, address(0x0), reserve);
+    } else {
+      AssetTransfers.transferTo(custodian, token, reserve);
+    }
   }
 }

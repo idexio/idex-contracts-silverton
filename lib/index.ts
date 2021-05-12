@@ -5,6 +5,10 @@ import { ethers } from 'ethers';
 
 import { ExchangeInstance } from '../types/truffle-contracts';
 
+import * as contracts from './contracts';
+
+export { contracts };
+
 /** The fixed number of digits following the decimal in quantities expressed as pips */
 export const pipsDecimals = 8;
 
@@ -297,6 +301,8 @@ export const decimalToAssetUnits = (
   decimal: string,
   decimals: number,
 ): string => pipsToAssetUnits(decimalToPips(decimal), decimals);
+
+// TODO The below are provided as support for legacy CLI commands
 
 export type LoadContractResult = {
   abi: any[];

@@ -3,8 +3,8 @@
 pragma solidity 0.8.4;
 
 import {
-  IPair
-} from '@idexio/pancake-swap-core/contracts/interfaces/IPair.sol';
+  IIDEXPair
+} from '@idexio/idex-swap-core/contracts/interfaces/IIDEXPair.sol';
 
 import { AssetRegistry } from './AssetRegistry.sol';
 import { AssetUnitConversions } from './AssetUnitConversions.sol';
@@ -289,7 +289,7 @@ library BalanceTracking {
     LiquidityChangeExecution memory execution,
     address feeWallet,
     address exchangeAddress,
-    IPair pairTokenAddress,
+    IIDEXPair pairTokenAddress,
     AssetRegistry.Storage storage assetRegistry
   )
     internal

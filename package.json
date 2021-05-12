@@ -1,13 +1,13 @@
 {
-  "name": "@idexio/idex-contracts-p2p",
+  "name": "@idexio/idex-contracts-silverton",
   "license": "UNLICENSED",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/idexio/idex-contracts-p2p.git"
+    "url": "git+https://github.com/idexio/idex-contracts-silverton.git"
   },
-  "version": "0.2.3",
-  "description": "Collects source code, tests, and documentation for the IDEX P2P and Blackcomb release Ethereum contracts",
-  "homepage": "https://github.com/idexio/idex-contracts-p2p",
+  "version": "0.0.3",
+  "description": "Collects source code, tests, and documentation for the IDEX Silverton release Ethereum contracts",
+  "homepage": "https://github.com/idexio/idex-contracts-silverton",
   "main": "build/lib/index.js",
   "types": "build/lib/index.d.ts",
   "directories": {
@@ -16,35 +16,49 @@
   "files": [
     "build/contracts/Custodian.json",
     "build/contracts/Exchange.json",
-    "build/contracts/ExchangeEventLogger.json",
-    "build/contracts/Exchange_whistler.json",
-    "build/contracts/FaucetToken.json",
     "build/contracts/Governance.json",
+    "build/contracts/AssetRegistryAdmin.json",
+    "build/contracts/Depositing.json",
+    "build/contracts/LiquidityPoolRegistry.json",
+    "build/contracts/TestFactory.json",
+    "build/contracts/Trading.json",
+    "build/contracts/WBNB.json",
+    "build/contracts/Withdrawing.json",
     "build/lib",
     "build/types"
   ],
   "scripts": {
-    "build": "yarn build:clean && yarn build:sol && yarn build:generate-types && yarn build:ts",
-    "build:clean": "rm -rf build && rm -rf artifacts",
-    "build:sol": "truffle compile && hardhat compile && find ./artifacts/external_contracts -name \\*.json -a -not -name \\*.dbg.json -exec cp {} build/contracts \\;",
-    "build:generate-types": "typechain --target=truffle-v5 'build/contracts/*.json'",
+    "analyze": "slither .",
+    "build": "yarn build:clean && yarn build:sol && yarn build:ts",
+    "build:clean": "rm -rf build; yarn build:typechain:clean; rm -rf coverage",
+    "build:sol": "yarn build:sol:truffle && yarn build:sol:hardhat && yarn build:typechain",
+    "build:sol:truffle": "truffle compile",
+    "build:sol:hardhat": "hardhat compile && find ./artifacts/external_contracts -name \\*.json -a -not -name \\*.dbg.json -exec cp {} build/contracts \\;",
     "build:ts": "tsc -p .",
+    "build:typechain": "yarn build:typechain:ethers && yarn build:typechain:truffle",
+    "build:typechain:clean": "rm -rf types/ethers-contracts; rm -rf types/truffle-contracts",
+    "build:typechain:ethers": "typechain --target=ethers-v5 'build/contracts/*.json'",
+    "build:typechain:truffle": "typechain --target=truffle-v5 'build/contracts/*.json'",
+    "--- postbuild ---": "Some typechain files need to be copied manually. See https://github.com/ethereum-ts/TypeChain/issues/319",
+    "postbuild": "cp types/ethers-contracts/*.d.ts build/types/ethers-contracts",
     "lint:markdown": "markdownlint README.md",
     "prettier": "prettier --write **/*.sol",
-    "test": "multi='spec=- json=./coverage/mocha-summary.json' truffle test ./build/tests/contracts/*.test.js",
-    "test:coverage": "multi='spec=- json=./coverage/mocha-summary.json' truffle run coverage --file=\"./build/tests/contracts/*.test.js\""
+    "test": "yarn test:contracts:dist",
+    "test:contracts:dist": "multi='spec=- json=./coverage/mocha-summary.json' truffle test ./build/tests/contracts/*.test.js",
+    "verify": "truffle run verify"
   },
   "dependencies": {
-    "@idexio/pancake-swap-core": "^0.1.0-alpha.1",
-    "bignumber.js": "^9.0.1",
     "chai": "^4.2.0",
     "ethers": "^5.0.31",
+    "merkletreejs": "^0.2.13",
     "uuid": "^8.3.2"
   },
   "devDependencies": {
     "@commitlint/cli": "^11.0.0",
     "@commitlint/config-conventional": "^11.0.0",
-    "@openzeppelin/contracts": "4.0.0-rc.0",
+    "@idexio/idex-swap-core": "0.0.2",
+    "@openzeppelin/contracts": "4.1.0",
+    "@typechain/ethers-v5": "^6.0.0",
     "@typechain/truffle-v5": "^4.0.1",
     "@types/chai": "^4.2.14",
     "@types/mocha": "^8.2.0",
@@ -60,7 +74,7 @@
     "eslint-plugin-prettier": "^3.3.1",
     "eslint-plugin-promise": "^4.2.1",
     "eslint-plugin-truffle": "^0.3.1",
-    "hardhat": "^2.1.2",
+    "hardhat": "2.2.1",
     "husky": "^4.3.8",
     "markdownlint-cli": "0.26.0",
     "mocha": "^8.2.1",
@@ -68,10 +82,8 @@
     "prettier": "^2.2.1",
     "prettier-eslint": "12.0.0",
     "prettier-eslint-cli": "5.0.0",
-    "prettier-plugin-solidity": "1.0.0-beta.10",
-    "solidity-coverage": "^0.7.16",
-    "truffle": "5.2.3",
-    "ts-generator": "^0.1.1",
+    "prettier-plugin-solidity": "1.0.0-beta.3",
+    "truffle": "5.1.63",
     "ts-node": "9.1.1",
     "ts-node-dev": "1.1.1",
     "typechain": "4.0.3",
@@ -83,7 +95,7 @@
   "husky": {
     "hooks": {
       "commit-msg": "[[ -n $HUSKY_BYPASS ]] || commitlint -E HUSKY_GIT_PARAMS",
-      "pre-commit": "yarn lint:markdown && yarn build:clean && yarn build && yarn test"
+      "pre-commit": "yarn lint:markdown && yarn build:clean && yarn build && yarn test:lib:dist"
     }
   },
   "commitlint": {

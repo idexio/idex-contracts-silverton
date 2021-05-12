@@ -9,6 +9,7 @@ const config: HardhatUserConfig = {
           optimizer: {
             enabled: true,
             runs: 999999,
+            evmVersion: 'istanbul',
           },
         },
       },
@@ -19,6 +20,7 @@ const config: HardhatUserConfig = {
             enabled: true,
             runs: 999999,
           },
+          evmVersion: 'istanbul',
         },
       },
     ],

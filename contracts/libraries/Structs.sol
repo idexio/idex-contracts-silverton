@@ -3,8 +3,8 @@
 pragma solidity 0.8.4;
 
 import {
-  IPair
-} from '@idexio/pancake-swap-core/contracts/interfaces/IPair.sol';
+  IIDEXPair
+} from '@idexio/idex-swap-core/contracts/interfaces/IIDEXPair.sol';
 
 import {
   LiquidityChangeOrigination,
@@ -29,7 +29,7 @@ struct LiquidityPool {
   uint8 baseAssetDecimals;
   uint64 quoteAssetReserveInPips;
   uint8 quoteAssetDecimals;
-  IPair pairTokenAddress;
+  IIDEXPair pairTokenAddress;
 }
 /**
  * @notice TODO

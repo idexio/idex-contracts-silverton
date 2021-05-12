@@ -5,11 +5,11 @@ pragma solidity 0.8.4;
 import { Address } from '@openzeppelin/contracts/utils/Address.sol';
 import { ECDSA } from '@openzeppelin/contracts/utils/cryptography/ECDSA.sol';
 import {
-  IFactory
-} from '@idexio/pancake-swap-core/contracts/interfaces/IFactory.sol';
+  IIDEXFactory
+} from '@idexio/idex-swap-core/contracts/interfaces/IIDEXFactory.sol';
 import {
-  IPair
-} from '@idexio/pancake-swap-core/contracts/interfaces/IPair.sol';
+  IIDEXPair
+} from '@idexio/idex-swap-core/contracts/interfaces/IIDEXPair.sol';
 
 import { AssetRegistry } from './libraries/AssetRegistry.sol';
 import { AssetRegistryAdmin } from './libraries/AssetRegistryAdmin.sol';
@@ -233,7 +233,7 @@ contract Exchange is IExchange, Owned {
   // Exits
   mapping(address => WalletExit) _walletExits;
   // Liquidity pools
-  IFactory _pairFactoryContractAddress;
+  IIDEXFactory _pairFactoryContractAddress;
   LiquidityPoolRegistry.Storage _liquidityPoolRegistry;
   IWETH9 public immutable _WETH;
   // Withdrawals - mapping of withdrawal wallet hash => isComplete
@@ -320,7 +320,7 @@ contract Exchange is IExchange, Owned {
     emit FeeWalletChanged(oldFeeWallet, newFeeWallet);
   }
 
-  function setPairFactoryAddress(IFactory newPairFactoryAddress)
+  function setPairFactoryAddress(IIDEXFactory newPairFactoryAddress)
     external
     onlyAdmin
   {
@@ -438,6 +438,14 @@ contract Exchange is IExchange, Owned {
    */
   function loadFeeWallet() external view returns (address) {
     return _feeWallet;
+  }
+
+  function loadPairFactoryContractAddress() external view returns (address) {
+    return address(_pairFactoryContractAddress);
+  }
+
+  function loadWETHAddress() external view returns (address) {
+    return address(_WETH);
   }
 
   /**
@@ -721,7 +729,7 @@ contract Exchange is IExchange, Owned {
   function promotePool(
     address baseAssetAddress,
     address quoteAssetAddress,
-    IPair pairTokenAddress
+    IIDEXPair pairTokenAddress
   ) external onlyAdmin {
     _liquidityPoolRegistry.promotePool(
       baseAssetAddress,
