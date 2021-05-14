@@ -35,8 +35,8 @@ library PoolTradeHelpers {
     return
       (
         orderSide == OrderSide.Buy
-          ? self.grossBaseQuantityInPips
-          : self.grossQuoteQuantityInPips
+          ? self.netBaseQuantityInPips
+          : self.netQuoteQuantityInPips
       ) - self.takerGasFeeQuantityInPips;
   }
 
@@ -49,5 +49,40 @@ library PoolTradeHelpers {
       orderSide == OrderSide.Buy
         ? self.grossQuoteQuantityInPips
         : self.grossBaseQuantityInPips;
+  }
+
+  function getPoolCreditQuantity(PoolTrade memory self, OrderSide orderSide)
+    internal
+    pure
+    returns (uint64)
+  {
+    return
+      (
+        orderSide == OrderSide.Buy
+          ? self.grossQuoteQuantityInPips // Pool receives gross quote asset minus protocol fee
+          : self.grossBaseQuantityInPips // Pool receives gross base asset minus protocol fee
+      ) - self.takerPoolProtocolFeeQuantityInPips;
+  }
+
+  function getPoolDebitQuantity(PoolTrade memory self, OrderSide orderSide)
+    internal
+    pure
+    returns (uint64)
+  {
+    return
+      (
+        orderSide == OrderSide.Buy
+          ? self.netBaseQuantityInPips // Pool gives net base asset plus taker gas fee
+          : self.netQuoteQuantityInPips // Pool gives net quote asset plus taker gas fee
+      ) + self.takerGasFeeQuantityInPips;
+  }
+
+  function getTotalInputFeeQuantity(PoolTrade memory self)
+    internal
+    pure
+    returns (uint64)
+  {
+    return
+      self.takerPoolFeeQuantityInPips + self.takerPoolProtocolFeeQuantityInPips;
   }
 }

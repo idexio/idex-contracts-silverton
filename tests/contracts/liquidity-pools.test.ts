@@ -29,10 +29,7 @@ import {
   getSignature,
 } from './helpers';
 
-const minimumLiquidity = '1000';
 const token0Symbol = 'DIL';
-const token1Symbol = 'USD';
-const marketSymbol = `${token0Symbol}-${token1Symbol}`;
 const ethMarketSymbol = `${token0Symbol}-${bnbSymbol}`;
 
 contract.only(
@@ -336,6 +333,7 @@ contract.only(
           '909.09090909',
           '0.00121000',
         );
+        poolTrade.netQuoteQuantity = '1.00000000';
         poolTrade.grossQuoteQuantity = '1.00000000';
         const buySignature = await getSignature(
           web3,
@@ -818,6 +816,8 @@ const generateOrderAndPoolTrade = async (
     quoteAssetAddress,
     grossBaseQuantity: quantity,
     grossQuoteQuantity: quoteQuantity,
+    netBaseQuantity: quantity,
+    netQuoteQuantity: quoteQuantity,
     // No fee
     takerPoolFeeQuantityInPips: '0',
     takerProtocolFeeQuantityInPips: '0',
@@ -853,6 +853,8 @@ const generateAndExecuteHybridTrade = async (
   );
   poolTrade.grossBaseQuantity = poolTradeBaseQuantity;
   poolTrade.grossQuoteQuantity = poolTradeQuoteQuantity;
+  poolTrade.netBaseQuantity = poolTradeBaseQuantity;
+  poolTrade.netQuoteQuantity = poolTradeQuoteQuantity;
 
   const { sellOrder, fill } = await generateOrdersAndFill(
     token.address,

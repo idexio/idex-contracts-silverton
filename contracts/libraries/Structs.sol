@@ -136,7 +136,7 @@ struct Order {
 /**
  * @notice Argument type for `Exchange.executeOrderBookTrade` specifying execution parameters for matching orders
  */
-struct Trade {
+struct OrderBookTrade {
   // Base asset symbol
   string baseAssetSymbol;
   // Quote asset symbol
@@ -180,10 +180,16 @@ struct PoolTrade {
   uint64 grossBaseQuantityInPips;
   // Gross amount including fees of quote asset executed
   uint64 grossQuoteQuantityInPips;
+  // If wallet is buy side net amount of base asset received after fees; otherwise net amount of
+  // base asset given by the pool exclusive of taker gas fees
+  uint64 netBaseQuantityInPips;
+  // If wallet is sell side net amount of quote asset received after fees; otherwise net amount of
+  // quote asset given by the pool exclusive of taker gas fees
+  uint64 netQuoteQuantityInPips;
   // Fee paid by liquidity taker to pool from sent asset
   uint64 takerPoolFeeQuantityInPips;
   // Fee paid by liquidity taker to fee wallet from sent asset
-  uint64 takerProtocolFeeQuantityInPips;
+  uint64 takerPoolProtocolFeeQuantityInPips;
   // Fee paid by liquidity taker to fee wallet from received asset
   uint64 takerGasFeeQuantityInPips;
 }
@@ -191,7 +197,7 @@ struct PoolTrade {
 struct HybridTradeExecution {
   Order buy;
   Order sell;
-  Trade trade;
+  OrderBookTrade trade;
   PoolTrade poolTrade;
 }
 

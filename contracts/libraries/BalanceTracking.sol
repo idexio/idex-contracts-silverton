@@ -17,8 +17,8 @@ import {
   LiquidityChangeExecution,
   LiquidityRemoval,
   Order,
+  OrderBookTrade,
   PoolTrade,
-  Trade,
   Withdrawal
 } from './Structs.sol';
 
@@ -62,7 +62,7 @@ library BalanceTracking {
     Storage storage self,
     Order memory buy,
     Order memory sell,
-    Trade memory trade,
+    OrderBookTrade memory trade,
     address feeWallet
   ) internal {
     Balance storage balance;
@@ -142,7 +142,7 @@ library BalanceTracking {
       feeWallet,
       poolTrade.getOrderDebitAssetAddress(order.side)
     );
-    balance.balanceInPips += poolTrade.takerProtocolFeeQuantityInPips;
+    balance.balanceInPips += poolTrade.takerPoolProtocolFeeQuantityInPips;
     // Fee wallet receives gas fee from asset credited to order wallet
     balance = loadBalanceAndMigrateIfNeeded(
       self,

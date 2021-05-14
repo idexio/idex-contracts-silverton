@@ -36,8 +36,8 @@ import {
   LiquidityPool,
   LiquidityRemoval,
   Order,
+  OrderBookTrade,
   PoolTrade,
-  Trade,
   Withdrawal
 } from './libraries/Structs.sol';
 
@@ -163,7 +163,7 @@ contract Exchange is IExchange, Owned {
   /**
    * @notice Emitted when the Dispatcher Wallet submits a trade for execution with `executeOrderBookTrade`
    */
-  event TradeExecuted(
+  event OrderBookTradeExecuted(
     address buyWallet,
     address sellWallet,
     string baseAssetSymbol,
@@ -572,7 +572,7 @@ contract Exchange is IExchange, Owned {
   function executeOrderBookTrade(
     Order memory buy,
     Order memory sell,
-    Trade memory trade
+    OrderBookTrade memory trade
   ) public override onlyDispatcher {
     require(
       !isWalletExitFinalized(buy.walletAddress),
@@ -600,7 +600,7 @@ contract Exchange is IExchange, Owned {
       _partiallyFilledOrderQuantitiesInPips
     );
 
-    emit TradeExecuted(
+    emit OrderBookTradeExecuted(
       buy.walletAddress,
       sell.walletAddress,
       trade.baseAssetSymbol,
@@ -635,7 +635,7 @@ contract Exchange is IExchange, Owned {
   function executeHybridTrade(
     Order memory buy,
     Order memory sell,
-    Trade memory trade,
+    OrderBookTrade memory orderBookTrade,
     PoolTrade memory poolTrade
   ) public onlyDispatcher {
     // OrderBook trade validations
@@ -657,7 +657,7 @@ contract Exchange is IExchange, Owned {
     Trading.executeHybridTrade(
       buy,
       sell,
-      trade,
+      orderBookTrade,
       poolTrade,
       _feeWallet,
       _assetRegistry,
@@ -670,12 +670,12 @@ contract Exchange is IExchange, Owned {
     emit HybridTradeExecuted(
       buy.walletAddress,
       sell.walletAddress,
-      trade.baseAssetSymbol,
-      trade.quoteAssetSymbol,
+      orderBookTrade.baseAssetSymbol,
+      orderBookTrade.quoteAssetSymbol,
       poolTrade.grossBaseQuantityInPips,
       poolTrade.grossQuoteQuantityInPips,
-      trade.grossBaseQuantityInPips,
-      trade.grossQuoteQuantityInPips
+      orderBookTrade.grossBaseQuantityInPips,
+      orderBookTrade.grossQuoteQuantityInPips
     );
   }
 

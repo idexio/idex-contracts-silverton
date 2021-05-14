@@ -8,7 +8,7 @@ import { LiquidityPoolRegistry } from './LiquidityPoolRegistry.sol';
 import { PoolTradeHelpers } from './PoolTradeHelpers.sol';
 import { Validations } from './Validations.sol';
 import { OrderSide, OrderType } from './Enums.sol';
-import { Order, PoolTrade, Trade } from './Structs.sol';
+import { Order, OrderBookTrade, PoolTrade } from './Structs.sol';
 
 library Trading {
   using AssetRegistry for AssetRegistry.Storage;
@@ -19,7 +19,7 @@ library Trading {
   function executeOrderBookTrade(
     Order memory buy,
     Order memory sell,
-    Trade memory trade,
+    OrderBookTrade memory trade,
     address feeWallet,
     AssetRegistry.Storage storage assetRegistry,
     BalanceTracking.Storage storage balanceTracking,
@@ -45,7 +45,7 @@ library Trading {
   function executeHybridTrade(
     Order memory buy,
     Order memory sell,
-    Trade memory trade,
+    OrderBookTrade memory trade,
     PoolTrade memory poolTrade,
     address feeWallet,
     AssetRegistry.Storage storage assetRegistry,
@@ -116,7 +116,6 @@ library Trading {
   ) public {
     bytes32 orderHash =
       Validations.validatePoolTrade(order, poolTrade, assetRegistry);
-
     updateOrderFilledQuantity(
       order,
       orderHash,
@@ -135,24 +134,25 @@ library Trading {
     bytes32 buyHash,
     Order memory sell,
     bytes32 sellHash,
-    Trade memory trade,
+    OrderBookTrade memory orderBookTrade,
     mapping(bytes32 => bool) storage completedOrderHashes,
     mapping(bytes32 => uint64) storage partiallyFilledOrderQuantitiesInPips
   ) private {
-    // Order book trade
+    // Buy side
     updateOrderFilledQuantity(
       buy,
       buyHash,
-      trade.grossBaseQuantityInPips,
-      trade.grossQuoteQuantityInPips,
+      orderBookTrade.grossBaseQuantityInPips,
+      orderBookTrade.grossQuoteQuantityInPips,
       completedOrderHashes,
       partiallyFilledOrderQuantitiesInPips
     );
+    // Sell side
     updateOrderFilledQuantity(
       sell,
       sellHash,
-      trade.grossBaseQuantityInPips,
-      trade.grossQuoteQuantityInPips,
+      orderBookTrade.grossBaseQuantityInPips,
+      orderBookTrade.grossQuoteQuantityInPips,
       completedOrderHashes,
       partiallyFilledOrderQuantitiesInPips
     );

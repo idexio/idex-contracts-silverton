@@ -16,7 +16,7 @@ import { BalanceTracking } from './BalanceTracking.sol';
 import { Constants } from './Constants.sol';
 import { Depositing } from './Depositing.sol';
 import { Hashing } from './Hashing.sol';
-import { UUID } from './UUID.sol';
+import { PoolTradeHelpers } from './PoolTradeHelpers.sol';
 import { Validations } from './Validations.sol';
 import { Withdrawing } from './Withdrawing.sol';
 import { ICustodian, IWETH9 } from './Interfaces.sol';
@@ -38,6 +38,7 @@ import {
 library LiquidityPoolRegistry {
   using AssetRegistry for AssetRegistry.Storage;
   using BalanceTracking for BalanceTracking.Storage;
+  using PoolTradeHelpers for PoolTrade;
 
   struct Storage {
     mapping(address => mapping(address => LiquidityPool)) poolsByAddresses;
@@ -442,29 +443,23 @@ library LiquidityPoolRegistry {
     uint128 updatedProduct;
 
     if (orderSide == OrderSide.Buy) {
-      // Pool gives base asset
-      pool.baseAssetReserveInPips -= poolTrade.grossBaseQuantityInPips;
-      // Pool receives quote asset
-      pool.quoteAssetReserveInPips +=
-        poolTrade.grossQuoteQuantityInPips -
-        poolTrade.takerProtocolFeeQuantityInPips;
+      pool.baseAssetReserveInPips -= poolTrade.getPoolDebitQuantity(orderSide);
+      pool.quoteAssetReserveInPips += poolTrade.getPoolCreditQuantity(
+        orderSide
+      );
 
       updatedProduct =
         uint128(pool.baseAssetReserveInPips) *
         uint128(
-          pool.quoteAssetReserveInPips - poolTrade.takerPoolFeeQuantityInPips
+          pool.quoteAssetReserveInPips - poolTrade.getTotalInputFeeQuantity()
         );
     } else {
-      // Pool receives base asset
-      pool.baseAssetReserveInPips +=
-        poolTrade.grossBaseQuantityInPips -
-        poolTrade.takerProtocolFeeQuantityInPips;
-      // Pool gives quote asset
-      pool.quoteAssetReserveInPips -= poolTrade.grossQuoteQuantityInPips;
+      pool.baseAssetReserveInPips += poolTrade.getPoolCreditQuantity(orderSide);
+      pool.quoteAssetReserveInPips -= poolTrade.getPoolDebitQuantity(orderSide);
 
       updatedProduct =
         uint128(
-          pool.baseAssetReserveInPips - poolTrade.takerPoolFeeQuantityInPips
+          pool.baseAssetReserveInPips - poolTrade.getTotalInputFeeQuantity()
         ) *
         uint128(pool.quoteAssetReserveInPips);
     }
