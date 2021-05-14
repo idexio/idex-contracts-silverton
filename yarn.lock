@@ -1804,13 +1804,13 @@
     normalize-path "^2.0.1"
     through2 "^2.0.3"
 
-"@idexio/idex-swap-core@0.0.1":
-  version "0.0.1"
-  resolved "https://registry.yarnpkg.com/@idexio/idex-swap-core/-/idex-swap-core-0.0.1.tgz#4f19b4a48b068df9a37c0083143a1b319a3809cf"
-  integrity sha512-U+NopnW+nWUanvC+JV9H+zKfdkQEN8K846l+iFRACm7zurixaK8n7vvpfkwA/rrhFhwrT2qftu4GdyMDHjxJcQ==
+"@idexio/idex-swap-core@0.0.2":
+  version "0.0.2"
+  resolved "https://registry.yarnpkg.com/@idexio/idex-swap-core/-/idex-swap-core-0.0.2.tgz#1d2ea2fc7a47b0ebeb51728727f3586ca6293464"
+  integrity sha512-9jfBTmQyFXdTK7TWanFFtax/vN62LTge+tw3Z8ViYHBieyHJufKeDLU/PItq214fEFRppRf/xpmBPVSRcSbHGQ==
   dependencies:
     truffle "^5.1.41"
-    truffle-flattener "^1.4.4"
+    truffle-flattener "^1.5.0"
     truffle-hdwallet-provider "^1.0.17"
 
 "@improbable-eng/grpc-web@^0.12.0":
@@ -13450,7 +13450,7 @@ trim-right@^1.0.1:
   resolved "https://registry.yarnpkg.com/true-case-path/-/true-case-path-2.2.1.tgz#c5bf04a5bbec3fd118be4084461b3a27c4d796bf"
   integrity sha512-0z3j8R7MCjy10kc/g+qg7Ln3alJTodw9aDuVWZa3uiWqfuBMKeAeP2ocWcxoyM3D73yz3Jt/Pu4qPr4wHSdB/Q==
 
-truffle-flattener@^1.4.4:
+truffle-flattener@^1.5.0:
   version "1.5.0"
   resolved "https://registry.yarnpkg.com/truffle-flattener/-/truffle-flattener-1.5.0.tgz#c358fa3e5cb0a663429f7912a58c4f0879414e64"
   integrity sha512-vmzWG/L5OXoNruMV6u2l2IaheI091e+t+fFCOR9sl46EE3epkSRIwGCmIP/EYDtPsFBIG7e6exttC9/GlfmxEQ==

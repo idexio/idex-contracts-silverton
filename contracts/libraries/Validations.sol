@@ -15,8 +15,8 @@ import {
   LiquidityPool,
   LiquidityRemoval,
   Order,
+  OrderBookTrade,
   PoolTrade,
-  Trade,
   Withdrawal
 } from './Structs.sol';
 
@@ -183,7 +183,7 @@ library Validations {
   function validateOrderBookTrade(
     Order memory buy,
     Order memory sell,
-    Trade memory trade,
+    OrderBookTrade memory trade,
     AssetRegistry.Storage storage assetRegistry
   ) internal view returns (bytes32, bytes32) {
     // Order book trade validations
@@ -199,7 +199,7 @@ library Validations {
   function validateHybridTrade(
     Order memory buy,
     Order memory sell,
-    Trade memory trade,
+    OrderBookTrade memory trade,
     PoolTrade memory poolTrade,
     AssetRegistry.Storage storage assetRegistry
   ) internal view returns (bytes32 buyHash, bytes32 sellHash) {
@@ -238,7 +238,7 @@ library Validations {
   function validateAssetPair(
     Order memory buy,
     Order memory sell,
-    Trade memory trade,
+    OrderBookTrade memory trade,
     AssetRegistry.Storage storage assetRegistry
   ) internal view {
     require(
@@ -265,7 +265,7 @@ library Validations {
 
   function validateAssetPair(
     Order memory order,
-    Trade memory trade,
+    OrderBookTrade memory trade,
     AssetRegistry.Storage storage assetRegistry
   ) internal view {
     uint64 nonce = UUID.getTimestampInMsFromUuidV1(order.nonce);
@@ -307,7 +307,7 @@ library Validations {
   function validateLimitPrices(
     Order memory buy,
     Order memory sell,
-    Trade memory trade
+    OrderBookTrade memory trade
   ) internal pure {
     require(
       trade.grossBaseQuantityInPips > 0,
@@ -399,7 +399,7 @@ library Validations {
     }
   }
 
-  function validateTradeFees(Trade memory trade) internal pure {
+  function validateTradeFees(OrderBookTrade memory trade) internal pure {
     uint64 makerTotalQuantityInPips =
       trade.makerFeeAssetAddress == trade.baseAssetAddress
         ? trade.grossBaseQuantityInPips
@@ -450,25 +450,46 @@ library Validations {
     OrderSide orderSide,
     PoolTrade memory poolTrade
   ) internal pure {
-    uint64 totalQuantityInPips =
-      orderSide == OrderSide.Buy
-        ? poolTrade.grossQuoteQuantityInPips
-        : poolTrade.grossBaseQuantityInPips;
-    uint64 totalFeeQuantityInPips =
-      poolTrade.takerPoolFeeQuantityInPips +
-        poolTrade.takerProtocolFeeQuantityInPips;
-
     require(
-      getFeeBasisPoints(totalFeeQuantityInPips, totalQuantityInPips) <=
-        Constants.maxTradeFeeBasisPoints,
-      'Excessive fee'
+      getFeeBasisPoints(
+        (poolTrade.grossBaseQuantityInPips - poolTrade.netBaseQuantityInPips),
+        poolTrade.grossBaseQuantityInPips
+      ) <= Constants.maxTradeFeeBasisPoints,
+      'Excessive base fee'
     );
+    require(
+      getFeeBasisPoints(
+        (poolTrade.grossQuoteQuantityInPips - poolTrade.netQuoteQuantityInPips),
+        poolTrade.grossQuoteQuantityInPips
+      ) <= Constants.maxTradeFeeBasisPoints,
+      'Excessive quote fee'
+    );
+
+    if (orderSide == OrderSide.Buy) {
+      // Buy order sends quote as pool input, receives base as pool output
+      require(
+        poolTrade.netQuoteQuantityInPips +
+          poolTrade.takerPoolFeeQuantityInPips +
+          poolTrade.takerPoolProtocolFeeQuantityInPips ==
+          poolTrade.grossQuoteQuantityInPips,
+        'Net plus fee not equal to gross'
+      );
+    } else {
+      // Sell order sends base as pool input, receives quote as pool output
+      require(
+        poolTrade.netBaseQuantityInPips +
+          poolTrade.takerPoolFeeQuantityInPips +
+          poolTrade.takerPoolProtocolFeeQuantityInPips ==
+          poolTrade.grossBaseQuantityInPips,
+        'Net plus fee not equal to gross'
+      );
+    }
   }
 
   function validateOrderHashing(
     Order memory buy,
     Order memory sell,
-    Trade memory trade
+    OrderBookTrade memory trade
   ) internal pure returns (bytes32, bytes32) {
     bytes32 buyOrderHash =
       validateOrderSignature(

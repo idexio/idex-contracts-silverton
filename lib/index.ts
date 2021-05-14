@@ -72,6 +72,8 @@ export interface PoolTrade {
   quoteAssetAddress: string;
   grossBaseQuantity: string;
   grossQuoteQuantity: string;
+  netBaseQuantity: string;
+  netQuoteQuantity: string;
   takerPoolFeeQuantityInPips: string;
   takerProtocolFeeQuantityInPips: string;
   takerGasFeeQuantityInPips: string;
@@ -240,8 +242,10 @@ const poolTradeToArgumentStruct = (p: PoolTrade, order: Order) => {
     quoteAssetAddress: p.quoteAssetAddress,
     grossBaseQuantityInPips: decimalToPips(p.grossBaseQuantity),
     grossQuoteQuantityInPips: decimalToPips(p.grossQuoteQuantity),
+    netBaseQuantityInPips: decimalToPips(p.netBaseQuantity),
+    netQuoteQuantityInPips: decimalToPips(p.netQuoteQuantity),
     takerPoolFeeQuantityInPips: decimalToPips(p.takerPoolFeeQuantityInPips),
-    takerProtocolFeeQuantityInPips: decimalToPips(
+    takerPoolProtocolFeeQuantityInPips: decimalToPips(
       p.takerProtocolFeeQuantityInPips,
     ),
     takerGasFeeQuantityInPips: decimalToPips(p.takerGasFeeQuantityInPips),

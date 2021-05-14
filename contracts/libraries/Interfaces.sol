@@ -6,7 +6,7 @@ import {
   IIDEXPair
 } from '@idexio/idex-swap-core/contracts/interfaces/IIDEXPair.sol';
 
-import { Order, Trade, Withdrawal } from './Structs.sol';
+import { Order, OrderBookTrade, Withdrawal } from './Structs.sol';
 
 /**
  * @notice Interface of the ERC20 standard as defined in the EIP, but with no return values for
@@ -155,14 +155,14 @@ interface IExchange {
   /**
    * @notice Settles a trade between two orders submitted and matched off-chain
    *
-   * @param buy A `Order` struct encoding the parameters of the buy-side order (receiving base, giving quote)
-   * @param sell A `Order` struct encoding the parameters of the sell-side order (giving base, receiving quote)
-   * @param trade A `Trade` struct encoding the parameters of this trade execution of the two orders
+   * @param buy An `Order` struct encoding the parameters of the buy-side order (receiving base, giving quote)
+   * @param sell An `Order` struct encoding the parameters of the sell-side order (giving base, receiving quote)
+   * @param trade An `OrderBookTrade` struct encoding the parameters of this trade execution of the two orders
    */
   function executeOrderBookTrade(
     Order calldata buy,
     Order calldata sell,
-    Trade calldata trade
+    OrderBookTrade calldata trade
   ) external;
 
   /**
