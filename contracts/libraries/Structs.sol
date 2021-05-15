@@ -20,7 +20,7 @@ import {
  */
 
 /**
- * @notice TODO
+ * @notice State tracking for a hybrid liquidity pool
  */
 struct LiquidityPool {
   // Flag to distinguish from empty struct
@@ -31,8 +31,9 @@ struct LiquidityPool {
   uint8 quoteAssetDecimals;
   IIDEXPair pairTokenAddress;
 }
+
 /**
- * @notice TODO
+ * @dev Internal struct capturing user-initiated liquidity addition request parameters
  */
 struct LiquidityAddition {
   // Distinguishes between liquidity additions initated on- or off- chain
@@ -50,8 +51,9 @@ struct LiquidityAddition {
   uint256 deadline;
   bytes signature;
 }
+
 /**
- * @notice TODO
+ * @dev Internal struct capturing user-initiated liquidity removal request parameters
  */
 struct LiquidityRemoval {
   // Distinguishes between liquidity additions initated on- or off- chain
@@ -67,8 +69,9 @@ struct LiquidityRemoval {
   uint256 deadline;
   bytes signature;
 }
+
 /**
- * @notice TODO
+ * @notice Argument type to `Exchange.executeAddLiquidity` and `Exchange.executeRemoveLiquidity`
  */
 struct LiquidityChangeExecution {
   uint256 liquidity;

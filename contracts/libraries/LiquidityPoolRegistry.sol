@@ -54,7 +54,7 @@ library LiquidityPoolRegistry {
     address baseAssetAddress,
     address quoteAssetAddress,
     IIDEXPair pairTokenAddress,
-    address payable custodian,
+    ICustodian custodian,
     IIDEXFactory pairFactoryAddress,
     IWETH9 WETH,
     AssetRegistry.Storage storage assetRegistry
@@ -83,9 +83,6 @@ library LiquidityPoolRegistry {
     // Transfer reserves to Custodian and unwrap WBNB if needed
     transferTokenReserveToCustodian(token0, reserve0, custodian, WETH);
     transferTokenReserveToCustodian(token1, reserve1, custodian, WETH);
-
-    // TODO Skim any remaining WBNB to the fee wallet
-    // uint256 ethBalance = IWETH9(WETH).balanceOf(address(this));
 
     // Create internally tracked pool
     LiquidityPool storage pool =
@@ -127,7 +124,7 @@ library LiquidityPoolRegistry {
   function addLiquidity(
     Storage storage self,
     LiquidityAddition memory addition,
-    address payable custodian,
+    ICustodian custodian,
     AssetRegistry.Storage storage assetRegistry,
     BalanceTracking.Storage storage balanceTracking
   ) public {
@@ -152,7 +149,7 @@ library LiquidityPoolRegistry {
   function addLiquidityETH(
     Storage storage self,
     LiquidityAddition memory addition,
-    address payable custodian,
+    ICustodian custodian,
     AssetRegistry.Storage storage assetRegistry,
     BalanceTracking.Storage storage balanceTracking
   ) public {
@@ -245,7 +242,7 @@ library LiquidityPoolRegistry {
   function removeLiquidity(
     Storage storage self,
     LiquidityRemoval memory removal,
-    address payable custodian,
+    ICustodian custodian,
     IIDEXFactory pairFactoryContractAddress,
     address WETH,
     AssetRegistry.Storage storage assetRegistry,
@@ -437,6 +434,11 @@ library LiquidityPoolRegistry {
         poolTrade.quoteAssetAddress
       );
 
+    /*
+    uint64 startBaseAssetReserveInPips = pool.baseAssetReserveInPips;
+    uint64 startQuoteAssetReserveInPips = pool.quoteAssetReserveInPips;
+    */
+
     uint128 initialProduct =
       uint128(pool.baseAssetReserveInPips) *
         uint128(pool.quoteAssetReserveInPips);
@@ -517,15 +519,19 @@ library LiquidityPoolRegistry {
   function transferTokenReserveToCustodian(
     address token,
     uint112 reserve,
-    address payable custodian,
+    ICustodian custodian,
     IWETH9 WETH
   ) private {
     // Unwrap WBNB
     if (token == address(WETH)) {
       IWETH9(WETH).withdraw(reserve);
-      AssetTransfers.transferTo(custodian, address(0x0), reserve);
+      AssetTransfers.transferTo(
+        payable(address(custodian)),
+        address(0x0),
+        reserve
+      );
     } else {
-      AssetTransfers.transferTo(custodian, token, reserve);
+      AssetTransfers.transferTo(payable(address(custodian)), token, reserve);
     }
   }
 }

@@ -90,7 +90,6 @@ library Validations {
     require(
       execution.liquidity ==
         min(
-          // TODO Should this be gross quantity?
           (netBaseAssetQuantityInAssetUnits * (totalLiquidityInAssetUnits)) /
             AssetUnitConversions.pipsToAssetUnits(
               pool.baseAssetReserveInPips,

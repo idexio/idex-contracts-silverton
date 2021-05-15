@@ -92,7 +92,8 @@ contract Exchange is IExchange, Owned {
     uint64 quoteQuantityInPips
   );
   /**
-   * @notice TODO
+   * @notice Emitted when a user initiates an Add Liquidity request via `addLiquidity` or
+   * `addLiquidityETH`
    */
   event LiquidityAdded(
     address wallet,
@@ -105,7 +106,8 @@ contract Exchange is IExchange, Owned {
     address to
   );
   /**
-   * @notice TODO
+   * @notice Emitted when a user initiates an Add Liquidity request via `removeLiquidity` or
+   * `removeLiquidityETH`
    */
   event LiquidityRemoved(
     address wallet,
@@ -227,7 +229,7 @@ contract Exchange is IExchange, Owned {
   // CLOB - mapping of order hash => filled quantity in pips
   mapping(bytes32 => uint64) _partiallyFilledOrderQuantitiesInPips;
   // Custodian
-  address payable _custodian;
+  ICustodian _custodian;
   // Deposit index
   uint64 _depositIndex;
   // Exits
@@ -269,9 +271,12 @@ contract Exchange is IExchange, Owned {
    * @param newCustodian The address of the `Custodian` contract deployed against this `Exchange`
    * contract's address
    */
-  function setCustodian(address payable newCustodian) external onlyAdmin {
-    require(_custodian == address(0x0), 'Custodian can only be set once');
-    require(Address.isContract(newCustodian), 'Invalid address');
+  function setCustodian(ICustodian newCustodian) external onlyAdmin {
+    require(
+      _custodian == ICustodian(payable(address(0x0))),
+      'Custodian can only be set once'
+    );
+    require(Address.isContract(address(newCustodian)), 'Invalid address');
 
     _custodian = newCustodian;
   }
@@ -696,7 +701,7 @@ contract Exchange is IExchange, Owned {
     (uint64 newExchangeBalanceInPips, uint256 newExchangeBalanceInAssetUnits) =
       Withdrawing.withdraw(
         withdrawal,
-        ICustodian(_custodian),
+        _custodian,
         _feeWallet,
         _assetRegistry,
         _balanceTracking,
@@ -1221,6 +1226,19 @@ contract Exchange is IExchange, Owned {
         getLastInvalidatedTimestamp(order.walletAddress),
       'Order nonce timestamp too low'
     );
+  }
+
+  // Exchange upgrades //
+
+  /**
+   * @notice Following an Exchange upgrade via the Governance contract, this function allows the
+   * new Exchange to reclaim blockchain storage by cleanup up old balance tracking
+   */
+  function cleanupWalletBalance(address wallet, address assetAddress) external {
+    address currentExchange = ICustodian(_custodian).loadExchange();
+    require(msg.sender == currentExchange, 'Caller is not Exchange');
+
+    delete _balanceTracking.balancesByWalletAssetPair[wallet][assetAddress];
   }
 
   // Private methods - utils //
