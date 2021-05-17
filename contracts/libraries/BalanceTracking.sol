@@ -171,14 +171,13 @@ library BalanceTracking {
     );
     // Reverts if balance is overdrawn
     balance.balanceInPips -= withdrawal.quantityInPips;
+    newExchangeBalanceInPips = balance.balanceInPips;
 
     if (withdrawal.gasFeeInPips > 0) {
       balance = loadBalanceAndMigrateIfNeeded(self, feeWallet, assetAddress);
 
       balance.balanceInPips += withdrawal.gasFeeInPips;
     }
-
-    return balance.balanceInPips;
   }
 
   // Wallet exits //
@@ -206,8 +205,10 @@ library BalanceTracking {
     LiquidityChangeExecution memory execution,
     uint8 baseAssetDecimals,
     uint8 quoteAssetDecimals,
-    address feeWallet
-  ) internal {
+    address feeWallet,
+    address custodianAddress,
+    IIDEXPair pairTokenAddress
+  ) internal returns (uint256 outputLiquidityInAssetUnits) {
     (
       uint256 grossBaseAssetQuantityInAssetUnits,
       uint256 feeBaseAssetQuantityInAssetUnits,
@@ -277,6 +278,23 @@ library BalanceTracking {
       execution.quoteAssetAddress
     );
     balance.balanceInPips += quantityInPips;
+
+    // Only add output assets to wallet's balances in the Exchange if Custodian is target
+    if (addition.to == custodianAddress) {
+      // Base net credit
+      quantityInPips = AssetUnitConversions.assetUnitsToPips(
+        execution.liquidity,
+        Constants.pairTokenDecimals
+      );
+      balance = loadBalanceAndMigrateIfNeeded(
+        self,
+        addition.wallet,
+        address(pairTokenAddress)
+      );
+      balance.balanceInPips += quantityInPips;
+    } else {
+      outputLiquidityInAssetUnits = execution.liquidity;
+    }
   }
 
   /**
@@ -288,7 +306,7 @@ library BalanceTracking {
     LiquidityRemoval memory removal,
     LiquidityChangeExecution memory execution,
     address feeWallet,
-    address exchangeAddress,
+    address custodianAddress,
     IIDEXPair pairTokenAddress,
     AssetRegistry.Storage storage assetRegistry
   )
@@ -313,8 +331,8 @@ library BalanceTracking {
           ? (execution.amountA - execution.feeAmountA, execution.feeAmountA)
           : (execution.amountB - execution.feeAmountB, execution.feeAmountB);
 
-      // Only add output assets to wallet's balances in the Exchange if latter is target
-      if (removal.to == exchangeAddress) {
+      // Only add output assets to wallet's balances in the Exchange if Custodian is target
+      if (removal.to == custodianAddress) {
         // Base net credit
         quantityInPips = AssetUnitConversions.assetUnitsToPips(
           netBaseAssetQuantityInAssetUnits,
@@ -356,8 +374,8 @@ library BalanceTracking {
       Asset memory asset =
         assetRegistry.loadAssetByAddress(execution.quoteAssetAddress);
 
-      // Only add output assets to wallet's balances in the Exchange if latter is target
-      if (removal.to == exchangeAddress) {
+      // Only add output assets to wallet's balances in the Exchange if Custodian is target
+      if (removal.to == custodianAddress) {
         // Quote net credit
         quantityInPips = AssetUnitConversions.assetUnitsToPips(
           netQuoteAssetQuantityInAssetUnits,

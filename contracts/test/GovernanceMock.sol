@@ -4,7 +4,7 @@ pragma solidity 0.8.4;
 
 import { AssetTransfers } from '../libraries/AssetTransfers.sol';
 
-interface ICustodian {
+interface IGovernanceMockCustodian {
   receive() external payable;
 
   function setExchange(address exchange) external;
@@ -13,9 +13,9 @@ interface ICustodian {
 }
 
 contract GovernanceMock {
-  ICustodian _custodian;
+  IGovernanceMockCustodian _custodian;
 
-  function setCustodian(ICustodian newCustodian) external {
+  function setCustodian(IGovernanceMockCustodian newCustodian) external {
     _custodian = newCustodian;
   }
 

@@ -94,7 +94,6 @@ library Withdrawing {
     LiquidityRemoval memory removal,
     LiquidityChangeExecution memory execution,
     ICustodian custodian,
-    address exchangeAddress,
     address feeWallet,
     IIDEXPair pairTokenAddress,
     AssetRegistry.Storage storage assetRegistry,
@@ -108,7 +107,7 @@ library Withdrawing {
         removal,
         execution,
         feeWallet,
-        exchangeAddress,
+        address(custodian),
         pairTokenAddress,
         assetRegistry
       );

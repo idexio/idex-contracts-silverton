@@ -176,8 +176,39 @@ library LiquidityPoolRegistry {
     LiquidityAddition memory addition,
     LiquidityChangeExecution memory execution,
     address feeWallet,
+    address custodianAddress,
     BalanceTracking.Storage storage balanceTracking
   ) external {
+    (
+      IIDEXPair pairTokenAddress,
+      uint8 baseAssetDecimals,
+      uint8 quoteAssetDecimals
+    ) = validateAndUpdateForLiquidityAddition(self, addition, execution);
+
+    // Debit wallet Pair token balance and credit fee wallet reserve asset balances
+    balanceTracking.updateForAddLiquidity(
+      addition,
+      execution,
+      baseAssetDecimals,
+      quoteAssetDecimals,
+      feeWallet,
+      custodianAddress,
+      pairTokenAddress
+    );
+  }
+
+  function validateAndUpdateForLiquidityAddition(
+    Storage storage self,
+    LiquidityAddition memory addition,
+    LiquidityChangeExecution memory execution
+  )
+    private
+    returns (
+      IIDEXPair pairTokenAddress,
+      uint8 baseAssetDecimals,
+      uint8 quoteAssetDecimals
+    )
+  {
     bytes32 hash = Hashing.getLiquidityAdditionHash(addition);
     if (addition.origination == LiquidityChangeOrigination.OnChain) {
       LiquidityChangeState state = self.changes[hash];
@@ -196,41 +227,33 @@ library LiquidityPoolRegistry {
         execution.baseAssetAddress,
         execution.quoteAssetAddress
       );
+    baseAssetDecimals = pool.baseAssetDecimals;
+    quoteAssetDecimals = pool.quoteAssetDecimals;
 
     (
       uint256 netBaseAssetQuantityInAssetUnits,
       uint256 netQuoteAssetQuantityInAssetUnits
     ) = Validations.validateLiquidityAddition(addition, execution, pool);
 
-    // Debit wallet Pair token balance and credit fee wallet reserve asset balances
-    balanceTracking.updateForAddLiquidity(
-      addition,
-      execution,
-      pool.baseAssetDecimals,
-      pool.quoteAssetDecimals,
-      feeWallet
-    );
-
     // Credit pool base asset reserves with gross deposit minus fees
     uint64 quantityInPips =
       AssetUnitConversions.assetUnitsToPips(
         netBaseAssetQuantityInAssetUnits,
-        pool.baseAssetDecimals
+        baseAssetDecimals
       );
     pool.baseAssetReserveInPips += quantityInPips;
 
     // Credit pool quote asset reserves with gross deposit minus fees
     quantityInPips = AssetUnitConversions.assetUnitsToPips(
       netQuoteAssetQuantityInAssetUnits,
-      pool.quoteAssetDecimals
+      quoteAssetDecimals
     );
     pool.quoteAssetReserveInPips += quantityInPips;
 
     // Mint Pair tokens to destination wallet
-    pool.pairTokenAddress.hybridMint(
+    pairTokenAddress.hybridMint(
       addition.wallet,
       execution.liquidity,
-      // TODO Should this be gross quantity?
       netBaseAssetQuantityInAssetUnits,
       netQuoteAssetQuantityInAssetUnits,
       addition.to
@@ -272,7 +295,6 @@ library LiquidityPoolRegistry {
     LiquidityRemoval memory removal,
     LiquidityChangeExecution memory execution,
     ICustodian custodian,
-    address exchangeAddress,
     address feeWallet,
     AssetRegistry.Storage storage assetRegistry,
     BalanceTracking.Storage storage balanceTracking
@@ -284,7 +306,6 @@ library LiquidityPoolRegistry {
       removal,
       execution,
       custodian,
-      exchangeAddress,
       feeWallet,
       pairTokenAddress,
       assetRegistry,

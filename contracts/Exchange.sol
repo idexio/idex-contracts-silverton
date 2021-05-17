@@ -852,6 +852,7 @@ contract Exchange is IExchange, Owned {
       addition,
       execution,
       _feeWallet,
+      address(_custodian),
       _balanceTracking
     );
   }
@@ -961,7 +962,6 @@ contract Exchange is IExchange, Owned {
       removal,
       execution,
       ICustodian(_custodian),
-      address(this),
       _feeWallet,
       _assetRegistry,
       _balanceTracking
