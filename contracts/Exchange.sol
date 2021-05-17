@@ -473,6 +473,10 @@ contract Exchange is IExchange, Owned {
 
   // Depositing //
 
+  /**
+   * @notice Internally used to unwrap native asset during pool promotion to hybrid mode. DO NOT
+   * send assets directly to the `Exchange`, instead use the appropriate deposit function
+   */
   receive() external payable {
     require(msg.sender == address(_WETH), 'Use depositEther');
   }
@@ -1176,7 +1180,9 @@ contract Exchange is IExchange, Owned {
   // Dispatcher whitelisting //
 
   /**
-   * @notice Sets the wallet whitelisted to dispatch transactions calling the `executeOrderBookTrade` and `withdraw` functions
+   * @notice Sets the wallet whitelisted to dispatch transactions calling the
+   * `executeOrderBookTrade`, `executePoolTrade`, `executeHybridTrade`, `withdraw`,
+   * `executeAddLiquidity`, and `executeRemoveLiquidity` functions
    *
    * @param newDispatcherWallet The new whitelisted dispatcher wallet. Must be different from the current one
    */
@@ -1193,8 +1199,10 @@ contract Exchange is IExchange, Owned {
   }
 
   /**
-   * @notice Clears the currently set whitelisted dispatcher wallet, effectively disabling calling the
-   * `executeOrderBookTrade` and `withdraw` functions until a new wallet is set with `setDispatcher`
+   * @notice Clears the currently set whitelisted dispatcher wallet, effectively disabling calling
+   * the `executeOrderBookTrade`, `executePoolTrade`, `executeHybridTrade`, `withdraw`,
+   * `executeAddLiquidity`, and `executeRemoveLiquidity` functions until a new wallet is set with
+   * `setDispatcher`
    */
   function removeDispatcher() external onlyAdmin {
     emit DispatcherChanged(_dispatcherWallet, address(0x0));

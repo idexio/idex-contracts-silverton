@@ -9,6 +9,7 @@ import {
 import { AssetRegistry } from './AssetRegistry.sol';
 import { AssetUnitConversions } from './AssetUnitConversions.sol';
 import { BalanceTracking } from './BalanceTracking.sol';
+import { Constants } from './Constants.sol';
 import { ICustodian } from './Interfaces.sol';
 import { UUID } from './UUID.sol';
 import { Validations } from './Validations.sol';
@@ -23,8 +24,6 @@ import {
 library Withdrawing {
   using AssetRegistry for AssetRegistry.Storage;
   using BalanceTracking for BalanceTracking.Storage;
-
-  uint64 constant _maxWithdrawalFeeBasisPoints = 20 * 100; // 20%;
 
   function withdraw(
     Withdrawal memory withdrawal,
@@ -45,7 +44,7 @@ library Withdrawing {
       Validations.getFeeBasisPoints(
         withdrawal.gasFeeInPips,
         withdrawal.quantityInPips
-      ) <= _maxWithdrawalFeeBasisPoints,
+      ) <= Constants.maxWithdrawalFeeBasisPoints,
       'Excessive withdrawal fee'
     );
     bytes32 withdrawalHash =
