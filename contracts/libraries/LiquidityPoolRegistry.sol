@@ -227,6 +227,7 @@ library LiquidityPoolRegistry {
         execution.baseAssetAddress,
         execution.quoteAssetAddress
       );
+    pairTokenAddress = pool.pairTokenAddress;
     baseAssetDecimals = pool.baseAssetDecimals;
     quoteAssetDecimals = pool.quoteAssetDecimals;
 

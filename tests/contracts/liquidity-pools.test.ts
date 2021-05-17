@@ -565,6 +565,7 @@ async function addLiquidityAndExecute(
 
   await exchange.executeAddLiquidity(
     {
+      signatureHashVersion: 2,
       origination: 0,
       nonce: 0,
       wallet: ownerWallet,
@@ -620,6 +621,7 @@ async function addLiquidityETHAndExecute(
 
   await exchange.executeAddLiquidity(
     {
+      signatureHashVersion: 2,
       origination: 0,
       nonce: 0,
       wallet: ownerWallet,
@@ -676,6 +678,7 @@ async function removeLiquidityAndExecute(
 
   await exchange.executeRemoveLiquidity(
     {
+      signatureHashVersion: 2,
       origination: 0,
       nonce: 0,
       wallet: ownerWallet,
@@ -729,6 +732,7 @@ async function removeLiquidityETHAndExecute(
 
   await exchange.executeRemoveLiquidity(
     {
+      signatureHashVersion: 2,
       origination: 0,
       nonce: 0,
       wallet: ownerWallet,

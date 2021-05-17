@@ -4,6 +4,7 @@ pragma solidity 0.8.4;
 
 import { ECDSA } from '@openzeppelin/contracts/utils/cryptography/ECDSA.sol';
 
+import { Constants } from './Constants.sol';
 import { LiquidityChangeType, WithdrawalType } from './Enums.sol';
 import {
   LiquidityAddition,
@@ -32,9 +33,15 @@ library Hashing {
     pure
     returns (bytes32)
   {
+    require(
+      addition.signatureHashVersion == Constants.signatureHashVersion,
+      'Signature hash version must be 2'
+    );
+
     return
       keccak256(
         abi.encodePacked(
+          addition.signatureHashVersion,
           uint8(LiquidityChangeType.Addition),
           uint8(addition.origination),
           addition.nonce,
@@ -56,9 +63,15 @@ library Hashing {
     pure
     returns (bytes32)
   {
+    require(
+      removal.signatureHashVersion == Constants.signatureHashVersion,
+      'Signature hash version must be 2'
+    );
+
     return
       keccak256(
         abi.encodePacked(
+          removal.signatureHashVersion,
           uint8(LiquidityChangeType.Removal),
           uint8(removal.origination),
           removal.nonce,
@@ -80,7 +93,7 @@ library Hashing {
     string memory quoteSymbol
   ) internal pure returns (bytes32) {
     require(
-      order.signatureHashVersion == 2,
+      order.signatureHashVersion == Constants.signatureHashVersion,
       'Signature hash version must be 2'
     );
     return

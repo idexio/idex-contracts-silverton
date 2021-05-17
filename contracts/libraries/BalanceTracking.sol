@@ -321,8 +321,6 @@ library BalanceTracking {
 
     // Base asset updates
     {
-      Asset memory asset =
-        assetRegistry.loadAssetByAddress(execution.baseAssetAddress);
       (
         uint256 netBaseAssetQuantityInAssetUnits,
         uint256 feeBaseAssetQuantityInAssetUnits
@@ -330,6 +328,9 @@ library BalanceTracking {
         execution.baseAssetAddress == removal.assetA
           ? (execution.amountA - execution.feeAmountA, execution.feeAmountA)
           : (execution.amountB - execution.feeAmountB, execution.feeAmountB);
+
+      Asset memory asset =
+        assetRegistry.loadAssetByAddress(execution.baseAssetAddress);
 
       // Only add output assets to wallet's balances in the Exchange if Custodian is target
       if (removal.to == custodianAddress) {

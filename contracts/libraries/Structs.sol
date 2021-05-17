@@ -36,6 +36,8 @@ struct LiquidityPool {
  * @dev Internal struct capturing user-initiated liquidity addition request parameters
  */
 struct LiquidityAddition {
+  // Must be 2
+  uint8 signatureHashVersion;
   // Distinguishes between liquidity additions initated on- or off- chain
   LiquidityChangeOrigination origination;
   // UUIDv1 unique to wallet
@@ -56,6 +58,8 @@ struct LiquidityAddition {
  * @dev Internal struct capturing user-initiated liquidity removal request parameters
  */
 struct LiquidityRemoval {
+  // Must be 2
+  uint8 signatureHashVersion;
   // Distinguishes between liquidity additions initated on- or off- chain
   LiquidityChangeOrigination origination;
   uint128 nonce;
@@ -106,7 +110,7 @@ struct Asset {
  * @notice Argument type for `Exchange.executeOrderBookTrade` and `Hashing.getOrderWalletHash`
  */
 struct Order {
-  // Not currently used but reserved for future use. Must be 2
+  // Must be 2
   uint8 signatureHashVersion;
   // UUIDv1 unique to wallet
   uint128 nonce;

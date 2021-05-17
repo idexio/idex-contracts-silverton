@@ -765,6 +765,7 @@ contract Exchange is IExchange, Owned {
   ) external {
     _liquidityPoolRegistry.addLiquidity(
       LiquidityAddition(
+        Constants.signatureHashVersion,
         LiquidityChangeOrigination.OnChain,
         0,
         msg.sender,
@@ -811,6 +812,7 @@ contract Exchange is IExchange, Owned {
   ) external payable {
     _liquidityPoolRegistry.addLiquidityETH(
       LiquidityAddition(
+        Constants.signatureHashVersion,
         LiquidityChangeOrigination.OnChain,
         0,
         msg.sender,
@@ -874,6 +876,7 @@ contract Exchange is IExchange, Owned {
     _liquidityPoolRegistry.removeLiquidity(
       // Use struct to avoid stack too deep
       LiquidityRemoval(
+        Constants.signatureHashVersion,
         LiquidityChangeOrigination.OnChain,
         0,
         msg.sender,
@@ -920,6 +923,7 @@ contract Exchange is IExchange, Owned {
     _liquidityPoolRegistry.removeLiquidity(
       // Use struct to avoid stack too deep
       LiquidityRemoval(
+        Constants.signatureHashVersion,
         LiquidityChangeOrigination.OnChain,
         0,
         msg.sender,
