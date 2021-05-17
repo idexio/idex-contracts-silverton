@@ -92,7 +92,8 @@ contract Exchange is IExchange, Owned {
     uint64 quoteQuantityInPips
   );
   /**
-   * @notice TODO
+   * @notice Emitted when a user initiates an Add Liquidity request via `addLiquidity` or
+   * `addLiquidityETH`
    */
   event LiquidityAdded(
     address wallet,
@@ -105,7 +106,8 @@ contract Exchange is IExchange, Owned {
     address to
   );
   /**
-   * @notice TODO
+   * @notice Emitted when a user initiates an Add Liquidity request via `removeLiquidity` or
+   * `removeLiquidityETH`
    */
   event LiquidityRemoved(
     address wallet,
@@ -227,7 +229,7 @@ contract Exchange is IExchange, Owned {
   // CLOB - mapping of order hash => filled quantity in pips
   mapping(bytes32 => uint64) _partiallyFilledOrderQuantitiesInPips;
   // Custodian
-  address payable _custodian;
+  ICustodian _custodian;
   // Deposit index
   uint64 _depositIndex;
   // Exits
@@ -269,9 +271,12 @@ contract Exchange is IExchange, Owned {
    * @param newCustodian The address of the `Custodian` contract deployed against this `Exchange`
    * contract's address
    */
-  function setCustodian(address payable newCustodian) external onlyAdmin {
-    require(_custodian == address(0x0), 'Custodian can only be set once');
-    require(Address.isContract(newCustodian), 'Invalid address');
+  function setCustodian(ICustodian newCustodian) external onlyAdmin {
+    require(
+      _custodian == ICustodian(payable(address(0x0))),
+      'Custodian can only be set once'
+    );
+    require(Address.isContract(address(newCustodian)), 'Invalid address');
 
     _custodian = newCustodian;
   }
@@ -468,6 +473,10 @@ contract Exchange is IExchange, Owned {
 
   // Depositing //
 
+  /**
+   * @notice Internally used to unwrap native asset during pool promotion to hybrid mode. DO NOT
+   * send assets directly to the `Exchange`, instead use the appropriate deposit function
+   */
   receive() external payable {
     require(msg.sender == address(_WETH), 'Use depositEther');
   }
@@ -696,7 +705,7 @@ contract Exchange is IExchange, Owned {
     (uint64 newExchangeBalanceInPips, uint256 newExchangeBalanceInAssetUnits) =
       Withdrawing.withdraw(
         withdrawal,
-        ICustodian(_custodian),
+        _custodian,
         _feeWallet,
         _assetRegistry,
         _balanceTracking,
@@ -760,6 +769,7 @@ contract Exchange is IExchange, Owned {
   ) external {
     _liquidityPoolRegistry.addLiquidity(
       LiquidityAddition(
+        Constants.signatureHashVersion,
         LiquidityChangeOrigination.OnChain,
         0,
         msg.sender,
@@ -806,6 +816,7 @@ contract Exchange is IExchange, Owned {
   ) external payable {
     _liquidityPoolRegistry.addLiquidityETH(
       LiquidityAddition(
+        Constants.signatureHashVersion,
         LiquidityChangeOrigination.OnChain,
         0,
         msg.sender,
@@ -847,6 +858,7 @@ contract Exchange is IExchange, Owned {
       addition,
       execution,
       _feeWallet,
+      address(_custodian),
       _balanceTracking
     );
   }
@@ -868,6 +880,7 @@ contract Exchange is IExchange, Owned {
     _liquidityPoolRegistry.removeLiquidity(
       // Use struct to avoid stack too deep
       LiquidityRemoval(
+        Constants.signatureHashVersion,
         LiquidityChangeOrigination.OnChain,
         0,
         msg.sender,
@@ -914,6 +927,7 @@ contract Exchange is IExchange, Owned {
     _liquidityPoolRegistry.removeLiquidity(
       // Use struct to avoid stack too deep
       LiquidityRemoval(
+        Constants.signatureHashVersion,
         LiquidityChangeOrigination.OnChain,
         0,
         msg.sender,
@@ -956,7 +970,6 @@ contract Exchange is IExchange, Owned {
       removal,
       execution,
       ICustodian(_custodian),
-      address(this),
       _feeWallet,
       _assetRegistry,
       _balanceTracking
@@ -1167,7 +1180,9 @@ contract Exchange is IExchange, Owned {
   // Dispatcher whitelisting //
 
   /**
-   * @notice Sets the wallet whitelisted to dispatch transactions calling the `executeOrderBookTrade` and `withdraw` functions
+   * @notice Sets the wallet whitelisted to dispatch transactions calling the
+   * `executeOrderBookTrade`, `executePoolTrade`, `executeHybridTrade`, `withdraw`,
+   * `executeAddLiquidity`, and `executeRemoveLiquidity` functions
    *
    * @param newDispatcherWallet The new whitelisted dispatcher wallet. Must be different from the current one
    */
@@ -1184,8 +1199,10 @@ contract Exchange is IExchange, Owned {
   }
 
   /**
-   * @notice Clears the currently set whitelisted dispatcher wallet, effectively disabling calling the
-   * `executeOrderBookTrade` and `withdraw` functions until a new wallet is set with `setDispatcher`
+   * @notice Clears the currently set whitelisted dispatcher wallet, effectively disabling calling
+   * the `executeOrderBookTrade`, `executePoolTrade`, `executeHybridTrade`, `withdraw`,
+   * `executeAddLiquidity`, and `executeRemoveLiquidity` functions until a new wallet is set with
+   * `setDispatcher`
    */
   function removeDispatcher() external onlyAdmin {
     emit DispatcherChanged(_dispatcherWallet, address(0x0));
@@ -1221,6 +1238,19 @@ contract Exchange is IExchange, Owned {
         getLastInvalidatedTimestamp(order.walletAddress),
       'Order nonce timestamp too low'
     );
+  }
+
+  // Exchange upgrades //
+
+  /**
+   * @notice Following an Exchange upgrade via the Governance contract, this function allows the
+   * new Exchange to reclaim blockchain storage by cleanup up old balance tracking
+   */
+  function cleanupWalletBalance(address wallet, address assetAddress) external {
+    address currentExchange = ICustodian(_custodian).loadExchange();
+    require(msg.sender == currentExchange, 'Caller is not Exchange');
+
+    delete _balanceTracking.balancesByWalletAssetPair[wallet][assetAddress];
   }
 
   // Private methods - utils //

@@ -13,7 +13,7 @@ import { AssetRegistry } from './AssetRegistry.sol';
 import { AssetTransfers } from './AssetTransfers.sol';
 import { AssetUnitConversions } from './AssetUnitConversions.sol';
 import { BalanceTracking } from './BalanceTracking.sol';
-import { IERC20 } from './Interfaces.sol';
+import { ICustodian, IERC20 } from './Interfaces.sol';
 import { Asset } from './Structs.sol';
 
 library Depositing {
@@ -24,7 +24,7 @@ library Depositing {
     address wallet,
     Asset memory asset,
     uint256 quantityInAssetUnits,
-    address payable custodian,
+    ICustodian custodian,
     BalanceTracking.Storage storage balanceTracking
   )
     public
@@ -50,7 +50,7 @@ library Depositing {
     address assetB,
     uint256 quantityAInAssetUnits,
     uint256 quantityBInAssetUnits,
-    address payable custodian,
+    ICustodian custodian,
     AssetRegistry.Storage storage assetRegistry,
     BalanceTracking.Storage storage balanceTracking
   ) internal {
@@ -80,7 +80,7 @@ library Depositing {
     address assetA,
     address assetB,
     uint256 quantityInAssetUnits,
-    address payable custodian,
+    ICustodian custodian,
     IIDEXFactory pairFactoryAddress,
     address WETH,
     AssetRegistry.Storage storage assetRegistry,
@@ -107,7 +107,7 @@ library Depositing {
     address wallet,
     Asset memory asset,
     uint256 quantityInAssetUnits,
-    address payable custodian,
+    ICustodian custodian,
     BalanceTracking.Storage storage balanceTracking
   )
     internal
@@ -134,7 +134,7 @@ library Depositing {
     if (asset.assetAddress == address(0x0)) {
       // If the asset is BNB then the funds were already assigned to this contract via msg.value.
       AssetTransfers.transferTo(
-        custodian,
+        payable(address(custodian)),
         asset.assetAddress,
         quantityInAssetUnitsWithoutFractionalPips
       );
@@ -144,7 +144,7 @@ library Depositing {
       AssetTransfers.transferFrom(
         wallet,
         IERC20(asset.assetAddress),
-        custodian,
+        payable(address(custodian)),
         quantityInAssetUnitsWithoutFractionalPips
       );
     }

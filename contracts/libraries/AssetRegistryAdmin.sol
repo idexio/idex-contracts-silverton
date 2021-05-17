@@ -44,13 +44,16 @@ library AssetRegistryAdmin {
   function confirmTokenRegistration(
     AssetRegistry.Storage storage self,
     IERC20 tokenAddress,
-    string memory symbol,
+    string calldata symbol,
     uint8 decimals
   ) external {
     Asset memory asset = self.assetsByAddress[address(tokenAddress)];
     require(asset.exists, 'Unknown token');
     require(!asset.isConfirmed, 'Token already finalized');
-    require(isStringEqual(asset.symbol, symbol), 'Symbols do not match');
+    require(
+      AssetRegistry.isStringEqual(asset.symbol, symbol),
+      'Symbols do not match'
+    );
     require(asset.decimals == decimals, 'Decimals do not match');
 
     asset.isConfirmed = true;
@@ -62,28 +65,19 @@ library AssetRegistryAdmin {
   function addTokenSymbol(
     AssetRegistry.Storage storage self,
     IERC20 tokenAddress,
-    string memory symbol
+    string calldata symbol
   ) external {
     Asset memory asset = self.assetsByAddress[address(tokenAddress)];
     require(
       asset.exists && asset.isConfirmed,
       'Registration of token not finalized'
     );
-    require(!isStringEqual(symbol, 'BNB'), 'BNB symbol reserved');
+    require(!AssetRegistry.isStringEqual(symbol, 'BNB'), 'BNB symbol reserved');
 
     // This will prevent swapping assets for previously existing orders
     uint64 msInOneSecond = 1000;
     asset.confirmedTimestampInMs = uint64(block.timestamp * msInOneSecond);
 
     self.assetsBySymbol[symbol].push(asset);
-  }
-
-  // See https://solidity.readthedocs.io/en/latest/types.html#bytes-and-strings-as-arrays
-  function isStringEqual(string memory a, string memory b)
-    private
-    pure
-    returns (bool)
-  {
-    return keccak256(abi.encodePacked(a)) == keccak256(abi.encodePacked(b));
   }
 }

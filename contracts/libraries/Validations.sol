@@ -90,16 +90,15 @@ library Validations {
     require(
       execution.liquidity ==
         min(
-          // TODO Should this be gross quantity?
           (netBaseAssetQuantityInAssetUnits * (totalLiquidityInAssetUnits)) /
             AssetUnitConversions.pipsToAssetUnits(
               pool.baseAssetReserveInPips,
-              Constants.pairTokenDecimals
+              pool.baseAssetDecimals
             ),
           (netQuoteAssetQuantityInAssetUnits * (totalLiquidityInAssetUnits)) /
             AssetUnitConversions.pipsToAssetUnits(
               pool.quoteAssetReserveInPips,
-              Constants.pairTokenDecimals
+              pool.quoteAssetDecimals
             )
         ),
       'Invalid liquidity minted'
@@ -126,6 +125,10 @@ library Validations {
       'Asset address mismatch'
     );
 
+    require(
+      execution.amountA > 0 && execution.amountB > 0,
+      'Insufficient liquidity burned'
+    );
     require(execution.amountA >= removal.amountAMin, 'Invalid amountA');
     require(execution.amountB >= removal.amountBMin, 'Invalid amountB');
 
@@ -165,15 +168,13 @@ library Validations {
         pool.quoteAssetDecimals
       );
     require(
-      removal.liquidity == execution.liquidity &&
-        grossBaseAssetQuantityInAssetUnits ==
+      grossBaseAssetQuantityInAssetUnits ==
         (execution.liquidity * baseAssetReservesInAssetUnits) /
           totalLiquidityInAssetUnits,
       'Invalid base amount'
     );
     require(
-      removal.liquidity == execution.liquidity &&
-        grossQuoteAssetQuantityInAssetUnits ==
+      grossQuoteAssetQuantityInAssetUnits ==
         (execution.liquidity * quoteAssetReservesInAssetUnits) /
           totalLiquidityInAssetUnits,
       'Invalid quote amount'
@@ -268,11 +269,11 @@ library Validations {
     OrderBookTrade memory trade,
     AssetRegistry.Storage storage assetRegistry
   ) internal view {
-    uint64 nonce = UUID.getTimestampInMsFromUuidV1(order.nonce);
+    uint64 timestampInMs = UUID.getTimestampInMsFromUuidV1(order.nonce);
     Asset memory baseAsset =
-      assetRegistry.loadAssetBySymbol(trade.baseAssetSymbol, nonce);
+      assetRegistry.loadAssetBySymbol(trade.baseAssetSymbol, timestampInMs);
     Asset memory quoteAsset =
-      assetRegistry.loadAssetBySymbol(trade.quoteAssetSymbol, nonce);
+      assetRegistry.loadAssetBySymbol(trade.quoteAssetSymbol, timestampInMs);
 
     require(
       baseAsset.assetAddress == trade.baseAssetAddress &&
@@ -391,7 +392,7 @@ library Validations {
     if (order.side == OrderSide.Sell && isLimitOrderType(order.orderType)) {
       require(
         getImpliedQuoteQuantityInPips(
-          quoteAssetReserveInPips,
+          baseAssetReserveInPips,
           order.limitPriceInPips
         ) >= quoteAssetReserveInPips,
         'Pool marginal sell price exceeded'
@@ -465,6 +466,8 @@ library Validations {
       'Excessive quote fee'
     );
 
+    // The received quantity is determined by the pool's constant product formula and enforced in
+    // `LiquidityPoolRegistry.updateReservesForPoolTrade`
     if (orderSide == OrderSide.Buy) {
       // Buy order sends quote as pool input, receives base as pool output
       require(
