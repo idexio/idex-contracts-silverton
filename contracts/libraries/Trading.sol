@@ -4,8 +4,11 @@ pragma solidity 0.8.4;
 
 import { AssetRegistry } from './AssetRegistry.sol';
 import { BalanceTracking } from './BalanceTracking.sol';
+import { HybridTradeValidations } from './HybridTradeValidations.sol';
 import { LiquidityPoolRegistry } from './LiquidityPoolRegistry.sol';
+import { OrderBookTradeValidations } from './OrderBookTradeValidations.sol';
 import { PoolTradeHelpers } from './PoolTradeHelpers.sol';
+import { PoolTradeValidations } from './PoolTradeValidations.sol';
 import { Validations } from './Validations.sol';
 import { OrderSide, OrderType } from './Enums.sol';
 import { Order, OrderBookTrade, PoolTrade } from './Structs.sol';
@@ -27,7 +30,12 @@ library Trading {
     mapping(bytes32 => uint64) storage partiallyFilledOrderQuantitiesInPips
   ) public {
     (bytes32 buyHash, bytes32 sellHash) =
-      Validations.validateOrderBookTrade(buy, sell, trade, assetRegistry);
+      OrderBookTradeValidations.validateOrderBookTrade(
+        buy,
+        sell,
+        trade,
+        assetRegistry
+      );
 
     updateOrderFilledQuantities(
       buy,
@@ -55,7 +63,7 @@ library Trading {
     mapping(bytes32 => uint64) storage partiallyFilledOrderQuantitiesInPips
   ) public {
     (bytes32 buyHash, bytes32 sellHash) =
-      Validations.validateHybridTrade(
+      HybridTradeValidations.validateHybridTrade(
         buy,
         sell,
         orderBookTrade,
@@ -90,7 +98,7 @@ library Trading {
           takerOrder.side
         );
 
-      Validations.validateLimitPrice(
+      HybridTradeValidations.validateLimitPrice(
         makerOrder,
         baseAssetReserveInPips,
         quoteAssetReserveInPips
@@ -124,7 +132,7 @@ library Trading {
     mapping(bytes32 => uint64) storage partiallyFilledOrderQuantitiesInPips
   ) public {
     bytes32 orderHash =
-      Validations.validatePoolTrade(order, poolTrade, assetRegistry);
+      PoolTradeValidations.validatePoolTrade(order, poolTrade, assetRegistry);
     updateOrderFilledQuantity(
       order,
       orderHash,
