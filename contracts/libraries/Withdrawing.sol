@@ -43,7 +43,7 @@ library Withdrawing {
     require(
       Validations.getFeeBasisPoints(
         withdrawal.gasFeeInPips,
-        withdrawal.quantityInPips
+        withdrawal.grossQuantityInPips
       ) <= Constants.maxWithdrawalFeeBasisPoints,
       'Excessive withdrawal fee'
     );
@@ -77,7 +77,7 @@ library Withdrawing {
     // Transfer funds from Custodian to wallet
     uint256 netAssetQuantityInAssetUnits =
       AssetUnitConversions.pipsToAssetUnits(
-        withdrawal.quantityInPips - withdrawal.gasFeeInPips,
+        withdrawal.grossQuantityInPips - withdrawal.gasFeeInPips,
         asset.decimals
       );
     custodian.withdraw(

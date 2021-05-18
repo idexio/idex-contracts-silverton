@@ -192,7 +192,7 @@ library Validations {
     validateLimitPrices(buy, sell, trade);
     (bytes32 buyHash, bytes32 sellHash) =
       validateOrderHashing(buy, sell, trade);
-    validateTradeFees(trade);
+    validateOrderBookTradeFees(trade);
 
     return (buyHash, sellHash);
   }
@@ -208,7 +208,7 @@ library Validations {
     (buyHash, sellHash) = validateOrderHashing(buy, sell, trade);
     validateAssetPair(buy, sell, trade, assetRegistry);
     validateLimitPrices(buy, sell, trade);
-    validateTradeFees(trade);
+    validateOrderBookTradeFees(trade);
 
     // Pool trade validations
     require(
@@ -375,32 +375,42 @@ library Validations {
   }
 
   function validateLimitPrice(
-    Order memory order,
+    Order memory makerOrder,
     uint64 baseAssetReserveInPips,
     uint64 quoteAssetReserveInPips
   ) internal pure {
-    if (order.side == OrderSide.Buy && isLimitOrderType(order.orderType)) {
+    if (
+      makerOrder.side == OrderSide.Buy && isLimitOrderType(makerOrder.orderType)
+    ) {
+      // Price of pool must not be better (lower) than resting buy price
       require(
         getImpliedQuoteQuantityInPips(
           baseAssetReserveInPips,
-          order.limitPriceInPips
-        ) <= quoteAssetReserveInPips,
+          makerOrder.limitPriceInPips
+        ) >= quoteAssetReserveInPips,
         'Pool marginal buy price exceeded'
       );
     }
 
-    if (order.side == OrderSide.Sell && isLimitOrderType(order.orderType)) {
+    if (
+      makerOrder.side == OrderSide.Sell &&
+      isLimitOrderType(makerOrder.orderType)
+    ) {
+      // Price of pool must not be better (higher) than resting sell price
       require(
         getImpliedQuoteQuantityInPips(
           baseAssetReserveInPips,
-          order.limitPriceInPips
-        ) >= quoteAssetReserveInPips,
+          makerOrder.limitPriceInPips
+        ) <= quoteAssetReserveInPips,
         'Pool marginal sell price exceeded'
       );
     }
   }
 
-  function validateTradeFees(OrderBookTrade memory trade) internal pure {
+  function validateOrderBookTradeFees(OrderBookTrade memory trade)
+    internal
+    pure
+  {
     uint64 makerTotalQuantityInPips =
       trade.makerFeeAssetAddress == trade.baseAssetAddress
         ? trade.grossBaseQuantityInPips

@@ -170,7 +170,7 @@ library BalanceTracking {
       assetAddress
     );
     // Reverts if balance is overdrawn
-    balance.balanceInPips -= withdrawal.quantityInPips;
+    balance.balanceInPips -= withdrawal.grossQuantityInPips;
     newExchangeBalanceInPips = balance.balanceInPips;
 
     if (withdrawal.gasFeeInPips > 0) {

@@ -16,6 +16,9 @@ library PoolTradeHelpers {
         : self.quoteAssetAddress;
   }
 
+  /**
+   * @dev Address of asset wallet is giving to pool
+   */
   function getOrderDebitAssetAddress(PoolTrade memory self, OrderSide orderSide)
     internal
     pure

@@ -86,10 +86,12 @@ contract Exchange is IExchange, Owned {
     address sellWallet,
     string baseAssetSymbol,
     string quoteAssetSymbol,
+    uint64 orderBookBaseQuantityInPips,
+    uint64 orderBookQuoteQuantityInPips,
     uint64 poolBaseQuantityInPips,
     uint64 poolQuoteQuantityInPips,
-    uint64 baseQuantityInPips,
-    uint64 quoteQuantityInPips
+    uint64 totalBaseQuantityInPips,
+    uint64 totalQuoteQuantityInPips
   );
   /**
    * @notice Emitted when a user initiates an Add Liquidity request via `addLiquidity` or
@@ -131,12 +133,9 @@ contract Exchange is IExchange, Owned {
    * @notice Emitted when the Dispatcher Wallet submits a pool trade for execution with `executePoolTrade`
    */
   event PoolTradeExecuted(
-    address buyWallet,
-    address sellWallet,
+    address wallet,
     string baseAssetSymbol,
     string quoteAssetSymbol,
-    uint64 poolBaseQuantityInPips,
-    uint64 poolQuoteQuantityInPips,
     uint64 baseQuantityInPips,
     uint64 quoteQuantityInPips
   );
@@ -639,6 +638,14 @@ contract Exchange is IExchange, Owned {
       _completedOrderHashes,
       _partiallyFilledOrderQuantitiesInPips
     );
+
+    emit PoolTradeExecuted(
+      order.walletAddress,
+      poolTrade.baseAssetSymbol,
+      poolTrade.quoteAssetSymbol,
+      poolTrade.grossBaseQuantityInPips,
+      poolTrade.grossQuoteQuantityInPips
+    );
   }
 
   function executeHybridTrade(
@@ -681,10 +688,14 @@ contract Exchange is IExchange, Owned {
       sell.walletAddress,
       orderBookTrade.baseAssetSymbol,
       orderBookTrade.quoteAssetSymbol,
+      orderBookTrade.grossBaseQuantityInPips,
+      orderBookTrade.grossQuoteQuantityInPips,
       poolTrade.grossBaseQuantityInPips,
       poolTrade.grossQuoteQuantityInPips,
-      orderBookTrade.grossBaseQuantityInPips,
-      orderBookTrade.grossQuoteQuantityInPips
+      orderBookTrade.grossBaseQuantityInPips +
+        poolTrade.grossBaseQuantityInPips,
+      orderBookTrade.grossQuoteQuantityInPips +
+        poolTrade.grossQuoteQuantityInPips
     );
   }
 
@@ -716,7 +727,7 @@ contract Exchange is IExchange, Owned {
       withdrawal.walletAddress,
       withdrawal.assetAddress,
       withdrawal.assetSymbol,
-      withdrawal.quantityInPips,
+      withdrawal.grossQuantityInPips,
       newExchangeBalanceInPips,
       newExchangeBalanceInAssetUnits
     );
