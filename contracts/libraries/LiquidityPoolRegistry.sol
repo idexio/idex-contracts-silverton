@@ -486,34 +486,35 @@ library LiquidityPoolRegistry {
         poolTrade.quoteAssetAddress
       );
 
-    /*
-    uint64 startBaseAssetReserveInPips = pool.baseAssetReserveInPips;
-    uint64 startQuoteAssetReserveInPips = pool.quoteAssetReserveInPips;
-    */
-
     uint128 initialProduct =
       uint128(pool.baseAssetReserveInPips) *
         uint128(pool.quoteAssetReserveInPips);
     uint128 updatedProduct;
 
     if (orderSide == OrderSide.Buy) {
-      pool.baseAssetReserveInPips -= poolTrade.getPoolDebitQuantity(orderSide);
-      pool.quoteAssetReserveInPips += poolTrade.getPoolCreditQuantity(
+      pool.baseAssetReserveInPips -= poolTrade.poolDebitQuantityInPips(
+        orderSide
+      );
+      pool.quoteAssetReserveInPips += poolTrade.poolCreditQuantityInPips(
         orderSide
       );
 
       updatedProduct =
         uint128(pool.baseAssetReserveInPips) *
         uint128(
-          pool.quoteAssetReserveInPips - poolTrade.getTotalInputFeeQuantity()
+          pool.quoteAssetReserveInPips - poolTrade.totalInputFeeQuantityInPips()
         );
     } else {
-      pool.baseAssetReserveInPips += poolTrade.getPoolCreditQuantity(orderSide);
-      pool.quoteAssetReserveInPips -= poolTrade.getPoolDebitQuantity(orderSide);
+      pool.baseAssetReserveInPips += poolTrade.poolCreditQuantityInPips(
+        orderSide
+      );
+      pool.quoteAssetReserveInPips -= poolTrade.poolDebitQuantityInPips(
+        orderSide
+      );
 
       updatedProduct =
         uint128(
-          pool.baseAssetReserveInPips - poolTrade.getTotalInputFeeQuantity()
+          pool.baseAssetReserveInPips - poolTrade.totalInputFeeQuantityInPips()
         ) *
         uint128(pool.quoteAssetReserveInPips);
     }
