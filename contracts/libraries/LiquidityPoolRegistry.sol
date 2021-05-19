@@ -75,6 +75,7 @@ library LiquidityPoolRegistry {
         factoryPairTokenAddress == pairTokenAddress,
         'Pair does not match factory'
       );
+      require(pairTokenAddress.totalSupply() > 0, 'No liquidity minted');
     }
 
     // Promote pool to hybrid and transfer token reserves to Exchange
@@ -117,6 +118,43 @@ library LiquidityPoolRegistry {
         asset.decimals
       );
     }
+  }
+
+  function demotePool(
+    Storage storage self,
+    address baseAssetAddress,
+    address quoteAssetAddress,
+    ICustodian custodian,
+    IWETH9 WETH
+  ) public {
+    LiquidityPool storage pool =
+      loadLiquidityPoolByAssetAddresses(
+        self,
+        baseAssetAddress,
+        quoteAssetAddress
+      );
+
+    transferPoolReserveToPair(
+      baseAssetAddress,
+      pool.baseAssetReserveInPips,
+      pool.baseAssetDecimals,
+      pool.pairTokenAddress,
+      custodian,
+      WETH
+    );
+    transferPoolReserveToPair(
+      quoteAssetAddress,
+      pool.quoteAssetReserveInPips,
+      pool.quoteAssetDecimals,
+      pool.pairTokenAddress,
+      custodian,
+      WETH
+    );
+
+    pool.pairTokenAddress.demote();
+    pool.pairTokenAddress.sync();
+
+    delete self.poolsByAddresses[baseAssetAddress][quoteAssetAddress];
   }
 
   // Add liquidity //
@@ -405,7 +443,6 @@ library LiquidityPoolRegistry {
     address baseAssetAddress,
     address quoteAssetAddress,
     ICustodian custodian,
-    AssetRegistry.Storage storage assetRegistry,
     BalanceTracking.Storage storage balanceTracking
   )
     external
@@ -429,23 +466,31 @@ library LiquidityPoolRegistry {
         Constants.pairTokenDecimals
       );
 
+    // Calculate output asset quantities
     (
-      uint64 outputBaseAssetQuantityInPips,
-      uint64 outputQuoteAssetQuantityInPips
-    ) = getOutputAssetQuantities(pool, liquidityToBurnInPips);
-    pool.baseAssetReserveInPips -= outputBaseAssetQuantityInPips;
-    pool.quoteAssetReserveInPips -= outputQuoteAssetQuantityInPips;
-
-    Asset memory asset;
-    asset = assetRegistry.loadAssetByAddress(baseAssetAddress);
-    outputBaseAssetQuantityInAssetUnits = AssetUnitConversions.pipsToAssetUnits(
-      outputBaseAssetQuantityInPips,
-      asset.decimals
+      outputBaseAssetQuantityInAssetUnits,
+      outputQuoteAssetQuantityInAssetUnits
+    ) = Validations.getOutputAssetQuantitiesInAssetUnits(
+      pool,
+      liquidityToBurnInAssetUnits
     );
 
-    asset = assetRegistry.loadAssetByAddress(quoteAssetAddress);
-    outputQuoteAssetQuantityInAssetUnits = AssetUnitConversions
-      .pipsToAssetUnits(outputQuoteAssetQuantityInPips, asset.decimals);
+    {
+      // Convert to pips
+      uint64 outputBaseAssetQuantityInPips =
+        AssetUnitConversions.assetUnitsToPips(
+          outputBaseAssetQuantityInAssetUnits,
+          pool.baseAssetDecimals
+        );
+      uint64 outputQuoteAssetQuantityInPips =
+        AssetUnitConversions.assetUnitsToPips(
+          outputQuoteAssetQuantityInAssetUnits,
+          pool.quoteAssetDecimals
+        );
+      // Remove entire amounts from pool (no fees)
+      pool.baseAssetReserveInPips -= outputBaseAssetQuantityInPips;
+      pool.quoteAssetReserveInPips -= outputQuoteAssetQuantityInPips;
+    }
 
     // Burn deposited Pair tokens
     pool.pairTokenAddress.hybridBurn(
@@ -486,34 +531,35 @@ library LiquidityPoolRegistry {
         poolTrade.quoteAssetAddress
       );
 
-    /*
-    uint64 startBaseAssetReserveInPips = pool.baseAssetReserveInPips;
-    uint64 startQuoteAssetReserveInPips = pool.quoteAssetReserveInPips;
-    */
-
     uint128 initialProduct =
       uint128(pool.baseAssetReserveInPips) *
         uint128(pool.quoteAssetReserveInPips);
     uint128 updatedProduct;
 
     if (orderSide == OrderSide.Buy) {
-      pool.baseAssetReserveInPips -= poolTrade.getPoolDebitQuantity(orderSide);
-      pool.quoteAssetReserveInPips += poolTrade.getPoolCreditQuantity(
+      pool.baseAssetReserveInPips -= poolTrade.poolDebitQuantityInPips(
+        orderSide
+      );
+      pool.quoteAssetReserveInPips += poolTrade.poolCreditQuantityInPips(
         orderSide
       );
 
       updatedProduct =
         uint128(pool.baseAssetReserveInPips) *
         uint128(
-          pool.quoteAssetReserveInPips - poolTrade.getTotalInputFeeQuantity()
+          pool.quoteAssetReserveInPips - poolTrade.totalInputFeeQuantityInPips()
         );
     } else {
-      pool.baseAssetReserveInPips += poolTrade.getPoolCreditQuantity(orderSide);
-      pool.quoteAssetReserveInPips -= poolTrade.getPoolDebitQuantity(orderSide);
+      pool.baseAssetReserveInPips += poolTrade.poolCreditQuantityInPips(
+        orderSide
+      );
+      pool.quoteAssetReserveInPips -= poolTrade.poolDebitQuantityInPips(
+        orderSide
+      );
 
       updatedProduct =
         uint128(
-          pool.baseAssetReserveInPips - poolTrade.getTotalInputFeeQuantity()
+          pool.baseAssetReserveInPips - poolTrade.totalInputFeeQuantityInPips()
         ) *
         uint128(pool.quoteAssetReserveInPips);
     }
@@ -527,37 +573,6 @@ library LiquidityPoolRegistry {
   }
 
   // Helpers //
-
-  function getOutputAssetQuantities(
-    LiquidityPool storage pool,
-    uint64 liquidityToBurnInPips
-  )
-    internal
-    view
-    returns (
-      uint64 outputBaseAssetQuantityInPips,
-      uint64 outputQuoteAssetQuantityInPips
-    )
-  {
-    // Convert total Pair token supply to pips to calculate ratios
-    uint64 totalLiquidityInPips =
-      AssetUnitConversions.assetUnitsToPips(
-        pool.pairTokenAddress.totalSupply(),
-        Constants.pairTokenDecimals
-      );
-
-    // https://github.com/Uniswap/uniswap-v2-core/blob/master/contracts/UniswapV2Pair.sol#L123
-    outputBaseAssetQuantityInPips =
-      (liquidityToBurnInPips * pool.baseAssetReserveInPips) /
-      totalLiquidityInPips;
-    outputQuoteAssetQuantityInPips =
-      (liquidityToBurnInPips * pool.quoteAssetReserveInPips) /
-      totalLiquidityInPips;
-    require(
-      outputBaseAssetQuantityInPips > 0 && outputQuoteAssetQuantityInPips > 0,
-      'Insufficient liquidity burned'
-    );
-  }
 
   function loadLiquidityPoolByAssetAddresses(
     Storage storage self,
@@ -584,6 +599,39 @@ library LiquidityPoolRegistry {
       );
     } else {
       AssetTransfers.transferTo(payable(address(custodian)), token, reserve);
+    }
+  }
+
+  function transferPoolReserveToPair(
+    address assetAddress,
+    uint64 quantityInPips,
+    uint8 decimals,
+    IIDEXPair pairTokenAddress,
+    ICustodian custodian,
+    IWETH9 WETH
+  ) private {
+    uint256 quantityInAssetUnits =
+      AssetUnitConversions.pipsToAssetUnits(quantityInPips, decimals);
+
+    // Wrap native asset
+    if (assetAddress == address(0x0)) {
+      custodian.withdraw(
+        payable(address(this)),
+        assetAddress,
+        quantityInAssetUnits
+      );
+      WETH.deposit{ value: quantityInAssetUnits }();
+      AssetTransfers.transferTo(
+        payable(address(pairTokenAddress)),
+        address(WETH),
+        quantityInAssetUnits
+      );
+    } else {
+      custodian.withdraw(
+        payable(address(pairTokenAddress)),
+        assetAddress,
+        quantityInAssetUnits
+      );
     }
   }
 }

@@ -86,6 +86,23 @@ contract.only(
       });
     });
 
+    describe('demotePool', () => {
+      it('should work', async () => {
+        const depositQuantity = '1.00000000';
+        const {
+          exchange,
+          pair,
+          token,
+        } = await deployContractsAndCreateHybridETHPool(
+          depositQuantity,
+          depositQuantity,
+          ownerWallet,
+        );
+
+        await exchange.demotePool(token.address, bnbAddress);
+      });
+    });
+
     describe('addLiquidity', () => {
       it('should work', async () => {
         const depositQuantity = '1.00000000';

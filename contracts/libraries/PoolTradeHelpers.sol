@@ -6,17 +6,24 @@ import { OrderSide } from './Enums.sol';
 import { PoolTrade } from './Structs.sol';
 
 library PoolTradeHelpers {
-  function getOrderCreditAssetAddress(
-    PoolTrade memory self,
-    OrderSide orderSide
-  ) internal pure returns (address) {
+  /**
+   * @dev Address of asset order wallet is receiving from pool
+   */
+  function orderCreditAssetAddress(PoolTrade memory self, OrderSide orderSide)
+    internal
+    pure
+    returns (address)
+  {
     return
       orderSide == OrderSide.Buy
         ? self.baseAssetAddress
         : self.quoteAssetAddress;
   }
 
-  function getOrderDebitAssetAddress(PoolTrade memory self, OrderSide orderSide)
+  /**
+   * @dev Address of asset order wallet is giving to pool
+   */
+  function orderDebitAssetAddress(PoolTrade memory self, OrderSide orderSide)
     internal
     pure
     returns (address)
@@ -27,7 +34,10 @@ library PoolTradeHelpers {
         : self.baseAssetAddress;
   }
 
-  function getOrderCreditQuantity(PoolTrade memory self, OrderSide orderSide)
+  /**
+   * @dev Quantity in pips of credit asset that order wallet is receiving from pool
+   */
+  function orderCreditQuantityInPips(PoolTrade memory self, OrderSide orderSide)
     internal
     pure
     returns (uint64)
@@ -40,7 +50,10 @@ library PoolTradeHelpers {
       ) - self.takerGasFeeQuantityInPips;
   }
 
-  function getOrderDebitQuantity(PoolTrade memory self, OrderSide orderSide)
+  /**
+   * @dev Quantity in pips of debit asset that order wallet is giving to pool
+   */
+  function orderDebitQuantityInPips(PoolTrade memory self, OrderSide orderSide)
     internal
     pure
     returns (uint64)
@@ -51,7 +64,10 @@ library PoolTradeHelpers {
         : self.grossBaseQuantityInPips;
   }
 
-  function getPoolCreditQuantity(PoolTrade memory self, OrderSide orderSide)
+  /**
+   * @dev Quantity in pips of debit asset that pool receives from order wallet
+   */
+  function poolCreditQuantityInPips(PoolTrade memory self, OrderSide orderSide)
     internal
     pure
     returns (uint64)
@@ -64,7 +80,10 @@ library PoolTradeHelpers {
       ) - self.takerPoolProtocolFeeQuantityInPips;
   }
 
-  function getPoolDebitQuantity(PoolTrade memory self, OrderSide orderSide)
+  /**
+   * @dev Quantity in pips of credit asset that pool gives to order wallet
+   */
+  function poolDebitQuantityInPips(PoolTrade memory self, OrderSide orderSide)
     internal
     pure
     returns (uint64)
@@ -77,7 +96,10 @@ library PoolTradeHelpers {
       ) + self.takerGasFeeQuantityInPips;
   }
 
-  function getTotalInputFeeQuantity(PoolTrade memory self)
+  /**
+   * @dev Fee quantity in pips on debit asset that order wallet gives to pool
+   */
+  function totalInputFeeQuantityInPips(PoolTrade memory self)
     internal
     pure
     returns (uint64)

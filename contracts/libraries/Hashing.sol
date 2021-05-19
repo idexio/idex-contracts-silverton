@@ -141,7 +141,7 @@ library Hashing {
           withdrawal.withdrawalType == WithdrawalType.BySymbol
             ? abi.encodePacked(withdrawal.assetSymbol)
             : abi.encodePacked(withdrawal.assetAddress),
-          pipToDecimal(withdrawal.quantityInPips),
+          pipToDecimal(withdrawal.grossQuantityInPips),
           withdrawal.autoDispatchEnabled
         )
       );

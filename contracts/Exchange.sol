@@ -86,10 +86,12 @@ contract Exchange is IExchange, Owned {
     address sellWallet,
     string baseAssetSymbol,
     string quoteAssetSymbol,
+    uint64 orderBookBaseQuantityInPips,
+    uint64 orderBookQuoteQuantityInPips,
     uint64 poolBaseQuantityInPips,
     uint64 poolQuoteQuantityInPips,
-    uint64 baseQuantityInPips,
-    uint64 quoteQuantityInPips
+    uint64 totalBaseQuantityInPips,
+    uint64 totalQuoteQuantityInPips
   );
   /**
    * @notice Emitted when a user initiates an Add Liquidity request via `addLiquidity` or
@@ -131,12 +133,9 @@ contract Exchange is IExchange, Owned {
    * @notice Emitted when the Dispatcher Wallet submits a pool trade for execution with `executePoolTrade`
    */
   event PoolTradeExecuted(
-    address buyWallet,
-    address sellWallet,
+    address wallet,
     string baseAssetSymbol,
     string quoteAssetSymbol,
-    uint64 poolBaseQuantityInPips,
-    uint64 poolQuoteQuantityInPips,
     uint64 baseQuantityInPips,
     uint64 quoteQuantityInPips
   );
@@ -455,7 +454,7 @@ contract Exchange is IExchange, Owned {
 
   /**
    * @notice Load the quantity filled so far for a partially filled orders
-
+   *
    * @dev Invalidating an order nonce will not clear partial fill quantities for earlier orders because
    * the gas cost would potentially be unbound
    *
@@ -474,11 +473,17 @@ contract Exchange is IExchange, Owned {
   // Depositing //
 
   /**
-   * @notice Internally used to unwrap native asset during pool promotion to hybrid mode. DO NOT
-   * send assets directly to the `Exchange`, instead use the appropriate deposit function
+   * @notice DO NOT send assets directly to the `Exchange`, instead use the appropriate deposit
+   * function
+   *
+   * @dev Internally used to unwrap and wrap native asset during pool hybrid mode promotion and
+   * demotion respectively
    */
   receive() external payable {
-    require(msg.sender == address(_WETH), 'Use depositEther');
+    require(
+      msg.sender == address(_custodian) || msg.sender == address(_WETH),
+      'Use depositEther'
+    );
   }
 
   /**
@@ -639,6 +644,14 @@ contract Exchange is IExchange, Owned {
       _completedOrderHashes,
       _partiallyFilledOrderQuantitiesInPips
     );
+
+    emit PoolTradeExecuted(
+      order.walletAddress,
+      poolTrade.baseAssetSymbol,
+      poolTrade.quoteAssetSymbol,
+      poolTrade.grossBaseQuantityInPips,
+      poolTrade.grossQuoteQuantityInPips
+    );
   }
 
   function executeHybridTrade(
@@ -681,10 +694,14 @@ contract Exchange is IExchange, Owned {
       sell.walletAddress,
       orderBookTrade.baseAssetSymbol,
       orderBookTrade.quoteAssetSymbol,
+      orderBookTrade.grossBaseQuantityInPips,
+      orderBookTrade.grossQuoteQuantityInPips,
       poolTrade.grossBaseQuantityInPips,
       poolTrade.grossQuoteQuantityInPips,
-      orderBookTrade.grossBaseQuantityInPips,
-      orderBookTrade.grossQuoteQuantityInPips
+      orderBookTrade.grossBaseQuantityInPips +
+        poolTrade.grossBaseQuantityInPips,
+      orderBookTrade.grossQuoteQuantityInPips +
+        poolTrade.grossQuoteQuantityInPips
     );
   }
 
@@ -716,7 +733,7 @@ contract Exchange is IExchange, Owned {
       withdrawal.walletAddress,
       withdrawal.assetAddress,
       withdrawal.assetSymbol,
-      withdrawal.quantityInPips,
+      withdrawal.grossQuantityInPips,
       newExchangeBalanceInPips,
       newExchangeBalanceInAssetUnits
     );
@@ -748,6 +765,18 @@ contract Exchange is IExchange, Owned {
       _pairFactoryContractAddress,
       _WETH,
       _assetRegistry
+    );
+  }
+
+  function demotePool(address baseAssetAddress, address quoteAssetAddress)
+    external
+    onlyAdmin
+  {
+    _liquidityPoolRegistry.demotePool(
+      baseAssetAddress,
+      quoteAssetAddress,
+      _custodian,
+      _WETH
     );
   }
 
@@ -986,7 +1015,6 @@ contract Exchange is IExchange, Owned {
       baseAssetAddress,
       quoteAssetAddress,
       ICustodian(_custodian),
-      _assetRegistry,
       _balanceTracking
     );
   }
@@ -1212,6 +1240,16 @@ contract Exchange is IExchange, Owned {
   modifier onlyDispatcher() {
     require(msg.sender == _dispatcherWallet, 'Caller is not dispatcher');
     _;
+  }
+
+  // Asset skimming //
+
+  /**
+   * @notice Sends tokens mistakenly sent directly to the `Exchange` to the fee wallet (the
+   * `receive` function rejects native assets except when unwrapping)
+   */
+  function skim(address tokenAddress) external onlyAdmin {
+    AssetRegistryAdmin.skim(tokenAddress, _feeWallet);
   }
 
   // Private methods - validations //

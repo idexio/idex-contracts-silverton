@@ -21,6 +21,9 @@ import {
 
 /**
  * @notice State tracking for a hybrid liquidity pool
+ *
+ * @dev Base and quote asset decimals are denormalized here to avoid extra loads from
+ * `AssetRegistry.Storage`
  */
 struct LiquidityPool {
   // Flag to distinguish from empty struct
@@ -166,7 +169,7 @@ struct OrderBookTrade {
   address takerFeeAssetAddress;
   // Fee paid by liquidity maker
   uint64 makerFeeQuantityInPips;
-  // Fee paid by liquidity taker
+  // Fee paid by liquidity taker, inclusive of gas fees
   uint64 takerFeeQuantityInPips;
   // Execution price of trade in decimal pips * 10^8 in quote terms
   uint64 priceInPips;
@@ -201,13 +204,6 @@ struct PoolTrade {
   uint64 takerGasFeeQuantityInPips;
 }
 
-struct HybridTradeExecution {
-  Order buy;
-  Order sell;
-  OrderBookTrade trade;
-  PoolTrade poolTrade;
-}
-
 /**
  * @notice Argument type for `Exchange.withdraw` and `Hashing.getWithdrawalWalletHash`
  */
@@ -223,7 +219,7 @@ struct Withdrawal {
   // Asset address
   address assetAddress; // Used when assetSymbol not specified
   // Withdrawal quantity
-  uint64 quantityInPips;
+  uint64 grossQuantityInPips;
   // Gas fee deducted from withdrawn quantity to cover dispatcher tx costs
   uint64 gasFeeInPips;
   // Not currently used but reserved for future use. Must be true

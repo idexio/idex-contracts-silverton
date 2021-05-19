@@ -4,8 +4,11 @@ pragma solidity 0.8.4;
 
 import { AssetRegistry } from './AssetRegistry.sol';
 import { BalanceTracking } from './BalanceTracking.sol';
+import { HybridTradeValidations } from './HybridTradeValidations.sol';
 import { LiquidityPoolRegistry } from './LiquidityPoolRegistry.sol';
+import { OrderBookTradeValidations } from './OrderBookTradeValidations.sol';
 import { PoolTradeHelpers } from './PoolTradeHelpers.sol';
+import { PoolTradeValidations } from './PoolTradeValidations.sol';
 import { Validations } from './Validations.sol';
 import { OrderSide, OrderType } from './Enums.sol';
 import { Order, OrderBookTrade, PoolTrade } from './Structs.sol';
@@ -27,7 +30,12 @@ library Trading {
     mapping(bytes32 => uint64) storage partiallyFilledOrderQuantitiesInPips
   ) public {
     (bytes32 buyHash, bytes32 sellHash) =
-      Validations.validateOrderBookTrade(buy, sell, trade, assetRegistry);
+      OrderBookTradeValidations.validateOrderBookTrade(
+        buy,
+        sell,
+        trade,
+        assetRegistry
+      );
 
     updateOrderFilledQuantities(
       buy,
@@ -45,7 +53,7 @@ library Trading {
   function executeHybridTrade(
     Order memory buy,
     Order memory sell,
-    OrderBookTrade memory trade,
+    OrderBookTrade memory orderBookTrade,
     PoolTrade memory poolTrade,
     address feeWallet,
     AssetRegistry.Storage storage assetRegistry,
@@ -55,34 +63,43 @@ library Trading {
     mapping(bytes32 => uint64) storage partiallyFilledOrderQuantitiesInPips
   ) public {
     (bytes32 buyHash, bytes32 sellHash) =
-      Validations.validateHybridTrade(
+      HybridTradeValidations.validateHybridTrade(
         buy,
         sell,
-        trade,
+        orderBookTrade,
         poolTrade,
         assetRegistry
       );
 
     {
       // Pool trade
-      (Order memory order, bytes32 orderHash) =
-        trade.makerSide == OrderSide.Buy ? (sell, sellHash) : (buy, buyHash);
+      (
+        Order memory makerOrder,
+        Order memory takerOrder,
+        bytes32 takerOrderHash
+      ) =
+        orderBookTrade.makerSide == OrderSide.Buy
+          ? (buy, sell, sellHash)
+          : (sell, buy, buyHash);
       updateOrderFilledQuantity(
-        order,
-        orderHash,
+        takerOrder,
+        takerOrderHash,
         poolTrade.grossBaseQuantityInPips,
         poolTrade.grossQuoteQuantityInPips,
         completedOrderHashes,
         partiallyFilledOrderQuantitiesInPips
       );
 
-      balanceTracking.updateForPoolTrade(order, poolTrade, feeWallet);
+      balanceTracking.updateForPoolTrade(takerOrder, poolTrade, feeWallet);
 
       (uint64 baseAssetReserveInPips, uint64 quoteAssetReserveInPips) =
-        liquidityPoolRegistry.updateReservesForPoolTrade(poolTrade, order.side);
+        liquidityPoolRegistry.updateReservesForPoolTrade(
+          poolTrade,
+          takerOrder.side
+        );
 
-      Validations.validateLimitPrice(
-        order,
+      HybridTradeValidations.validateLimitPrice(
+        makerOrder,
         baseAssetReserveInPips,
         quoteAssetReserveInPips
       );
@@ -95,12 +112,12 @@ library Trading {
         buyHash,
         sell,
         sellHash,
-        trade,
+        orderBookTrade,
         completedOrderHashes,
         partiallyFilledOrderQuantitiesInPips
       );
 
-      balanceTracking.updateForTrade(buy, sell, trade, feeWallet);
+      balanceTracking.updateForTrade(buy, sell, orderBookTrade, feeWallet);
     }
   }
 
@@ -115,7 +132,7 @@ library Trading {
     mapping(bytes32 => uint64) storage partiallyFilledOrderQuantitiesInPips
   ) public {
     bytes32 orderHash =
-      Validations.validatePoolTrade(order, poolTrade, assetRegistry);
+      PoolTradeValidations.validatePoolTrade(order, poolTrade, assetRegistry);
     updateOrderFilledQuantity(
       order,
       orderHash,

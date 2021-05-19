@@ -23,14 +23,6 @@ import {
 library Validations {
   using AssetRegistry for AssetRegistry.Storage;
 
-  function getFeeBasisPoints(uint64 fee, uint64 total)
-    internal
-    pure
-    returns (uint64)
-  {
-    return (fee * Constants.basisPointsInTotal) / total;
-  }
-
   function validateLiquidityAddition(
     LiquidityAddition memory addition,
     LiquidityChangeExecution memory execution,
@@ -155,359 +147,21 @@ library Validations {
       'Invalid liquidity burned'
     );
 
-    // https://github.com/Uniswap/uniswap-v2-core/blob/master/contracts/UniswapV2Pair.sol#L143
-    uint256 totalLiquidityInAssetUnits = pool.pairTokenAddress.totalSupply();
-    uint256 baseAssetReservesInAssetUnits =
-      AssetUnitConversions.pipsToAssetUnits(
-        pool.baseAssetReserveInPips,
-        pool.baseAssetDecimals
-      );
-    uint256 quoteAssetReservesInAssetUnits =
-      AssetUnitConversions.pipsToAssetUnits(
-        pool.quoteAssetReserveInPips,
-        pool.quoteAssetDecimals
-      );
+    (
+      uint256 expectedBaseAssetQuantityInAssetUnits,
+      uint256 expectedQuoteAssetQuantityInAssetUnits
+    ) = getOutputAssetQuantitiesInAssetUnits(pool, execution.liquidity);
+
     require(
       grossBaseAssetQuantityInAssetUnits ==
-        (execution.liquidity * baseAssetReservesInAssetUnits) /
-          totalLiquidityInAssetUnits,
+        expectedBaseAssetQuantityInAssetUnits,
       'Invalid base amount'
     );
     require(
       grossQuoteAssetQuantityInAssetUnits ==
-        (execution.liquidity * quoteAssetReservesInAssetUnits) /
-          totalLiquidityInAssetUnits,
+        expectedQuoteAssetQuantityInAssetUnits,
       'Invalid quote amount'
     );
-  }
-
-  function validateOrderBookTrade(
-    Order memory buy,
-    Order memory sell,
-    OrderBookTrade memory trade,
-    AssetRegistry.Storage storage assetRegistry
-  ) internal view returns (bytes32, bytes32) {
-    // Order book trade validations
-    validateAssetPair(buy, sell, trade, assetRegistry);
-    validateLimitPrices(buy, sell, trade);
-    (bytes32 buyHash, bytes32 sellHash) =
-      validateOrderHashing(buy, sell, trade);
-    validateTradeFees(trade);
-
-    return (buyHash, sellHash);
-  }
-
-  function validateHybridTrade(
-    Order memory buy,
-    Order memory sell,
-    OrderBookTrade memory trade,
-    PoolTrade memory poolTrade,
-    AssetRegistry.Storage storage assetRegistry
-  ) internal view returns (bytes32 buyHash, bytes32 sellHash) {
-    // Order book trade validations
-    (buyHash, sellHash) = validateOrderHashing(buy, sell, trade);
-    validateAssetPair(buy, sell, trade, assetRegistry);
-    validateLimitPrices(buy, sell, trade);
-    validateTradeFees(trade);
-
-    // Pool trade validations
-    require(
-      trade.baseAssetAddress == poolTrade.baseAssetAddress &&
-        trade.quoteAssetAddress == poolTrade.quoteAssetAddress,
-      'Mismatched trades'
-    );
-    Order memory order = trade.makerSide == OrderSide.Buy ? sell : buy;
-    validateLimitPrice(order, poolTrade);
-    validatePoolTradeFees(order.side, poolTrade);
-  }
-
-  function validatePoolTrade(
-    Order memory order,
-    PoolTrade memory poolTrade,
-    AssetRegistry.Storage storage assetRegistry
-  ) internal view returns (bytes32 orderHash) {
-    orderHash = validateOrderSignature(
-      order,
-      poolTrade.baseAssetSymbol,
-      poolTrade.quoteAssetSymbol
-    );
-    validateAssetPair(order, poolTrade, assetRegistry);
-    validateLimitPrice(order, poolTrade);
-    validatePoolTradeFees(order.side, poolTrade);
-  }
-
-  function validateAssetPair(
-    Order memory buy,
-    Order memory sell,
-    OrderBookTrade memory trade,
-    AssetRegistry.Storage storage assetRegistry
-  ) internal view {
-    require(
-      trade.baseAssetAddress != trade.quoteAssetAddress,
-      'Trade assets must be different'
-    );
-
-    validateAssetPair(buy, trade, assetRegistry);
-    validateAssetPair(sell, trade, assetRegistry);
-
-    // Fee asset validation
-    require(
-      (trade.makerFeeAssetAddress == trade.baseAssetAddress &&
-        trade.takerFeeAssetAddress == trade.quoteAssetAddress) ||
-        (trade.makerFeeAssetAddress == trade.quoteAssetAddress &&
-          trade.takerFeeAssetAddress == trade.baseAssetAddress),
-      'Fee asset is not in trade pair'
-    );
-    require(
-      trade.makerFeeAssetAddress != trade.takerFeeAssetAddress,
-      'Fee assets must be different'
-    );
-  }
-
-  function validateAssetPair(
-    Order memory order,
-    OrderBookTrade memory trade,
-    AssetRegistry.Storage storage assetRegistry
-  ) internal view {
-    uint64 timestampInMs = UUID.getTimestampInMsFromUuidV1(order.nonce);
-    Asset memory baseAsset =
-      assetRegistry.loadAssetBySymbol(trade.baseAssetSymbol, timestampInMs);
-    Asset memory quoteAsset =
-      assetRegistry.loadAssetBySymbol(trade.quoteAssetSymbol, timestampInMs);
-
-    require(
-      baseAsset.assetAddress == trade.baseAssetAddress &&
-        quoteAsset.assetAddress == trade.quoteAssetAddress,
-      'Order symbol address mismatch'
-    );
-  }
-
-  function validateAssetPair(
-    Order memory order,
-    PoolTrade memory poolTrade,
-    AssetRegistry.Storage storage assetRegistry
-  ) internal view {
-    require(
-      poolTrade.baseAssetAddress != poolTrade.quoteAssetAddress,
-      'Trade assets must be different'
-    );
-
-    uint64 nonce = UUID.getTimestampInMsFromUuidV1(order.nonce);
-    Asset memory baseAsset =
-      assetRegistry.loadAssetBySymbol(poolTrade.baseAssetSymbol, nonce);
-    Asset memory quoteAsset =
-      assetRegistry.loadAssetBySymbol(poolTrade.quoteAssetSymbol, nonce);
-
-    require(
-      baseAsset.assetAddress == poolTrade.baseAssetAddress &&
-        quoteAsset.assetAddress == poolTrade.quoteAssetAddress,
-      'Order symbol address mismatch'
-    );
-  }
-
-  function validateLimitPrices(
-    Order memory buy,
-    Order memory sell,
-    OrderBookTrade memory trade
-  ) internal pure {
-    require(
-      trade.grossBaseQuantityInPips > 0,
-      'Base quantity must be greater than zero'
-    );
-    require(
-      trade.grossQuoteQuantityInPips > 0,
-      'Quote quantity must be greater than zero'
-    );
-
-    if (isLimitOrderType(buy.orderType)) {
-      require(
-        getImpliedQuoteQuantityInPips(
-          trade.grossBaseQuantityInPips,
-          buy.limitPriceInPips
-        ) >= trade.grossQuoteQuantityInPips,
-        'Buy order limit price exceeded'
-      );
-    }
-
-    if (isLimitOrderType(sell.orderType)) {
-      require(
-        getImpliedQuoteQuantityInPips(
-          trade.grossBaseQuantityInPips,
-          sell.limitPriceInPips
-        ) <= trade.grossQuoteQuantityInPips,
-        'Sell order limit price exceeded'
-      );
-    }
-  }
-
-  function validateLimitPrice(Order memory order, PoolTrade memory poolTrade)
-    internal
-    pure
-  {
-    require(
-      poolTrade.grossBaseQuantityInPips > 0,
-      'Base quantity must be greater than zero'
-    );
-    require(
-      poolTrade.grossQuoteQuantityInPips > 0,
-      'Quote quantity must be greater than zero'
-    );
-
-    if (order.side == OrderSide.Buy && isLimitOrderType(order.orderType)) {
-      require(
-        getImpliedQuoteQuantityInPips(
-          poolTrade.grossBaseQuantityInPips,
-          order.limitPriceInPips
-        ) >= poolTrade.grossQuoteQuantityInPips,
-        'Buy order limit price exceeded'
-      );
-    }
-
-    if (order.side == OrderSide.Sell && isLimitOrderType(order.orderType)) {
-      require(
-        getImpliedQuoteQuantityInPips(
-          poolTrade.grossBaseQuantityInPips,
-          order.limitPriceInPips
-        ) <= poolTrade.grossQuoteQuantityInPips,
-        'Sell order limit price exceeded'
-      );
-    }
-  }
-
-  function validateLimitPrice(
-    Order memory order,
-    uint64 baseAssetReserveInPips,
-    uint64 quoteAssetReserveInPips
-  ) internal pure {
-    if (order.side == OrderSide.Buy && isLimitOrderType(order.orderType)) {
-      require(
-        getImpliedQuoteQuantityInPips(
-          baseAssetReserveInPips,
-          order.limitPriceInPips
-        ) <= quoteAssetReserveInPips,
-        'Pool marginal buy price exceeded'
-      );
-    }
-
-    if (order.side == OrderSide.Sell && isLimitOrderType(order.orderType)) {
-      require(
-        getImpliedQuoteQuantityInPips(
-          baseAssetReserveInPips,
-          order.limitPriceInPips
-        ) >= quoteAssetReserveInPips,
-        'Pool marginal sell price exceeded'
-      );
-    }
-  }
-
-  function validateTradeFees(OrderBookTrade memory trade) internal pure {
-    uint64 makerTotalQuantityInPips =
-      trade.makerFeeAssetAddress == trade.baseAssetAddress
-        ? trade.grossBaseQuantityInPips
-        : trade.grossQuoteQuantityInPips;
-    require(
-      getFeeBasisPoints(
-        trade.makerFeeQuantityInPips,
-        makerTotalQuantityInPips
-      ) <= Constants.maxTradeFeeBasisPoints,
-      'Excessive maker fee'
-    );
-
-    uint64 takerTotalQuantityInPips =
-      trade.takerFeeAssetAddress == trade.baseAssetAddress
-        ? trade.grossBaseQuantityInPips
-        : trade.grossQuoteQuantityInPips;
-    require(
-      getFeeBasisPoints(
-        trade.takerFeeQuantityInPips,
-        takerTotalQuantityInPips
-      ) <= Constants.maxTradeFeeBasisPoints,
-      'Excessive taker fee'
-    );
-
-    require(
-      trade.netBaseQuantityInPips +
-        (
-          trade.makerFeeAssetAddress == trade.baseAssetAddress
-            ? trade.makerFeeQuantityInPips
-            : trade.takerFeeQuantityInPips
-        ) ==
-        trade.grossBaseQuantityInPips,
-      'Net base plus fee is not equal to gross'
-    );
-    require(
-      trade.netQuoteQuantityInPips +
-        (
-          trade.makerFeeAssetAddress == trade.quoteAssetAddress
-            ? trade.makerFeeQuantityInPips
-            : trade.takerFeeQuantityInPips
-        ) ==
-        trade.grossQuoteQuantityInPips,
-      'Net quote plus fee is not equal to gross'
-    );
-  }
-
-  function validatePoolTradeFees(
-    OrderSide orderSide,
-    PoolTrade memory poolTrade
-  ) internal pure {
-    require(
-      getFeeBasisPoints(
-        (poolTrade.grossBaseQuantityInPips - poolTrade.netBaseQuantityInPips),
-        poolTrade.grossBaseQuantityInPips
-      ) <= Constants.maxTradeFeeBasisPoints,
-      'Excessive base fee'
-    );
-    require(
-      getFeeBasisPoints(
-        (poolTrade.grossQuoteQuantityInPips - poolTrade.netQuoteQuantityInPips),
-        poolTrade.grossQuoteQuantityInPips
-      ) <= Constants.maxTradeFeeBasisPoints,
-      'Excessive quote fee'
-    );
-
-    // The received quantity is determined by the pool's constant product formula and enforced in
-    // `LiquidityPoolRegistry.updateReservesForPoolTrade`
-    if (orderSide == OrderSide.Buy) {
-      // Buy order sends quote as pool input, receives base as pool output
-      require(
-        poolTrade.netQuoteQuantityInPips +
-          poolTrade.takerPoolFeeQuantityInPips +
-          poolTrade.takerPoolProtocolFeeQuantityInPips ==
-          poolTrade.grossQuoteQuantityInPips,
-        'Net plus fee not equal to gross'
-      );
-    } else {
-      // Sell order sends base as pool input, receives quote as pool output
-      require(
-        poolTrade.netBaseQuantityInPips +
-          poolTrade.takerPoolFeeQuantityInPips +
-          poolTrade.takerPoolProtocolFeeQuantityInPips ==
-          poolTrade.grossBaseQuantityInPips,
-        'Net plus fee not equal to gross'
-      );
-    }
-  }
-
-  function validateOrderHashing(
-    Order memory buy,
-    Order memory sell,
-    OrderBookTrade memory trade
-  ) internal pure returns (bytes32, bytes32) {
-    bytes32 buyOrderHash =
-      validateOrderSignature(
-        buy,
-        trade.baseAssetSymbol,
-        trade.quoteAssetSymbol
-      );
-    bytes32 sellOrderHash =
-      validateOrderSignature(
-        sell,
-        trade.baseAssetSymbol,
-        trade.quoteAssetSymbol
-      );
-
-    return (buyOrderHash, sellOrderHash);
   }
 
   function validateOrderSignature(
@@ -553,6 +207,14 @@ library Validations {
 
   // Utils //
 
+  function getFeeBasisPoints(uint64 fee, uint64 total)
+    internal
+    pure
+    returns (uint64)
+  {
+    return (fee * Constants.basisPointsInTotal) / total;
+  }
+
   function getFeeBasisPoints256(uint256 fee, uint256 total)
     private
     pure
@@ -564,7 +226,7 @@ library Validations {
   function getImpliedQuoteQuantityInPips(
     uint64 baseQuantityInPips,
     uint64 limitPriceInPips
-  ) private pure returns (uint64) {
+  ) internal pure returns (uint64) {
     // To convert a fractional price to integer pips, shift right by the pip precision of 8 decimals
     uint256 pipsMultiplier = 10**8;
 
@@ -579,7 +241,44 @@ library Validations {
     return uint64(impliedQuoteQuantityInPips);
   }
 
-  function isLimitOrderType(OrderType orderType) private pure returns (bool) {
+  function getOutputAssetQuantitiesInAssetUnits(
+    LiquidityPool memory pool,
+    uint256 liquidityToBurnInAssetUnits
+  )
+    internal
+    view
+    returns (
+      uint256 outputBaseAssetQuantityInAssetUnits,
+      uint256 outputQuoteAssetQuantityInAssetUnits
+    )
+  {
+    // Convert total Pair token supply to pips to calculate ratios
+    uint256 totalLiquidityInAssetUnits = pool.pairTokenAddress.totalSupply();
+
+    // https://github.com/idexio/idex-swap-core/blob/master/contracts/IDEXPair.sol#L200
+    outputBaseAssetQuantityInAssetUnits =
+      (liquidityToBurnInAssetUnits *
+        AssetUnitConversions.pipsToAssetUnits(
+          pool.baseAssetReserveInPips,
+          pool.baseAssetDecimals
+        )) /
+      totalLiquidityInAssetUnits;
+    outputQuoteAssetQuantityInAssetUnits =
+      (liquidityToBurnInAssetUnits *
+        AssetUnitConversions.pipsToAssetUnits(
+          pool.quoteAssetReserveInPips,
+          pool.baseAssetDecimals
+        )) /
+      totalLiquidityInAssetUnits;
+
+    require(
+      outputBaseAssetQuantityInAssetUnits > 0 &&
+        outputQuoteAssetQuantityInAssetUnits > 0,
+      'Insufficient liquidity'
+    );
+  }
+
+  function isLimitOrderType(OrderType orderType) internal pure returns (bool) {
     return
       orderType == OrderType.Limit ||
       orderType == OrderType.LimitMaker ||
