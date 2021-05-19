@@ -147,28 +147,19 @@ library Validations {
       'Invalid liquidity burned'
     );
 
-    // https://github.com/Uniswap/uniswap-v2-core/blob/master/contracts/UniswapV2Pair.sol#L143
-    uint256 totalLiquidityInAssetUnits = pool.pairTokenAddress.totalSupply();
-    uint256 baseAssetReservesInAssetUnits =
-      AssetUnitConversions.pipsToAssetUnits(
-        pool.baseAssetReserveInPips,
-        pool.baseAssetDecimals
-      );
-    uint256 quoteAssetReservesInAssetUnits =
-      AssetUnitConversions.pipsToAssetUnits(
-        pool.quoteAssetReserveInPips,
-        pool.quoteAssetDecimals
-      );
+    (
+      uint256 expectedBaseAssetQuantityInAssetUnits,
+      uint256 expectedQuoteAssetQuantityInAssetUnits
+    ) = getOutputAssetQuantitiesInAssetUnits(pool, execution.liquidity);
+
     require(
       grossBaseAssetQuantityInAssetUnits ==
-        (execution.liquidity * baseAssetReservesInAssetUnits) /
-          totalLiquidityInAssetUnits,
+        expectedBaseAssetQuantityInAssetUnits,
       'Invalid base amount'
     );
     require(
       grossQuoteAssetQuantityInAssetUnits ==
-        (execution.liquidity * quoteAssetReservesInAssetUnits) /
-          totalLiquidityInAssetUnits,
+        expectedQuoteAssetQuantityInAssetUnits,
       'Invalid quote amount'
     );
   }
@@ -248,6 +239,43 @@ library Validations {
     );
 
     return uint64(impliedQuoteQuantityInPips);
+  }
+
+  function getOutputAssetQuantitiesInAssetUnits(
+    LiquidityPool memory pool,
+    uint256 liquidityToBurnInAssetUnits
+  )
+    internal
+    view
+    returns (
+      uint256 outputBaseAssetQuantityInAssetUnits,
+      uint256 outputQuoteAssetQuantityInAssetUnits
+    )
+  {
+    // Convert total Pair token supply to pips to calculate ratios
+    uint256 totalLiquidityInAssetUnits = pool.pairTokenAddress.totalSupply();
+
+    // https://github.com/idexio/idex-swap-core/blob/master/contracts/IDEXPair.sol#L200
+    outputBaseAssetQuantityInAssetUnits =
+      (liquidityToBurnInAssetUnits *
+        AssetUnitConversions.pipsToAssetUnits(
+          pool.baseAssetReserveInPips,
+          pool.baseAssetDecimals
+        )) /
+      totalLiquidityInAssetUnits;
+    outputQuoteAssetQuantityInAssetUnits =
+      (liquidityToBurnInAssetUnits *
+        AssetUnitConversions.pipsToAssetUnits(
+          pool.quoteAssetReserveInPips,
+          pool.baseAssetDecimals
+        )) /
+      totalLiquidityInAssetUnits;
+
+    require(
+      outputBaseAssetQuantityInAssetUnits > 0 &&
+        outputQuoteAssetQuantityInAssetUnits > 0,
+      'Insufficient liquidity'
+    );
   }
 
   function isLimitOrderType(OrderType orderType) internal pure returns (bool) {

@@ -3,8 +3,9 @@
 pragma solidity 0.8.4;
 
 import { Address } from '@openzeppelin/contracts/utils/Address.sol';
-import { AssetRegistry } from './AssetRegistry.sol';
 
+import { AssetRegistry } from './AssetRegistry.sol';
+import { AssetTransfers } from './AssetTransfers.sol';
 import { Asset } from './Structs.sol';
 import { IERC20 } from './Interfaces.sol';
 
@@ -79,5 +80,12 @@ library AssetRegistryAdmin {
     asset.confirmedTimestampInMs = uint64(block.timestamp * msInOneSecond);
 
     self.assetsBySymbol[symbol].push(asset);
+  }
+
+  function skim(address tokenAddress, address feeWallet) external {
+    require(Address.isContract(tokenAddress), 'Invalid token address');
+
+    uint256 balance = IERC20(tokenAddress).balanceOf(address(this));
+    AssetTransfers.transferTo(payable(feeWallet), tokenAddress, balance);
   }
 }

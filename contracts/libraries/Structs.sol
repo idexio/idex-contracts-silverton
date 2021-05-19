@@ -21,6 +21,9 @@ import {
 
 /**
  * @notice State tracking for a hybrid liquidity pool
+ *
+ * @dev Base and quote asset decimals are denormalized here to avoid extra loads from
+ * `AssetRegistry.Storage`
  */
 struct LiquidityPool {
   // Flag to distinguish from empty struct

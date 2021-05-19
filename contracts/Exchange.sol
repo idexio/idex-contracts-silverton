@@ -454,7 +454,7 @@ contract Exchange is IExchange, Owned {
 
   /**
    * @notice Load the quantity filled so far for a partially filled orders
-
+   *
    * @dev Invalidating an order nonce will not clear partial fill quantities for earlier orders because
    * the gas cost would potentially be unbound
    *
@@ -473,11 +473,17 @@ contract Exchange is IExchange, Owned {
   // Depositing //
 
   /**
-   * @notice Internally used to unwrap native asset during pool promotion to hybrid mode. DO NOT
-   * send assets directly to the `Exchange`, instead use the appropriate deposit function
+   * @notice DO NOT send assets directly to the `Exchange`, instead use the appropriate deposit
+   * function
+   *
+   * @dev Internally used to unwrap and wrap native asset during pool hybrid mode promotion and
+   * demotion respectively
    */
   receive() external payable {
-    require(msg.sender == address(_WETH), 'Use depositEther');
+    require(
+      msg.sender == address(_custodian) || msg.sender == address(_WETH),
+      'Use depositEther'
+    );
   }
 
   /**
@@ -762,6 +768,18 @@ contract Exchange is IExchange, Owned {
     );
   }
 
+  function demotePool(address baseAssetAddress, address quoteAssetAddress)
+    external
+    onlyAdmin
+  {
+    _liquidityPoolRegistry.demotePool(
+      baseAssetAddress,
+      quoteAssetAddress,
+      _custodian,
+      _WETH
+    );
+  }
+
   /**
    * @notice Adds liquidity to a BEP-20⇄BEP-20 pool
    *
@@ -997,7 +1015,6 @@ contract Exchange is IExchange, Owned {
       baseAssetAddress,
       quoteAssetAddress,
       ICustodian(_custodian),
-      _assetRegistry,
       _balanceTracking
     );
   }
@@ -1223,6 +1240,16 @@ contract Exchange is IExchange, Owned {
   modifier onlyDispatcher() {
     require(msg.sender == _dispatcherWallet, 'Caller is not dispatcher');
     _;
+  }
+
+  // Asset skimming //
+
+  /**
+   * @notice Sends tokens mistakenly sent directly to the `Exchange` to the fee wallet (the
+   * `receive` function rejects native assets except when unwrapping)
+   */
+  function skim(address tokenAddress) external onlyAdmin {
+    AssetRegistryAdmin.skim(tokenAddress, _feeWallet);
   }
 
   // Private methods - validations //

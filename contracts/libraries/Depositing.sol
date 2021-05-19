@@ -20,6 +20,9 @@ library Depositing {
   using AssetRegistry for AssetRegistry.Storage;
   using BalanceTracking for BalanceTracking.Storage;
 
+  /**
+   * @dev delegatecall entry point for `Exchange` when depositing native or token assets
+   */
   function deposit(
     address wallet,
     Asset memory asset,
