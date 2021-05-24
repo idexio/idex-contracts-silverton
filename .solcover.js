@@ -7,5 +7,8 @@ function compileCompleteHandler(config) {
 }
 
 module.exports = {
+  mocha: {
+    enableTimeouts: false,
+  },
   onCompileComplete: compileCompleteHandler,
 };

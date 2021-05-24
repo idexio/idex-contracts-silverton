@@ -35,7 +35,7 @@ library PoolTradeHelpers {
   }
 
   /**
-   * @dev Quantity in pips of credit asset that order wallet is receiving from pool
+   * @dev Quantity in pips of asset that order wallet is receiving from pool
    */
   function orderCreditQuantityInPips(PoolTrade memory self, OrderSide orderSide)
     internal
@@ -43,15 +43,13 @@ library PoolTradeHelpers {
     returns (uint64)
   {
     return
-      (
-        orderSide == OrderSide.Buy
-          ? self.netBaseQuantityInPips
-          : self.netQuoteQuantityInPips
-      ) - self.takerGasFeeQuantityInPips;
+      orderSide == OrderSide.Buy
+        ? self.netBaseQuantityInPips
+        : self.netQuoteQuantityInPips;
   }
 
   /**
-   * @dev Quantity in pips of debit asset that order wallet is giving to pool
+   * @dev Quantity in pips of asset that order wallet is giving to pool
    */
   function orderDebitQuantityInPips(PoolTrade memory self, OrderSide orderSide)
     internal
@@ -65,7 +63,7 @@ library PoolTradeHelpers {
   }
 
   /**
-   * @dev Quantity in pips of debit asset that pool receives from order wallet
+   * @dev Quantity in pips of asset that pool receives from order wallet
    */
   function poolCreditQuantityInPips(PoolTrade memory self, OrderSide orderSide)
     internal
@@ -75,9 +73,9 @@ library PoolTradeHelpers {
     return
       (
         orderSide == OrderSide.Buy
-          ? self.grossQuoteQuantityInPips // Pool receives gross quote asset minus protocol fee
-          : self.grossBaseQuantityInPips // Pool receives gross base asset minus protocol fee
-      ) - self.takerPoolProtocolFeeQuantityInPips;
+          ? self.netQuoteQuantityInPips
+          : self.netBaseQuantityInPips
+      ) + self.takerPoolFeeQuantityInPips;
   }
 
   /**
@@ -97,7 +95,7 @@ library PoolTradeHelpers {
   }
 
   /**
-   * @dev Fee quantity in pips on debit asset that order wallet gives to pool
+   * @dev Fee quantity in pips on asset that order wallet sends to pool
    */
   function totalInputFeeQuantityInPips(PoolTrade memory self)
     internal

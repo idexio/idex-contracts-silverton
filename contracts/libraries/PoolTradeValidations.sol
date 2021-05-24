@@ -46,8 +46,8 @@ library PoolTradeValidations {
       'Excessive quote fee'
     );
 
-    // The received quantity is determined by the pool's constant product formula and enforced in
-    // `LiquidityPoolRegistry.updateReservesForPoolTrade`
+    // The quantity received by the wallet is determined by the pool's constant product formula
+    // and enforced in `LiquidityPoolRegistry.updateReservesForPoolTrade`
     if (orderSide == OrderSide.Buy) {
       // Buy order sends quote as pool input, receives base as pool output
       require(

@@ -104,7 +104,7 @@ contract.only(
     });
 
     describe('addLiquidity', () => {
-      it('should work', async () => {
+      it('should work with no fees', async () => {
         const depositQuantity = '1.00000000';
         const {
           exchange,
@@ -147,10 +147,55 @@ contract.only(
           decimalToAssetUnits(depositQuantity, 18),
         );
       });
+
+      it('should work with fees', async () => {
+        const depositQuantity = '1.00000000';
+        const {
+          exchange,
+          pair,
+          token0,
+          token1,
+        } = await deployContractsAndCreateHybridPool(
+          depositQuantity,
+          depositQuantity,
+          ownerWallet,
+        );
+        await exchange.setDispatcher(ownerWallet);
+
+        const { execution } = await addLiquidityAndExecute(
+          depositQuantity,
+          ownerWallet,
+          exchange,
+          token0,
+          token1,
+          true,
+        );
+
+        const transferEvents = await pair.getPastEvents('Transfer', {
+          fromBlock: 0,
+        });
+        expect(transferEvents).to.be.an('array');
+        expect(transferEvents.length).to.equal(3);
+        expect(transferEvents[2].returnValues.value).to.equal(
+          execution.liquidity,
+        );
+
+        const mintEvents = await pair.getPastEvents('Mint', {
+          fromBlock: 0,
+        });
+        expect(mintEvents).to.be.an('array');
+        expect(mintEvents.length).to.equal(2);
+        expect(mintEvents[1].returnValues.amount0).to.equal(
+          execution.liquidity,
+        );
+        expect(mintEvents[1].returnValues.amount1).to.equal(
+          execution.liquidity,
+        );
+      });
     });
 
     describe('addLiquidityETH', () => {
-      it('should work', async () => {
+      it('should work with no fees', async () => {
         const depositQuantity = '1.00000000';
         const {
           exchange,
@@ -191,10 +236,85 @@ contract.only(
           decimalToAssetUnits(depositQuantity, 18),
         );
       });
+
+      it('should work with fees', async () => {
+        const depositQuantity = '1.00000000';
+        const {
+          exchange,
+          pair,
+          token,
+        } = await deployContractsAndCreateHybridETHPool(
+          depositQuantity,
+          depositQuantity,
+          ownerWallet,
+        );
+        await exchange.setDispatcher(ownerWallet);
+
+        const { execution } = await addLiquidityETHAndExecute(
+          depositQuantity,
+          ownerWallet,
+          exchange,
+          token,
+          true,
+        );
+
+        const transferEvents = await pair.getPastEvents('Transfer', {
+          fromBlock: 0,
+        });
+        expect(transferEvents).to.be.an('array');
+        expect(transferEvents.length).to.equal(3);
+        expect(transferEvents[2].returnValues.value).to.equal(
+          execution.liquidity,
+        );
+
+        const mintEvents = await pair.getPastEvents('Mint', {
+          fromBlock: 0,
+        });
+        expect(mintEvents).to.be.an('array');
+        expect(mintEvents.length).to.equal(2);
+        expect(mintEvents[1].returnValues.amount0).to.equal(
+          execution.liquidity,
+        );
+        expect(mintEvents[1].returnValues.amount1).to.equal(
+          execution.liquidity,
+        );
+      });
+
+      it('should credit balances when to is Custodian', async () => {
+        const depositQuantity = '1.00000000';
+        const {
+          custodian,
+          exchange,
+          pair,
+          token,
+        } = await deployContractsAndCreateHybridETHPool(
+          depositQuantity,
+          depositQuantity,
+          ownerWallet,
+        );
+        await exchange.setDispatcher(ownerWallet);
+
+        await addLiquidityETHAndExecute(
+          depositQuantity,
+          ownerWallet,
+          exchange,
+          token,
+          false,
+          custodian.address,
+        );
+
+        const lpBalance = await exchange.loadBalanceInAssetUnitsByAddress(
+          ownerWallet,
+          pair.address,
+        );
+        expect(lpBalance.toString()).to.equal(
+          decimalToAssetUnits(depositQuantity, 18),
+        );
+      });
     });
 
     describe('removeLiquidity', () => {
-      it('should work', async () => {
+      it('should work with no fees', async () => {
         const depositQuantity = '1.00000000';
         const {
           exchange,
@@ -236,10 +356,50 @@ contract.only(
           decimalToAssetUnits(depositQuantity, 18),
         );
       });
+
+      it('should work with fees', async () => {
+        const depositQuantity = '1.00000000';
+        const {
+          exchange,
+          pair,
+          token0,
+          token1,
+        } = await deployContractsAndCreateHybridPool(
+          depositQuantity,
+          depositQuantity,
+          ownerWallet,
+        );
+        await exchange.setDispatcher(ownerWallet);
+        await addLiquidityAndExecute(
+          depositQuantity,
+          ownerWallet,
+          exchange,
+          token0,
+          token1,
+        );
+
+        const { execution } = await removeLiquidityAndExecute(
+          depositQuantity,
+          ownerWallet,
+          exchange,
+          pair,
+          token0,
+          token1,
+          true,
+        );
+
+        const burnEvents = await pair.getPastEvents('Burn', {
+          fromBlock: 0,
+        });
+        expect(burnEvents).to.be.an('array');
+        expect(burnEvents.length).to.equal(1);
+        expect(burnEvents[0].returnValues.amount0).to.equal(execution.amountA);
+        expect(burnEvents[0].returnValues.amount1).to.equal(execution.amountB);
+      });
     });
 
     describe('removeLiquidityETH', () => {
-      it('should work', async () => {
+      it('should work with no fees', async () => {
         const depositQuantity = '1.00000000';
         const {
           exchange,
@@ -277,6 +437,43 @@ contract.only(
         expect(burnEvents[0].returnValues.amount1).to.equal(
           decimalToAssetUnits(depositQuantity, 18),
         );
+      });
+
+      it('should work with fees', async () => {
+        const depositQuantity = '1.00000000';
+        const {
+          exchange,
+          pair,
+          token,
+        } = await deployContractsAndCreateHybridETHPool(
+          depositQuantity,
+          depositQuantity,
+          ownerWallet,
+        );
+        await exchange.setDispatcher(ownerWallet);
+        await addLiquidityETHAndExecute(
+          depositQuantity,
+          ownerWallet,
+          exchange,
+          token,
+        );
+
+        const { execution } = await removeLiquidityETHAndExecute(
+          depositQuantity,
+          ownerWallet,
+          exchange,
+          pair,
+          token,
+          true,
+        );
+
+        const burnEvents = await pair.getPastEvents('Burn', {
+          fromBlock: 0,
+        });
+        expect(burnEvents).to.be.an('array');
+        expect(burnEvents.length).to.equal(1);
+        expect(burnEvents[0].returnValues.amount0).to.equal(execution.amountA);
+        expect(burnEvents[0].returnValues.amount1).to.equal(execution.amountB);
       });
     });
 
@@ -331,7 +528,7 @@ contract.only(
     });
 
     describe('executePoolTrade', () => {
-      it('should work', async () => {
+      it('should work with no fees', async () => {
         const initialBaseReserve = '10000.00000000';
         const initialQuoteReserve = '10.00000000';
 
@@ -352,6 +549,43 @@ contract.only(
         );
         poolTrade.netQuoteQuantity = '1.00000000';
         poolTrade.grossQuoteQuantity = '1.00000000';
+        const buySignature = await getSignature(
+          web3,
+          getOrderHash(buyOrder),
+          buyWallet,
+        );
+
+        // https://github.com/microsoft/TypeScript/issues/28486
+        await (exchange.executePoolTrade as any)(
+          ...getPoolTradeArguments(buyOrder, buySignature, poolTrade),
+        );
+      });
+
+      it('should work with fees', async () => {
+        const initialBaseReserve = '10000.00000000';
+        const initialQuoteReserve = '10.00000000';
+
+        const { exchange, token } = await deployContractsAndCreateHybridETHPool(
+          initialBaseReserve,
+          initialQuoteReserve,
+          ownerWallet,
+        );
+        await exchange.setDispatcher(ownerWallet);
+
+        await deposit(exchange, token, buyWallet, '0.00000000', '1.00000000');
+        const { buyOrder, poolTrade } = await generateOrderAndPoolTrade(
+          token.address,
+          bnbAddress,
+          buyWallet,
+          '909.09090909',
+          '0.00121000',
+        );
+        poolTrade.takerPoolFeeQuantityInPips;
+        poolTrade.netQuoteQuantity = '0.99800000'; // No protocol fee
+        poolTrade.grossQuoteQuantity = '1.00000000';
+        poolTrade.netBaseQuantity = '907.4277159';
+        poolTrade.takerPoolFeeQuantityInPips = '0.00200000';
+        poolTrade.takerGasFeeQuantityInPips = '0.01000000';
         const buySignature = await getSignature(
           web3,
           getOrderHash(buyOrder),
@@ -554,8 +788,11 @@ async function addLiquidityAndExecute(
   exchange: ExchangeInstance,
   token0: TestTokenInstance,
   token1: TestTokenInstance,
+  includeFee = false,
   decimals = 18,
-) {
+): Promise<{
+  execution: ExchangeInstance['executeAddLiquidity']['arguments'][1];
+}> {
   const depositQuantityInAssetUnits = decimalToAssetUnits(
     depositQuantity,
     decimals,
@@ -580,6 +817,24 @@ async function addLiquidityAndExecute(
     deadline,
   );
 
+  const feeAmount = includeFee
+    ? new BigNumber(depositQuantityInAssetUnits)
+        .multipliedBy(new BigNumber('0.02'))
+        .toFixed(0)
+    : '0';
+  const liquidity = new BigNumber(depositQuantityInAssetUnits)
+    .minus(new BigNumber(feeAmount))
+    .toFixed(0);
+  const execution = {
+    liquidity,
+    amountA: depositQuantityInAssetUnits,
+    amountB: depositQuantityInAssetUnits,
+    feeAmountA: feeAmount,
+    feeAmountB: feeAmount,
+    baseAssetAddress: token0.address,
+    quoteAssetAddress: token1.address,
+  };
+
   await exchange.executeAddLiquidity(
     {
       signatureHashVersion: 2,
@@ -596,17 +851,11 @@ async function addLiquidityAndExecute(
       deadline,
       signature: '0x',
     },
-    {
-      liquidity: depositQuantityInAssetUnits,
-      amountA: depositQuantityInAssetUnits,
-      amountB: depositQuantityInAssetUnits,
-      feeAmountA: '0',
-      feeAmountB: '0',
-      baseAssetAddress: token0.address,
-      quoteAssetAddress: token1.address,
-    },
+    execution,
     { from: ownerWallet },
   );
+
+  return { execution };
 }
 
 async function addLiquidityETHAndExecute(
@@ -614,8 +863,12 @@ async function addLiquidityETHAndExecute(
   ownerWallet: string,
   exchange: ExchangeInstance,
   token: TestTokenInstance,
+  includeFee = false,
+  to = ownerWallet,
   decimals = 18,
-) {
+): Promise<{
+  execution: ExchangeInstance['executeAddLiquidity']['arguments'][1];
+}> {
   const depositQuantityInAssetUnits = decimalToAssetUnits(
     depositQuantity,
     decimals,
@@ -631,10 +884,28 @@ async function addLiquidityETHAndExecute(
     depositQuantityInAssetUnits,
     depositQuantityInAssetUnits,
     depositQuantityInAssetUnits,
-    ownerWallet,
+    to,
     deadline,
     { value: depositQuantityInAssetUnits },
   );
+
+  const feeAmount = includeFee
+    ? new BigNumber(depositQuantityInAssetUnits)
+        .multipliedBy(new BigNumber('0.02'))
+        .toFixed(0)
+    : '0';
+  const liquidity = new BigNumber(depositQuantityInAssetUnits)
+    .minus(new BigNumber(feeAmount))
+    .toFixed(0);
+  const execution = {
+    liquidity,
+    amountA: depositQuantityInAssetUnits,
+    amountB: depositQuantityInAssetUnits,
+    feeAmountA: feeAmount,
+    feeAmountB: feeAmount,
+    baseAssetAddress: token.address,
+    quoteAssetAddress: bnbAddress,
+  };
 
   await exchange.executeAddLiquidity(
     {
@@ -648,21 +919,15 @@ async function addLiquidityETHAndExecute(
       amountBDesired: depositQuantityInAssetUnits,
       amountAMin: depositQuantityInAssetUnits,
       amountBMin: depositQuantityInAssetUnits,
-      to: ownerWallet,
+      to,
       deadline,
       signature: '0x',
     },
-    {
-      liquidity: depositQuantityInAssetUnits,
-      amountA: depositQuantityInAssetUnits,
-      amountB: depositQuantityInAssetUnits,
-      feeAmountA: '0',
-      feeAmountB: '0',
-      baseAssetAddress: token.address,
-      quoteAssetAddress: bnbAddress,
-    },
+    execution,
     { from: ownerWallet },
   );
+
+  return { execution };
 }
 
 async function removeLiquidityAndExecute(
@@ -672,8 +937,11 @@ async function removeLiquidityAndExecute(
   pair: IIDEXPairInstance,
   token0: TestTokenInstance,
   token1: TestTokenInstance,
+  includeFee = false,
   decimals = 18,
-) {
+): Promise<{
+  execution: ExchangeInstance['executeRemoveLiquidity']['arguments'][1];
+}> {
   const depositQuantityInAssetUnits = decimalToAssetUnits(
     depositQuantity,
     decimals,
@@ -693,6 +961,21 @@ async function removeLiquidityAndExecute(
     deadline,
   );
 
+  const feeAmount = includeFee
+    ? new BigNumber(depositQuantityInAssetUnits)
+        .multipliedBy(new BigNumber('0.02'))
+        .toFixed(0)
+    : '0';
+  const execution = {
+    liquidity: depositQuantityInAssetUnits,
+    amountA: depositQuantityInAssetUnits,
+    amountB: depositQuantityInAssetUnits,
+    feeAmountA: feeAmount,
+    feeAmountB: feeAmount,
+    baseAssetAddress: token0.address,
+    quoteAssetAddress: token1.address,
+  };
+
   await exchange.executeRemoveLiquidity(
     {
       signatureHashVersion: 2,
@@ -708,17 +991,11 @@ async function removeLiquidityAndExecute(
       deadline,
       signature: '0x',
     },
-    {
-      liquidity: depositQuantityInAssetUnits,
-      amountA: depositQuantityInAssetUnits,
-      amountB: depositQuantityInAssetUnits,
-      feeAmountA: '0',
-      feeAmountB: '0',
-      baseAssetAddress: token0.address,
-      quoteAssetAddress: token1.address,
-    },
+    execution,
     { from: ownerWallet },
   );
+
+  return { execution };
 }
 
 async function removeLiquidityETHAndExecute(
@@ -727,8 +1004,11 @@ async function removeLiquidityETHAndExecute(
   exchange: ExchangeInstance,
   pair: IIDEXPairInstance,
   token: TestTokenInstance,
+  includeFee = false,
   decimals = 18,
-) {
+): Promise<{
+  execution: ExchangeInstance['executeRemoveLiquidity']['arguments'][1];
+}> {
   const depositQuantityInAssetUnits = decimalToAssetUnits(
     depositQuantity,
     decimals,
@@ -747,6 +1027,21 @@ async function removeLiquidityETHAndExecute(
     deadline,
   );
 
+  const feeAmount = includeFee
+    ? new BigNumber(depositQuantityInAssetUnits)
+        .multipliedBy(new BigNumber('0.02'))
+        .toFixed(0)
+    : '0';
+  const execution = {
+    liquidity: depositQuantityInAssetUnits,
+    amountA: depositQuantityInAssetUnits,
+    amountB: depositQuantityInAssetUnits,
+    feeAmountA: feeAmount,
+    feeAmountB: feeAmount,
+    baseAssetAddress: token.address,
+    quoteAssetAddress: bnbAddress,
+  };
+
   await exchange.executeRemoveLiquidity(
     {
       signatureHashVersion: 2,
@@ -762,17 +1057,11 @@ async function removeLiquidityETHAndExecute(
       deadline,
       signature: '0x',
     },
-    {
-      liquidity: depositQuantityInAssetUnits,
-      amountA: depositQuantityInAssetUnits,
-      amountB: depositQuantityInAssetUnits,
-      feeAmountA: '0',
-      feeAmountB: '0',
-      baseAssetAddress: token.address,
-      quoteAssetAddress: bnbAddress,
-    },
+    execution,
     { from: ownerWallet },
   );
+
+  return { execution };
 }
 
 const deposit = async (
