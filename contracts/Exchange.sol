@@ -1246,7 +1246,7 @@ contract Exchange is IExchange, Owned {
 
   /**
    * @notice Sends tokens mistakenly sent directly to the `Exchange` to the fee wallet (the
-   * `receive` function rejects native assets except when unwrapping)
+   * `receive` function rejects native assets except when wrapping/unwrapping)
    */
   function skim(address tokenAddress) external onlyAdmin {
     AssetRegistryAdmin.skim(tokenAddress, _feeWallet);

@@ -59,7 +59,7 @@ library HybridTradeValidations {
         Validations.getImpliedQuoteQuantityInPips(
           baseAssetReserveInPips,
           makerOrder.limitPriceInPips
-        ) >= quoteAssetReserveInPips,
+        ) <= quoteAssetReserveInPips,
         'Pool marginal buy price exceeded'
       );
     }
@@ -73,7 +73,7 @@ library HybridTradeValidations {
         Validations.getImpliedQuoteQuantityInPips(
           baseAssetReserveInPips,
           makerOrder.limitPriceInPips
-        ) <= quoteAssetReserveInPips,
+        ) >= quoteAssetReserveInPips,
         'Pool marginal sell price exceeded'
       );
     }

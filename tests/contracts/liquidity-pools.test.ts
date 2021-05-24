@@ -100,6 +100,18 @@ contract.only(
         );
 
         await exchange.demotePool(token.address, bnbAddress);
+
+        let error;
+        try {
+          await exchange.loadLiquidityPoolByAssetAddresses(
+            token.address,
+            bnbAddress,
+          );
+        } catch (e) {
+          error = e;
+        }
+        expect(error).to.not.be.undefined;
+        expect(error.message).to.match(/no pool found/i);
       });
     });
 
@@ -580,7 +592,6 @@ contract.only(
           '909.09090909',
           '0.00121000',
         );
-        poolTrade.takerPoolFeeQuantityInPips;
         poolTrade.netQuoteQuantity = '0.99800000'; // No protocol fee
         poolTrade.grossQuoteQuantity = '1.00000000';
         poolTrade.netBaseQuantity = '907.4277159';
@@ -600,7 +611,7 @@ contract.only(
     });
 
     describe('executeHybridTrade', () => {
-      it('should work', async () => {
+      it('should work with no fees', async () => {
         const initialBaseReserve = '10000.00000000';
         const initialQuoteReserve = '10.00000000';
 
@@ -632,6 +643,7 @@ contract.only(
           web3,
         );
 
+        /*
         await generateAndExecuteHybridTrade(
           exchange,
           token,
@@ -642,6 +654,77 @@ contract.only(
           '1515.15151512',
           '757.57575756',
         );
+        */
+      });
+
+      it.only('should work with fees', async () => {
+        const initialBaseReserve = '10000.00000000';
+        const initialQuoteReserve = '10.00000000';
+
+        const { exchange, token } = await deployContractsAndCreateHybridETHPool(
+          initialBaseReserve,
+          initialQuoteReserve,
+          ownerWallet,
+        );
+        await exchange.setDispatcher(ownerWallet);
+
+        await deposit(exchange, token, buyWallet, '0.00000000', '10.00000000');
+        await token.transfer(
+          sellWallet,
+          decimalToAssetUnits('5000.00000000', 18),
+        );
+        await deposit(
+          exchange,
+          token,
+          sellWallet,
+          '5000.00000000',
+          '0.00000000',
+        );
+
+        const {
+          buyOrder,
+          buySignature,
+          sellOrder,
+          sellSignature,
+          fill,
+          poolTrade,
+        } = await generateHybridTrade(
+          exchange,
+          token,
+          buyWallet,
+          sellWallet,
+          web3,
+        );
+        poolTrade.netQuoteQuantity = '0.99800000'; // No protocol fee
+        poolTrade.grossQuoteQuantity = '1.00000000';
+        poolTrade.netBaseQuantity = '907.4277159';
+        poolTrade.takerPoolFeeQuantityInPips = '0.00200000';
+        poolTrade.takerGasFeeQuantityInPips = '0.01000000';
+
+        // https://github.com/microsoft/TypeScript/issues/28486
+        await (exchange.executeHybridTrade as any)(
+          ...getHybridTradeArguments(
+            buyOrder,
+            buySignature,
+            sellOrder,
+            sellSignature,
+            fill,
+            poolTrade,
+          ),
+        );
+
+        /*
+        await generateAndExecuteHybridTrade(
+          exchange,
+          token,
+          buyWallet,
+          sellWallet,
+          web3,
+          '0.00144000',
+          '1515.15151512',
+          '757.57575756',
+        );
+        */
       });
     });
   },
@@ -1135,6 +1218,53 @@ const generateOrderAndPoolTrade = async (
   };
 
   return { buyOrder, poolTrade };
+};
+
+const generateHybridTrade = async (
+  exchange: ExchangeInstance,
+  token: TestTokenInstance,
+  buyWallet: string,
+  sellWallet: string,
+  web3: Web3,
+  price = '0.00121000',
+  takerOrderBaseQuantity = '1818.18181818',
+  poolTradeBaseQuantity = '909.09090909',
+  orderBookTradeBaseQuantity = poolTradeBaseQuantity,
+  poolTradeQuoteQuantity = '1.00000000',
+) => {
+  const { buyOrder, poolTrade } = await generateOrderAndPoolTrade(
+    token.address,
+    bnbAddress,
+    buyWallet,
+    takerOrderBaseQuantity,
+    price,
+  );
+  const buySignature = await getSignature(
+    web3,
+    getOrderHash(buyOrder),
+    buyWallet,
+  );
+  poolTrade.grossBaseQuantity = poolTradeBaseQuantity;
+  poolTrade.grossQuoteQuantity = poolTradeQuoteQuantity;
+  poolTrade.netBaseQuantity = poolTradeBaseQuantity;
+  poolTrade.netQuoteQuantity = poolTradeQuoteQuantity;
+
+  const { sellOrder, fill } = await generateOrdersAndFill(
+    token.address,
+    bnbAddress,
+    buyWallet,
+    sellWallet,
+    orderBookTradeBaseQuantity,
+    price,
+    ethMarketSymbol,
+  );
+  const sellSignature = await getSignature(
+    web3,
+    getOrderHash(sellOrder),
+    sellWallet,
+  );
+
+  return { buyOrder, buySignature, sellOrder, sellSignature, fill, poolTrade };
 };
 
 const generateAndExecuteHybridTrade = async (
