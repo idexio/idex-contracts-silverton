@@ -63,7 +63,9 @@ contract('UUID', () => {
       }
 
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/subtraction overflow/i);
+      // TODO https://github.com/trufflesuite/truffle/issues/3996
+      // expect(error.message).to.match(/subtraction overflow/i);
+      expect(error.message).to.match(/revert/i);
     });
   });
 });

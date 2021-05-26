@@ -12,6 +12,14 @@ export { contracts };
 /** The fixed number of digits following the decimal in quantities expressed as pips */
 export const pipsDecimals = 8;
 
+export enum LiquidityChangeOrigination {
+  OnChain,
+  OffChain,
+}
+export enum LiquidityChangeType {
+  Addition,
+  Removal,
+}
 export enum OrderSelfTradePrevention {
   DecreaseAndCancel,
   CancelOldest,
@@ -37,6 +45,36 @@ export enum OrderType {
   TakeProfit,
   TakeProfitLimit,
 }
+enum WithdrawalType {
+  BySymbol,
+  ByAddress,
+}
+
+export interface LiquidityAddition {
+  signatureHashVersion: number;
+  nonce: string;
+  wallet: string;
+  assetA: string;
+  assetB: string;
+  amountADesired: string;
+  amountBDesired: string;
+  amountAMin: string;
+  amountBMin: string;
+  to: string;
+  deadline: number;
+}
+export interface LiquidityRemoval {
+  signatureHashVersion: number;
+  nonce: string;
+  wallet: string;
+  assetA: string;
+  assetB: string;
+  liquidity: string;
+  amountAMin: string;
+  amountBMin: string;
+  to: string;
+  deadline: number;
+}
 export interface Order {
   signatureHashVersion: number;
   nonce: string;
@@ -53,6 +91,17 @@ export interface Order {
   selfTradePrevention?: OrderSelfTradePrevention;
   cancelAfter?: number;
 }
+export interface PoolTrade {
+  baseAssetAddress: string;
+  quoteAssetAddress: string;
+  grossBaseQuantity: string;
+  grossQuoteQuantity: string;
+  netBaseQuantity: string;
+  netQuoteQuantity: string;
+  takerPoolFeeQuantityInPips: string;
+  takerProtocolFeeQuantityInPips: string;
+  takerGasFeeQuantityInPips: string;
+}
 export interface Trade {
   baseAssetAddress: string;
   quoteAssetAddress: string;
@@ -67,22 +116,6 @@ export interface Trade {
   price: string;
   makerSide: OrderSide;
 }
-export interface PoolTrade {
-  baseAssetAddress: string;
-  quoteAssetAddress: string;
-  grossBaseQuantity: string;
-  grossQuoteQuantity: string;
-  netBaseQuantity: string;
-  netQuoteQuantity: string;
-  takerPoolFeeQuantityInPips: string;
-  takerProtocolFeeQuantityInPips: string;
-  takerGasFeeQuantityInPips: string;
-}
-
-enum WithdrawalType {
-  BySymbol,
-  ByAddress,
-}
 export interface Withdrawal {
   nonce: string;
   wallet: string;
@@ -93,6 +126,39 @@ export interface Withdrawal {
 }
 
 export const bnbAddress = '0x0000000000000000000000000000000000000000';
+
+export const getLiquidityAdditionHash = (addition: LiquidityAddition): string =>
+  solidityHashOfParams([
+    ['uint8', addition.signatureHashVersion], // Signature hash version - only version 2 supported
+    ['uint8', LiquidityChangeType.Addition],
+    ['uint8', LiquidityChangeOrigination.OffChain],
+    ['uint128', uuidToUint8Array(addition.nonce)],
+    ['address', addition.wallet],
+    ['address', addition.assetA],
+    ['address', addition.assetB],
+    ['uint256', addition.amountADesired],
+    ['uint256', addition.amountBDesired],
+    ['uint256', addition.amountAMin],
+    ['uint256', addition.amountBMin],
+    ['address', addition.to],
+    ['uint256', addition.deadline.toString()],
+  ]);
+
+export const getLiquidityRemovalHash = (removal: LiquidityRemoval): string =>
+  solidityHashOfParams([
+    ['uint8', removal.signatureHashVersion], // Signature hash version - only version 2 supported
+    ['uint8', LiquidityChangeType.Removal],
+    ['uint8', LiquidityChangeOrigination.OffChain],
+    ['uint128', uuidToUint8Array(removal.nonce)],
+    ['address', removal.wallet],
+    ['address', removal.assetA],
+    ['address', removal.assetB],
+    ['uint256', removal.liquidity],
+    ['uint256', removal.amountAMin],
+    ['uint256', removal.amountBMin],
+    ['address', removal.to],
+    ['uint256', removal.deadline.toString()],
+  ]);
 
 export const getOrderHash = (order: Order): string =>
   solidityHashOfParams([
@@ -188,7 +254,7 @@ export const getWithdrawArguments = (
       walletAddress: withdrawal.wallet,
       assetSymbol: withdrawal.asset || '',
       assetAddress: withdrawal.assetContractAddress || bnbAddress,
-      quantityInPips: decimalToPips(withdrawal.quantity),
+      grossQuantityInPips: decimalToPips(withdrawal.quantity),
       gasFeeInPips: decimalToPips(gasFee),
       autoDispatchEnabled: true,
       walletSignature,
@@ -254,7 +320,7 @@ const poolTradeToArgumentStruct = (p: PoolTrade, order: Order) => {
 
 type TypeValuePair =
   | ['string' | 'address', string]
-  | ['uint128', string | Uint8Array]
+  | ['uint128' | 'uint256', string | Uint8Array]
   | ['uint8' | 'uint64', number]
   | ['bool', boolean];
 

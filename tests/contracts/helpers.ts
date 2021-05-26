@@ -99,3 +99,28 @@ export const withdraw = async (
 
   await exchange.withdraw(withdrawalStruct);
 };
+
+// https://docs.nethereum.com/en/latest/ethereum-and-clients/ganache-cli/#implemented-methods
+export const increaseBlockTimestamp = async (): Promise<void> => {
+  await sendRpc('evm_increaseTime', [1]); // 1 second
+  await sendRpc('evm_mine', []);
+};
+
+const sendRpc = async (method: string, params: unknown[]): Promise<unknown> =>
+  new Promise((resolve, reject) => {
+    (web3 as any).currentProvider.send(
+      {
+        jsonrpc: '2.0',
+        method,
+        params,
+        id: new Date().getTime(),
+      },
+      (err: unknown, res: unknown) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(res);
+        }
+      },
+    );
+  });

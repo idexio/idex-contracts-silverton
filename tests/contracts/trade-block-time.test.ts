@@ -1,7 +1,11 @@
 import { v1 as uuidv1 } from 'uuid';
 
 import { bnbAddress } from '../../lib';
-import { deployAndAssociateContracts, deployAndRegisterToken } from './helpers';
+import {
+  deployAndAssociateContracts,
+  deployAndRegisterToken,
+  increaseBlockTimestamp,
+} from './helpers';
 import {
   deposit,
   executeOrderBookTrade,
@@ -51,9 +55,7 @@ contract('Exchange (trades)', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(
-        /buy order market symbol address resolution mismatch/i,
-      );
+      expect(error.message).to.match(/order symbol address mismatch/i);
     });
 
     it('should revert when sell order base asset is mismatched with trade', async () => {
@@ -92,34 +94,7 @@ contract('Exchange (trades)', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(
-        /sell order market symbol address resolution mismatch/i,
-      );
+      expect(error.message).to.match(/order symbol address mismatch/i);
     });
   });
 });
-
-// https://docs.nethereum.com/en/latest/ethereum-and-clients/ganache-cli/#implemented-methods
-const increaseBlockTimestamp = async (): Promise<void> => {
-  await sendRpc('evm_increaseTime', [1]); // 1 second
-  await sendRpc('evm_mine', []);
-};
-
-const sendRpc = async (method: string, params: unknown[]): Promise<unknown> =>
-  new Promise((resolve, reject) => {
-    (web3 as any).currentProvider.send(
-      {
-        jsonrpc: '2.0',
-        method,
-        params,
-        id: new Date().getTime(),
-      },
-      (err: unknown, res: unknown) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve(res);
-        }
-      },
-    );
-  });

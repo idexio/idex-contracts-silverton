@@ -38,14 +38,14 @@ contract('Exchange (trades)', (accounts) => {
       await exchange.setDispatcher(accounts[0]);
       const [sellWallet, buyWallet] = accounts;
 
-      const fill = await depositAndTrade(
+      const { buyOrder, sellOrder, fill } = await depositAndTrade(
         exchange,
         token,
         buyWallet,
         sellWallet,
       );
 
-      const events = await exchange.getPastEvents('TradeExecuted', {
+      const events = await exchange.getPastEvents('OrderBookTradeExecuted', {
         fromBlock: 0,
       });
       expect(events).to.be.an('array');
@@ -56,9 +56,10 @@ contract('Exchange (trades)', (accounts) => {
         sellWallet: loggedSellWallet,
         baseAssetSymbol,
         quoteAssetSymbol,
-        buyOrderHash,
-        sellOrderHash,
       } = events[0].returnValues;
+
+      const buyOrderHash = getOrderHash(buyOrder);
+      const sellOrderHash = getOrderHash(sellOrder);
 
       expect(loggedBuyWallet).to.equal(buyWallet);
       expect(loggedSellWallet).to.equal(sellWallet);
@@ -138,7 +139,7 @@ contract('Exchange (trades)', (accounts) => {
         fill,
       );
 
-      const events = await exchange.getPastEvents('TradeExecuted', {
+      const events = await exchange.getPastEvents('OrderBookTradeExecuted', {
         fromBlock: 0,
       });
       expect(events).to.be.an('array');
@@ -149,9 +150,9 @@ contract('Exchange (trades)', (accounts) => {
         sellWallet: loggedSellWallet,
         baseAssetSymbol,
         quoteAssetSymbol,
-        buyOrderHash,
-        sellOrderHash,
       } = events[0].returnValues;
+      const buyOrderHash = getOrderHash(buyOrder);
+      const sellOrderHash = getOrderHash(sellOrder);
 
       expect(loggedBuyWallet).to.equal(buyWallet);
       expect(loggedSellWallet).to.equal(sellWallet);
@@ -267,13 +268,14 @@ contract('Exchange (trades)', (accounts) => {
         fill,
       );
 
-      const events = await exchange.getPastEvents('TradeExecuted', {
+      const events = await exchange.getPastEvents('OrderBookTradeExecuted', {
         fromBlock: 0,
       });
       expect(events).to.be.an('array');
       expect(events.length).to.equal(1);
 
-      const { buyOrderHash, sellOrderHash } = events[0].returnValues;
+      const buyOrderHash = getOrderHash(buyOrder);
+      const sellOrderHash = getOrderHash(sellOrder);
       expect(
         (
           await exchange.loadBalanceInAssetUnitsByAddress(
@@ -341,7 +343,7 @@ contract('Exchange (trades)', (accounts) => {
         fill,
       );
 
-      const events = await exchange.getPastEvents('TradeExecuted', {
+      const events = await exchange.getPastEvents('OrderBookTradeExecuted', {
         fromBlock: 0,
       });
       expect(events).to.be.an('array');
@@ -352,9 +354,9 @@ contract('Exchange (trades)', (accounts) => {
         sellWallet: loggedSellWallet,
         baseAssetSymbol,
         quoteAssetSymbol,
-        buyOrderHash,
-        sellOrderHash,
       } = events[0].returnValues;
+      const buyOrderHash = getOrderHash(buyOrder);
+      const sellOrderHash = getOrderHash(sellOrder);
 
       expect(loggedBuyWallet).to.equal(buyWallet);
       expect(loggedSellWallet).to.equal(sellWallet);
@@ -415,13 +417,14 @@ contract('Exchange (trades)', (accounts) => {
         fill,
       );
 
-      const events = await exchange.getPastEvents('TradeExecuted', {
+      const events = await exchange.getPastEvents('OrderBookTradeExecuted', {
         fromBlock: 0,
       });
       expect(events).to.be.an('array');
       expect(events.length).to.equal(1);
 
-      const { buyOrderHash, sellOrderHash } = events[0].returnValues;
+      const buyOrderHash = getOrderHash(buyOrder);
+      const sellOrderHash = getOrderHash(sellOrder);
       expect(
         (
           await exchange.loadBalanceInAssetUnitsByAddress(
@@ -475,13 +478,14 @@ contract('Exchange (trades)', (accounts) => {
         fill,
       );
 
-      const events = await exchange.getPastEvents('TradeExecuted', {
+      const events = await exchange.getPastEvents('OrderBookTradeExecuted', {
         fromBlock: 0,
       });
       expect(events).to.be.an('array');
       expect(events.length).to.equal(1);
 
-      const { buyOrderHash, sellOrderHash } = events[0].returnValues;
+      const buyOrderHash = getOrderHash(buyOrder);
+      const sellOrderHash = getOrderHash(sellOrder);
       expect(
         (
           await exchange.loadBalanceInAssetUnitsByAddress(
@@ -536,13 +540,14 @@ contract('Exchange (trades)', (accounts) => {
         fill,
       );
 
-      const events = await exchange.getPastEvents('TradeExecuted', {
+      const events = await exchange.getPastEvents('OrderBookTradeExecuted', {
         fromBlock: 0,
       });
       expect(events).to.be.an('array');
       expect(events.length).to.equal(1);
 
-      const { buyOrderHash, sellOrderHash } = events[0].returnValues;
+      const buyOrderHash = getOrderHash(buyOrder);
+      const sellOrderHash = getOrderHash(sellOrder);
       expect(
         (
           await exchange.loadBalanceInAssetUnitsByAddress(
@@ -602,13 +607,14 @@ contract('Exchange (trades)', (accounts) => {
         fill,
       );
 
-      const events = await exchange.getPastEvents('TradeExecuted', {
+      const events = await exchange.getPastEvents('OrderBookTradeExecuted', {
         fromBlock: 0,
       });
       expect(events).to.be.an('array');
       expect(events.length).to.equal(1);
 
-      const { buyOrderHash, sellOrderHash } = events[0].returnValues;
+      const buyOrderHash = getOrderHash(buyOrder);
+      const sellOrderHash = getOrderHash(sellOrder);
       expect(
         (
           await exchange.loadBalanceInAssetUnitsByAddress(
@@ -671,13 +677,14 @@ contract('Exchange (trades)', (accounts) => {
         fill,
       );
 
-      const events = await exchange.getPastEvents('TradeExecuted', {
+      const events = await exchange.getPastEvents('OrderBookTradeExecuted', {
         fromBlock: 0,
       });
       expect(events).to.be.an('array');
       expect(events.length).to.equal(1);
 
-      const { buyOrderHash, sellOrderHash } = events[0].returnValues;
+      const buyOrderHash = getOrderHash(buyOrder);
+      const sellOrderHash = getOrderHash(sellOrder);
       expect(
         (
           await exchange.loadBalanceInAssetUnitsByAddress(
@@ -1405,9 +1412,7 @@ contract('Exchange (trades)', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(
-        /base and quote assets must be different/i,
-      );
+      expect(error.message).to.match(/assets must be different/i);
     });
 
     it('should revert when maker fee asset not in trade pair', async () => {
@@ -1440,7 +1445,7 @@ contract('Exchange (trades)', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/maker fee asset is not in trade pair/i);
+      expect(error.message).to.match(/fee assets mismatch trade pair/i);
     });
 
     it('should revert when taker fee asset not in trade pair', async () => {
@@ -1473,7 +1478,7 @@ contract('Exchange (trades)', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/taker fee asset is not in trade pair/i);
+      expect(error.message).to.match(/fee assets mismatch trade pair/i);
     });
 
     it('should revert when maker and taker fee assets are the same', async () => {
@@ -1504,9 +1509,7 @@ contract('Exchange (trades)', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(
-        /maker and taker fee assets must be different/i,
-      );
+      expect(error.message).to.match(/fee assets mismatch trade pair/i);
     });
 
     it('should revert on double fill', async () => {
@@ -1713,7 +1716,7 @@ const depositAndTrade = async (
   token: TestTokenInstance,
   buyWallet: string,
   sellWallet: string,
-): Promise<Trade> => {
+): Promise<{ buyOrder: Order; sellOrder: Order; fill: Trade }> => {
   await deposit(exchange, token, buyWallet, sellWallet);
   return generateAndExecuteTrade(exchange, token, buyWallet, sellWallet);
 };
@@ -1723,7 +1726,7 @@ const generateAndExecuteTrade = async (
   token: TestTokenInstance,
   buyWallet: string,
   sellWallet: string,
-): Promise<Trade> => {
+): Promise<{ buyOrder: Order; sellOrder: Order; fill: Trade }> => {
   const { buyOrder, sellOrder, fill } = await generateOrdersAndFill(
     token.address,
     bnbAddress,
@@ -1739,5 +1742,5 @@ const generateAndExecuteTrade = async (
     fill,
   );
 
-  return fill;
+  return { buyOrder, sellOrder, fill };
 };

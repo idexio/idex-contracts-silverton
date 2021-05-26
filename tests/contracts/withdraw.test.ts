@@ -24,7 +24,7 @@ import {
 } from './helpers';
 
 // TODO Non-zero gas fees
-contract('Exchange (withdrawals)', (accounts) => {
+contract.only('Exchange (withdrawals)', (accounts) => {
   const BalanceMigrationSourceMock = artifacts.require(
     'BalanceMigrationSourceMock',
   );

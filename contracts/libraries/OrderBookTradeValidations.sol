@@ -40,21 +40,17 @@ library OrderBookTradeValidations {
       'Trade assets must be different'
     );
 
-    validateAssetPair(buy, trade, assetRegistry);
-    validateAssetPair(sell, trade, assetRegistry);
-
     // Fee asset validation
     require(
       (trade.makerFeeAssetAddress == trade.baseAssetAddress &&
         trade.takerFeeAssetAddress == trade.quoteAssetAddress) ||
         (trade.makerFeeAssetAddress == trade.quoteAssetAddress &&
           trade.takerFeeAssetAddress == trade.baseAssetAddress),
-      'Fee asset is not in trade pair'
+      'Fee assets mismatch trade pair'
     );
-    require(
-      trade.makerFeeAssetAddress != trade.takerFeeAssetAddress,
-      'Fee assets must be different'
-    );
+
+    validateAssetPair(buy, trade, assetRegistry);
+    validateAssetPair(sell, trade, assetRegistry);
   }
 
   function validateAssetPair(

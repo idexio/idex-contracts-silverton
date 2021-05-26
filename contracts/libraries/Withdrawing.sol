@@ -36,7 +36,9 @@ library Withdrawing {
     public
     returns (
       uint64 newExchangeBalanceInPips,
-      uint256 newExchangeBalanceInAssetUnits
+      uint256 newExchangeBalanceInAssetUnits,
+      address assetAddress,
+      string memory assetSymbol
     )
   {
     // Validations
@@ -63,6 +65,9 @@ library Withdrawing {
         )
         : assetRegistry.loadAssetByAddress(withdrawal.assetAddress);
 
+    assetSymbol = asset.symbol;
+    assetAddress = asset.assetAddress;
+
     // Update wallet balances
     newExchangeBalanceInPips = balanceTracking.updateForWithdrawal(
       withdrawal,
@@ -86,6 +91,7 @@ library Withdrawing {
       netAssetQuantityInAssetUnits
     );
 
+    // Replay prevention
     completedWithdrawalHashes[withdrawalHash] = true;
   }
 

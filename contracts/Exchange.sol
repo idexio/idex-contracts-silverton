@@ -719,7 +719,12 @@ contract Exchange is IExchange, Owned {
   {
     require(!isWalletExitFinalized(withdrawal.walletAddress), 'Wallet exited');
 
-    (uint64 newExchangeBalanceInPips, uint256 newExchangeBalanceInAssetUnits) =
+    (
+      uint64 newExchangeBalanceInPips,
+      uint256 newExchangeBalanceInAssetUnits,
+      address assetAddress,
+      string memory assetSymbol
+    ) =
       Withdrawing.withdraw(
         withdrawal,
         _custodian,
@@ -731,8 +736,8 @@ contract Exchange is IExchange, Owned {
 
     emit Withdrawn(
       withdrawal.walletAddress,
-      withdrawal.assetAddress,
-      withdrawal.assetSymbol,
+      assetAddress,
+      assetSymbol,
       withdrawal.grossQuantityInPips,
       newExchangeBalanceInPips,
       newExchangeBalanceInAssetUnits

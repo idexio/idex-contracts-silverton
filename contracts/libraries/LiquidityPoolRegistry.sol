@@ -78,19 +78,19 @@ library LiquidityPoolRegistry {
       require(pairTokenAddress.totalSupply() > 0, 'No liquidity minted');
     }
 
-    // Promote pool to hybrid and transfer token reserves to Exchange
-    (address token0, address token1, uint112 reserve0, uint112 reserve1) =
-      pairTokenAddress.promote();
-    // Transfer reserves to Custodian and unwrap WBNB if needed
-    transferTokenReserveToCustodian(token0, reserve0, custodian, WETH);
-    transferTokenReserveToCustodian(token1, reserve1, custodian, WETH);
-
     // Create internally tracked pool
     LiquidityPool storage pool =
       self.poolsByAddresses[baseAssetAddress][quoteAssetAddress];
     require(!pool.exists, 'Pool already exists');
     pool.pairTokenAddress = pairTokenAddress;
     pool.exists = true;
+
+    // Promote pool to hybrid and transfer token reserves to Exchange
+    (address token0, address token1, uint112 reserve0, uint112 reserve1) =
+      pairTokenAddress.promote();
+    // Transfer reserves to Custodian and unwrap WBNB if needed
+    transferTokenReserveToCustodian(token0, reserve0, custodian, WETH);
+    transferTokenReserveToCustodian(token1, reserve1, custodian, WETH);
 
     {
       // Map Pair token reserve addresses to provided market base/quote addresses
