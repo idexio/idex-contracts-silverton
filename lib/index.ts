@@ -311,7 +311,7 @@ const poolTradeToArgumentStruct = (p: PoolTrade, order: Order) => {
     netBaseQuantityInPips: decimalToPips(p.netBaseQuantity),
     netQuoteQuantityInPips: decimalToPips(p.netQuoteQuantity),
     takerPoolFeeQuantityInPips: decimalToPips(p.takerPoolFeeQuantityInPips),
-    takerPoolProtocolFeeQuantityInPips: decimalToPips(
+    takerProtocolFeeQuantityInPips: decimalToPips(
       p.takerProtocolFeeQuantityInPips,
     ),
     takerGasFeeQuantityInPips: decimalToPips(p.takerGasFeeQuantityInPips),

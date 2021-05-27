@@ -241,6 +241,9 @@ library Validations {
     return uint64(impliedQuoteQuantityInPips);
   }
 
+  /**
+   * @dev Calculate reserve asset quantities to remove from a pool for a liquidity exit
+   */
   function getOutputAssetQuantitiesInAssetUnits(
     LiquidityPool memory pool,
     uint256 liquidityToBurnInAssetUnits
@@ -252,7 +255,6 @@ library Validations {
       uint256 outputQuoteAssetQuantityInAssetUnits
     )
   {
-    // Convert total Pair token supply to pips to calculate ratios
     uint256 totalLiquidityInAssetUnits = pool.pairTokenAddress.totalSupply();
 
     // https://github.com/idexio/idex-swap-core/blob/master/contracts/IDEXPair.sol#L200
@@ -267,7 +269,7 @@ library Validations {
       (liquidityToBurnInAssetUnits *
         AssetUnitConversions.pipsToAssetUnits(
           pool.quoteAssetReserveInPips,
-          pool.baseAssetDecimals
+          pool.quoteAssetDecimals
         )) /
       totalLiquidityInAssetUnits;
 

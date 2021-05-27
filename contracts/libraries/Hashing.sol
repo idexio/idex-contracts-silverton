@@ -35,7 +35,7 @@ library Hashing {
   {
     require(
       addition.signatureHashVersion == Constants.signatureHashVersion,
-      'Signature hash version must be 2'
+      'Signature hash version invalid'
     );
 
     return
@@ -65,7 +65,7 @@ library Hashing {
   {
     require(
       removal.signatureHashVersion == Constants.signatureHashVersion,
-      'Signature hash version must be 2'
+      'Signature hash version invalid'
     );
 
     return
@@ -94,7 +94,7 @@ library Hashing {
   ) internal pure returns (bytes32) {
     require(
       order.signatureHashVersion == Constants.signatureHashVersion,
-      'Signature hash version must be 2'
+      'Signature hash version invalid'
     );
     return
       keccak256(

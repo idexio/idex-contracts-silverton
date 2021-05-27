@@ -22,7 +22,7 @@ library Trading {
   function executeOrderBookTrade(
     Order memory buy,
     Order memory sell,
-    OrderBookTrade memory trade,
+    OrderBookTrade memory orderBookTrade,
     address feeWallet,
     AssetRegistry.Storage storage assetRegistry,
     BalanceTracking.Storage storage balanceTracking,
@@ -33,7 +33,7 @@ library Trading {
       OrderBookTradeValidations.validateOrderBookTrade(
         buy,
         sell,
-        trade,
+        orderBookTrade,
         assetRegistry
       );
 
@@ -42,12 +42,17 @@ library Trading {
       buyHash,
       sell,
       sellHash,
-      trade,
+      orderBookTrade,
       completedOrderHashes,
       partiallyFilledOrderQuantitiesInPips
     );
 
-    balanceTracking.updateForTrade(buy, sell, trade, feeWallet);
+    balanceTracking.updateForOrderBookTrade(
+      buy,
+      sell,
+      orderBookTrade,
+      feeWallet
+    );
   }
 
   function executeHybridTrade(
@@ -81,6 +86,7 @@ library Trading {
         orderBookTrade.makerSide == OrderSide.Buy
           ? (buy, sell, sellHash)
           : (sell, buy, buyHash);
+
       updateOrderFilledQuantity(
         takerOrder,
         takerOrderHash,
@@ -98,7 +104,7 @@ library Trading {
           takerOrder.side
         );
 
-      HybridTradeValidations.validateLimitPrice(
+      HybridTradeValidations.validatePoolPrice(
         makerOrder,
         baseAssetReserveInPips,
         quoteAssetReserveInPips
@@ -117,7 +123,12 @@ library Trading {
         partiallyFilledOrderQuantitiesInPips
       );
 
-      balanceTracking.updateForTrade(buy, sell, orderBookTrade, feeWallet);
+      balanceTracking.updateForOrderBookTrade(
+        buy,
+        sell,
+        orderBookTrade,
+        feeWallet
+      );
     }
   }
 

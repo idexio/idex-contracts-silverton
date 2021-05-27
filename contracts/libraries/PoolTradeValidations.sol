@@ -27,48 +27,6 @@ library PoolTradeValidations {
     validatePoolTradeFees(order.side, poolTrade);
   }
 
-  function validatePoolTradeFees(
-    OrderSide orderSide,
-    PoolTrade memory poolTrade
-  ) internal pure {
-    require(
-      Validations.getFeeBasisPoints(
-        (poolTrade.grossBaseQuantityInPips - poolTrade.netBaseQuantityInPips),
-        poolTrade.grossBaseQuantityInPips
-      ) <= Constants.maxTradeFeeBasisPoints,
-      'Excessive base fee'
-    );
-    require(
-      Validations.getFeeBasisPoints(
-        (poolTrade.grossQuoteQuantityInPips - poolTrade.netQuoteQuantityInPips),
-        poolTrade.grossQuoteQuantityInPips
-      ) <= Constants.maxTradeFeeBasisPoints,
-      'Excessive quote fee'
-    );
-
-    // The quantity received by the wallet is determined by the pool's constant product formula
-    // and enforced in `LiquidityPoolRegistry.updateReservesForPoolTrade`
-    if (orderSide == OrderSide.Buy) {
-      // Buy order sends quote as pool input, receives base as pool output
-      require(
-        poolTrade.netQuoteQuantityInPips +
-          poolTrade.takerPoolFeeQuantityInPips +
-          poolTrade.takerPoolProtocolFeeQuantityInPips ==
-          poolTrade.grossQuoteQuantityInPips,
-        'Net plus fee not equal to gross'
-      );
-    } else {
-      // Sell order sends base as pool input, receives quote as pool output
-      require(
-        poolTrade.netBaseQuantityInPips +
-          poolTrade.takerPoolFeeQuantityInPips +
-          poolTrade.takerPoolProtocolFeeQuantityInPips ==
-          poolTrade.grossBaseQuantityInPips,
-        'Net plus fee not equal to gross'
-      );
-    }
-  }
-
   function validateAssetPair(
     Order memory order,
     PoolTrade memory poolTrade,
@@ -79,11 +37,14 @@ library PoolTradeValidations {
       'Trade assets must be different'
     );
 
-    uint64 nonce = UUID.getTimestampInMsFromUuidV1(order.nonce);
+    uint64 timestampInMs = UUID.getTimestampInMsFromUuidV1(order.nonce);
     Asset memory baseAsset =
-      assetRegistry.loadAssetBySymbol(poolTrade.baseAssetSymbol, nonce);
+      assetRegistry.loadAssetBySymbol(poolTrade.baseAssetSymbol, timestampInMs);
     Asset memory quoteAsset =
-      assetRegistry.loadAssetBySymbol(poolTrade.quoteAssetSymbol, nonce);
+      assetRegistry.loadAssetBySymbol(
+        poolTrade.quoteAssetSymbol,
+        timestampInMs
+      );
 
     require(
       baseAsset.assetAddress == poolTrade.baseAssetAddress &&
@@ -128,6 +89,48 @@ library PoolTradeValidations {
           order.limitPriceInPips
         ) <= poolTrade.grossQuoteQuantityInPips,
         'Sell order limit price exceeded'
+      );
+    }
+  }
+
+  function validatePoolTradeFees(
+    OrderSide orderSide,
+    PoolTrade memory poolTrade
+  ) internal pure {
+    require(
+      Validations.getFeeBasisPoints(
+        (poolTrade.grossBaseQuantityInPips - poolTrade.netBaseQuantityInPips),
+        poolTrade.grossBaseQuantityInPips
+      ) <= Constants.maxTradeFeeBasisPoints,
+      'Excessive base fee'
+    );
+    require(
+      Validations.getFeeBasisPoints(
+        (poolTrade.grossQuoteQuantityInPips - poolTrade.netQuoteQuantityInPips),
+        poolTrade.grossQuoteQuantityInPips
+      ) <= Constants.maxTradeFeeBasisPoints,
+      'Excessive quote fee'
+    );
+
+    // The quantity received by the wallet is determined by the pool's constant product formula
+    // and enforced in `LiquidityPoolRegistry.updateReservesForPoolTrade`
+    if (orderSide == OrderSide.Buy) {
+      // Buy order sends quote as pool input, receives base as pool output
+      require(
+        poolTrade.netQuoteQuantityInPips +
+          poolTrade.takerPoolFeeQuantityInPips +
+          poolTrade.takerProtocolFeeQuantityInPips ==
+          poolTrade.grossQuoteQuantityInPips,
+        'Net plus fee not equal to gross'
+      );
+    } else {
+      // Sell order sends base as pool input, receives quote as pool output
+      require(
+        poolTrade.netBaseQuantityInPips +
+          poolTrade.takerPoolFeeQuantityInPips +
+          poolTrade.takerProtocolFeeQuantityInPips ==
+          poolTrade.grossBaseQuantityInPips,
+        'Net plus fee not equal to gross'
       );
     }
   }

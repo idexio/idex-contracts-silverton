@@ -39,7 +39,7 @@ struct LiquidityPool {
  * @dev Internal struct capturing user-initiated liquidity addition request parameters
  */
 struct LiquidityAddition {
-  // Must be 2
+  // Must equal `Constants.signatureHashVersion`
   uint8 signatureHashVersion;
   // Distinguishes between liquidity additions initated on- or off- chain
   LiquidityChangeOrigination origination;
@@ -61,7 +61,7 @@ struct LiquidityAddition {
  * @dev Internal struct capturing user-initiated liquidity removal request parameters
  */
 struct LiquidityRemoval {
-  // Must be 2
+  // Must equal `Constants.signatureHashVersion`
   uint8 signatureHashVersion;
   // Distinguishes between liquidity additions initated on- or off- chain
   LiquidityChangeOrigination origination;
@@ -82,9 +82,13 @@ struct LiquidityRemoval {
  */
 struct LiquidityChangeExecution {
   uint256 liquidity;
+  // The gross amount of `assetA` in asset units added or removed from the pool
   uint256 amountA;
+  // The gross amount of `assetB` in asset units added or removed from the pool
   uint256 amountB;
+  // The amount deducted from `amountA` in asset units sent to the fee wallet
   uint256 feeAmountA;
+  // The amount deducted from `amountB` in asset units sent to the fee wallet
   uint256 feeAmountB;
   address baseAssetAddress;
   address quoteAssetAddress;
@@ -103,7 +107,8 @@ struct Asset {
   string symbol;
   // The asset's decimal precision
   uint8 decimals;
-  // Flag set when asset registration confirmed. Asset deposits, trades, or withdrawals only allowed if true
+  // Flag set when asset registration confirmed. Asset deposits, trades, or withdrawals only
+  // allowed if true
   bool isConfirmed;
   // Timestamp as ms since Unix epoch when isConfirmed was asserted
   uint64 confirmedTimestampInMs;
@@ -113,7 +118,7 @@ struct Asset {
  * @notice Argument type for `Exchange.executeOrderBookTrade` and `Hashing.getOrderWalletHash`
  */
 struct Order {
-  // Must be 2
+  // Must equal `Constants.signatureHashVersion`
   uint8 signatureHashVersion;
   // UUIDv1 unique to wallet
   uint128 nonce;
@@ -199,7 +204,7 @@ struct PoolTrade {
   // Fee paid by liquidity taker to pool from sent asset
   uint64 takerPoolFeeQuantityInPips;
   // Fee paid by liquidity taker to fee wallet from sent asset
-  uint64 takerPoolProtocolFeeQuantityInPips;
+  uint64 takerProtocolFeeQuantityInPips;
   // Fee paid by liquidity taker to fee wallet from received asset
   uint64 takerGasFeeQuantityInPips;
 }

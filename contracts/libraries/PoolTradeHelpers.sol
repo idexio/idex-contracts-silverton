@@ -79,7 +79,7 @@ library PoolTradeHelpers {
   }
 
   /**
-   * @dev Quantity in pips of credit asset that pool gives to order wallet
+   * @dev Quantity in pips of asset that leaves pool as output
    */
   function poolDebitQuantityInPips(PoolTrade memory self, OrderSide orderSide)
     internal
@@ -92,17 +92,5 @@ library PoolTradeHelpers {
           ? self.netBaseQuantityInPips // Pool gives net base asset plus taker gas fee
           : self.netQuoteQuantityInPips // Pool gives net quote asset plus taker gas fee
       ) + self.takerGasFeeQuantityInPips;
-  }
-
-  /**
-   * @dev Fee quantity in pips on asset that order wallet sends to pool
-   */
-  function totalInputFeeQuantityInPips(PoolTrade memory self)
-    internal
-    pure
-    returns (uint64)
-  {
-    return
-      self.takerPoolFeeQuantityInPips + self.takerPoolProtocolFeeQuantityInPips;
   }
 }
