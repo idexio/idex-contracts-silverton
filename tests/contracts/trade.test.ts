@@ -1109,7 +1109,7 @@ contract('Exchange (trades)', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/signature hash version must be 2/i);
+      expect(error.message).to.match(/signature hash version invalid/i);
     });
 
     it('should revert for invalid signature (wrong wallet)', async () => {

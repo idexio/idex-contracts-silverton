@@ -1,6 +1,12 @@
 <!-- markdownlint-disable MD033 -->
 # <img src="assets/logo.png" alt="IDEX" height="36px" valign="top"> project9 Smart Contracts
 
+![Tests](./assets/tests.svg)
+![Lines](./assets/coverage-lines.svg)
+![Branches](./assets/coverage-branches.svg)
+![Functions](./assets/coverage-functions.svg)
+![Statements](./assets/coverage-statements.svg)
+
 ## Overview
 
 This repo collects source code, tests, and documentation for the IDEX Silverton release Ethereum contracts.
