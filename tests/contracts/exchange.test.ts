@@ -28,6 +28,21 @@ contract('Exchange (tunable parameters)', (accounts) => {
       expect(error).to.not.be.undefined;
       expect(error.message).to.match(/invalid migration source/i);
     });
+
+    it('should revert for invalid WETH address', async () => {
+      let error;
+      try {
+        await Exchange.new(
+          (await BalanceMigrationSourceMock.new()).address,
+          bnbAddress,
+        );
+      } catch (e) {
+        error = e;
+      }
+
+      expect(error).to.not.be.undefined;
+      expect(error.message).to.match(/invalid WETH address/i);
+    });
   });
 
   it('should revert when receiving BNB directly', async () => {
@@ -115,6 +130,31 @@ contract('Exchange (tunable parameters)', (accounts) => {
     });
   });
 
+  describe('loadPairFactoryContractAddress', () => {
+    it('should work', async () => {
+      const { exchange } = await deployAndAssociateContracts();
+
+      const { address } = await WETH.new();
+      await exchange.setPairFactoryAddress(address);
+
+      const result = await exchange.loadPairFactoryContractAddress();
+      expect(result).to.equal(address);
+    });
+  });
+
+  describe('loadWETHAddress', () => {
+    it('should work', async () => {
+      const { address } = await WETH.new();
+      const exchange = await Exchange.new(
+        (await BalanceMigrationSourceMock.new()).address,
+        address,
+      );
+
+      const result = await exchange.loadWETHAddress();
+      expect(result).to.equal(address);
+    });
+  });
+
   describe('setAdmin', async () => {
     it('should work for valid address', async () => {
       const exchange = await Exchange.new(
@@ -171,6 +211,67 @@ contract('Exchange (tunable parameters)', (accounts) => {
 
       expect(error).to.not.be.undefined;
       expect(error.message).to.match(/caller must be owner/i);
+    });
+  });
+
+  describe('setPairFactoryAddress', async () => {
+    it('should work for valid address', async () => {
+      const exchange = await Exchange.new(
+        (await BalanceMigrationSourceMock.new()).address,
+        (await WETH.new()).address,
+      );
+
+      await exchange.setPairFactoryAddress((await WETH.new()).address);
+    });
+
+    it('should revert for empty address', async () => {
+      const exchange = await Exchange.new(
+        (await BalanceMigrationSourceMock.new()).address,
+        (await WETH.new()).address,
+      );
+
+      let error;
+      try {
+        await exchange.setPairFactoryAddress(bnbAddress);
+      } catch (e) {
+        error = e;
+      }
+
+      expect(error).to.not.be.undefined;
+      expect(error.message).to.match(/invalid address/i);
+    });
+
+    it('should revert when called more than once', async () => {
+      const { exchange } = await deployAndAssociateContracts();
+      await exchange.setPairFactoryAddress((await WETH.new()).address);
+
+      let error;
+      try {
+        await exchange.setPairFactoryAddress((await WETH.new()).address);
+      } catch (e) {
+        error = e;
+      }
+      expect(error).to.not.be.undefined;
+      expect(error.message).to.match(/factory can only be set once/i);
+    });
+
+    it('should revert when not called by admin', async () => {
+      const exchange = await Exchange.new(
+        (await BalanceMigrationSourceMock.new()).address,
+        (await WETH.new()).address,
+      );
+
+      let error;
+      try {
+        await exchange.setPairFactoryAddress(accounts[1], {
+          from: accounts[1],
+        });
+      } catch (e) {
+        error = e;
+      }
+
+      expect(error).to.not.be.undefined;
+      expect(error.message).to.match(/caller must be admin/i);
     });
   });
 
