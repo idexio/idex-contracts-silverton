@@ -22,7 +22,7 @@ import { Owned } from './Owned.sol';
 import { Trading } from './libraries/Trading.sol';
 import { UUID } from './libraries/UUID.sol';
 import { Withdrawing } from './libraries/Withdrawing.sol';
-import { LiquidityChangeOrigination } from './libraries/Enums.sol';
+import { LiquidityChangeOrigination, OrderSide } from './libraries/Enums.sol';
 import {
   ICustodian,
   IERC20,
@@ -44,7 +44,7 @@ import {
 /**
  * @notice The Exchange contract. Implements all deposit, trade, and withdrawal logic and associated balance tracking
  *
- * @dev The term `asset` refers collectively to BNB and ERC-20 tokens, the term `token` refers only to the latter
+ * @dev The term `asset` refers collectively to ETH and ERC-20 tokens, the term `token` refers only to the latter
  */
 contract Exchange is IExchange, Owned {
   using AssetRegistry for AssetRegistry.Storage;
@@ -59,7 +59,7 @@ contract Exchange is IExchange, Owned {
    */
   event ChainPropagationPeriodChanged(uint256 previousValue, uint256 newValue);
   /**
-   * @notice Emitted when a user deposits BNB with `depositEther` or a token with `depositTokenByAddress` or `depositAssetBySymbol`
+   * @notice Emitted when a user deposits ETH with `depositEther` or a token with `depositTokenByAddress` or `depositAssetBySymbol`
    */
   event Deposited(
     uint64 index,
@@ -91,7 +91,8 @@ contract Exchange is IExchange, Owned {
     uint64 poolBaseQuantityInPips,
     uint64 poolQuoteQuantityInPips,
     uint64 totalBaseQuantityInPips,
-    uint64 totalQuoteQuantityInPips
+    uint64 totalQuoteQuantityInPips,
+    OrderSide takerSide
   );
   /**
    * @notice Emitted when a user initiates an Add Liquidity request via `addLiquidity` or
@@ -137,7 +138,8 @@ contract Exchange is IExchange, Owned {
     string baseAssetSymbol,
     string quoteAssetSymbol,
     uint64 baseQuantityInPips,
-    uint64 quoteQuantityInPips
+    uint64 quoteQuantityInPips,
+    OrderSide takerSide
   );
   /**
    * @notice Emitted when an admin initiates the token registration process with `registerToken`
@@ -170,7 +172,8 @@ contract Exchange is IExchange, Owned {
     string baseAssetSymbol,
     string quoteAssetSymbol,
     uint64 baseQuantityInPips,
-    uint64 quoteQuantityInPips
+    uint64 quoteQuantityInPips,
+    OrderSide takerSide
   );
   /**
    * @notice Emitted when a user invokes the Exit Wallet mechanism with `exitWallet`
@@ -476,7 +479,7 @@ contract Exchange is IExchange, Owned {
    * @notice DO NOT send assets directly to the `Exchange`, instead use the appropriate deposit
    * function
    *
-   * @dev Internally used to unwrap and wrap native asset during pool hybrid mode promotion and
+   * @dev Internally used to unwrap and wrap ETH during pool hybrid mode promotion and
    * demotion respectively
    */
   receive() external payable {
@@ -487,7 +490,7 @@ contract Exchange is IExchange, Owned {
   }
 
   /**
-   * @notice Deposit BNB
+   * @notice Deposit ETH
    */
   function depositEther() external payable {
     deposit(
@@ -579,14 +582,14 @@ contract Exchange is IExchange, Owned {
    * the wallet hash, since this is cheaper than splitting the market symbol into its two constituent asset symbols
    * @dev Stack level too deep if declared external
    *
-   * @param buy A `Order` struct encoding the parameters of the buy-side order (receiving base, giving quote)
-   * @param sell A `Order` struct encoding the parameters of the sell-side order (giving base, receiving quote)
-   * @param trade A `Trade` struct encoding the parameters of this trade execution of the two orders
+   * @param buy An `Order` struct encoding the parameters of the buy-side order (receiving base, giving quote)
+   * @param sell An `Order` struct encoding the parameters of the sell-side order (giving base, receiving quote)
+   * @param orderBookTrade An `OrderBookTrade` struct encoding the parameters of this trade execution of the two orders
    */
   function executeOrderBookTrade(
     Order memory buy,
     Order memory sell,
-    OrderBookTrade memory trade
+    OrderBookTrade memory orderBookTrade
   ) public override onlyDispatcher {
     require(
       !isWalletExitFinalized(buy.walletAddress),
@@ -606,7 +609,7 @@ contract Exchange is IExchange, Owned {
     Trading.executeOrderBookTrade(
       buy,
       sell,
-      trade,
+      orderBookTrade,
       _feeWallet,
       _assetRegistry,
       _balanceTracking,
@@ -617,10 +620,11 @@ contract Exchange is IExchange, Owned {
     emit OrderBookTradeExecuted(
       buy.walletAddress,
       sell.walletAddress,
-      trade.baseAssetSymbol,
-      trade.quoteAssetSymbol,
-      trade.grossBaseQuantityInPips,
-      trade.grossQuoteQuantityInPips
+      orderBookTrade.baseAssetSymbol,
+      orderBookTrade.quoteAssetSymbol,
+      orderBookTrade.grossBaseQuantityInPips,
+      orderBookTrade.grossQuoteQuantityInPips,
+      orderBookTrade.makerSide == OrderSide.Buy ? OrderSide.Sell : OrderSide.Buy
     );
   }
 
@@ -650,7 +654,8 @@ contract Exchange is IExchange, Owned {
       poolTrade.baseAssetSymbol,
       poolTrade.quoteAssetSymbol,
       poolTrade.grossBaseQuantityInPips,
-      poolTrade.grossQuoteQuantityInPips
+      poolTrade.grossQuoteQuantityInPips,
+      order.side
     );
   }
 
@@ -701,7 +706,8 @@ contract Exchange is IExchange, Owned {
       orderBookTrade.grossBaseQuantityInPips +
         poolTrade.grossBaseQuantityInPips,
       orderBookTrade.grossQuoteQuantityInPips +
-        poolTrade.grossQuoteQuantityInPips
+        poolTrade.grossQuoteQuantityInPips,
+      orderBookTrade.makerSide == OrderSide.Buy ? OrderSide.Sell : OrderSide.Buy
     );
   }
 
@@ -786,10 +792,23 @@ contract Exchange is IExchange, Owned {
   }
 
   /**
-   * @notice Adds liquidity to a BEP-20⇄BEP-20 pool
+   * @notice Adds liquidity to a ERC-20⇄ERC-20 pool
    *
-   * @dev To cover all possible scenarios, `msg.sender` should have already given the Exchange an allowance
-   * of at least amountADesired/amountBDesired on tokenA/tokenB
+   * @dev To cover all possible scenarios, `msg.sender` should have already given the Exchange an
+   * allowance of at least `amountADesired`/`amountBDesired` on `tokenA`/`tokenB`
+   *
+   * @param tokenA The contract address of the desired token
+   * @param tokenB The contract address of the desired token
+   * @param amountADesired The amount of `tokenA` to add as liquidity if the B/A price is <=
+   * `amountBDesired`/`amountADesired` (A depreciates)
+   * @param amountBDesired The amount of `tokenB` to add as liquidity if the A/B price is <=
+   * `amountADesired`/`amountBDesired` (B depreciates)
+   * @param amountAMin Bounds the extent to which the B/A price can go up. Must be <=
+   * `amountADesired`
+   * @param amountBMin Bounds the extent to which the A/B price can go up. Must be <=
+   * `amountBDesired`
+   * @param to Recipient of the liquidity tokens
+   * @param deadline Unix timestamp in seconds after which the transaction will revert
    */
   function addLiquidity(
     address tokenA,
@@ -835,10 +854,21 @@ contract Exchange is IExchange, Owned {
   }
 
   /**
-   * @notice Adds liquidity to a BEP-20⇄BNB pool
+   * @notice Adds liquidity to a ERC-20⇄ETH pool
    *
-   * @dev To cover all possible scenarios, msg.sender should have already given the router an allowance
-   * of at least amountTokenDesired on token. `msg.value` is treated as amountETHDesired
+   * @dev To cover all possible scenarios, `msg.sender` should have already given the router an
+   * allowance of at least `amountTokenDesired` on `token`. `msg.value` is treated as
+   * `amountETHDesired`
+   *
+   * @param token The contract address of the desired token
+   * @param amountTokenDesired The amount of token to add as liquidity if the ETH/token
+   * price is <= `msg.value`/`amountTokenDesired` (token depreciates)
+   * @param amountTokenMin The amount of ETH to add as liquidity if the token/ETH
+   * price is <= `amountTokenDesired`/`msg.value` (ETH depreciates)
+   * @param amountETHMin Bounds the extent to which the token/ETH price can go up. Must be
+   * <= `msg.value`
+   * @param to Recipient of the liquidity tokens
+   * @param deadline Unix timestamp in seconds after which the transaction will revert
    */
   function addLiquidityETH(
     address token,
@@ -898,9 +928,18 @@ contract Exchange is IExchange, Owned {
   }
 
   /**
-   * @notice Removes liquidity from an BEP-20⇄BEP-20 pool
+   * @notice Removes liquidity from an ERC-20⇄ERC-20 pool
    *
-   * @dev `msg.sender` should have already given the Exchange an allowance of at least liquidity on the pool
+   * @dev `msg.sender` should have already given the Exchange an allowance of at least `liquidity`
+   * on the pool
+   *
+   * @param tokenA The contract address of the desired token
+   * @param tokenB The contract address of the desired token
+   * @param liquidity The amount of liquidity tokens to remove
+   * @param amountAMin The minimum amount of `tokenA` that must be received
+   * @param amountBMin The minimum amount of `tokenB` that must be received
+   * @param to Recipient of the underlying assets
+   * @param deadline Unix timestamp in seconds after which the transaction will revert
    */
   function removeLiquidity(
     address tokenA,
@@ -946,9 +985,17 @@ contract Exchange is IExchange, Owned {
   }
 
   /**
-   * @notice Removes liquidity from an BEP-20⇄BNB pool and receive ETH
+   * @notice Removes liquidity from an ERC-20⇄ETH pool and receive ETH
    *
-   * @dev `msg.sender` should have already given the Exchange an allowance of at least liquidity on the pool
+   * @dev `msg.sender` should have already given the Exchange an allowance of at least `liquidity`
+   * on the pool
+   *
+   * @param token token The contract address of the desired token
+   * @param token liquidity The amount of liquidity tokens to remove
+   * @param token amountTokenMin The minimum amount of token that must be received
+   * @param token amountETHMin The minimum amount of ETH that must be received
+   * @param to Recipient of the underlying assets
+   * @param deadline Unix timestamp in seconds after which the transaction will revert
    */
   function removeLiquidityETH(
     address token,
@@ -1144,7 +1191,7 @@ contract Exchange is IExchange, Owned {
 
   /**
    * @notice Initiate registration process for a token asset. Only `IERC20` compliant tokens can be
-   * added - BNB is hardcoded in the registry
+   * added - ETH is hardcoded in the registry
    *
    * @param tokenAddress The address of the `IERC20` compliant token contract to add
    * @param symbol The symbol identifying the token asset
@@ -1251,7 +1298,7 @@ contract Exchange is IExchange, Owned {
 
   /**
    * @notice Sends tokens mistakenly sent directly to the `Exchange` to the fee wallet (the
-   * `receive` function rejects native assets except when wrapping/unwrapping)
+   * `receive` function rejects ETH except when wrapping/unwrapping)
    */
   function skim(address tokenAddress) external onlyAdmin {
     AssetRegistryAdmin.skim(tokenAddress, _feeWallet);

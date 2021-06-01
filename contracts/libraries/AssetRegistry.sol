@@ -29,7 +29,7 @@ library AssetRegistry {
     returns (Asset memory)
   {
     if (assetAddress == address(0x0)) {
-      return getBnbAsset();
+      return getEthAsset();
     }
 
     Asset memory asset = self.assetsByAddress[assetAddress];
@@ -55,7 +55,7 @@ library AssetRegistry {
     uint64 timestampInMs
   ) internal view returns (Asset memory) {
     if (isStringEqual('BNB', symbol)) {
-      return getBnbAsset();
+      return getEthAsset();
     }
 
     Asset memory asset;
@@ -77,9 +77,9 @@ library AssetRegistry {
   }
 
   /**
-   * @dev BNB is modeled as an always-confirmed Asset struct for programmatic consistency
+   * @dev ETH is modeled as an always-confirmed Asset struct for programmatic consistency
    */
-  function getBnbAsset() private pure returns (Asset memory) {
+  function getEthAsset() private pure returns (Asset memory) {
     return Asset(true, address(0x0), 'BNB', 18, true, 0);
   }
 

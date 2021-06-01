@@ -85,12 +85,16 @@ library LiquidityPoolRegistry {
     pool.pairTokenAddress = pairTokenAddress;
     pool.exists = true;
 
+    // Sync to ensure entire token balance of pair gets sent
+    pairTokenAddress.sync();
     // Promote pool to hybrid and transfer token reserves to Exchange
     (address token0, address token1, uint112 reserve0, uint112 reserve1) =
       pairTokenAddress.promote();
-    // Transfer reserves to Custodian and unwrap WBNB if needed
+    // Transfer reserves to Custodian and unwrap WETH if needed
     transferTokenReserveToCustodian(token0, reserve0, custodian, WETH);
     transferTokenReserveToCustodian(token1, reserve1, custodian, WETH);
+    // Reset pair reserves to zero
+    pairTokenAddress.hybridUpdate(0, 0, reserve0, reserve1);
 
     {
       // Map Pair token reserve addresses to provided market base/quote addresses
@@ -257,10 +261,18 @@ library LiquidityPoolRegistry {
   {
     {
       bytes32 hash = Hashing.getLiquidityAdditionHash(addition);
+      LiquidityChangeState state = self.changes[hash];
+
       if (addition.origination == LiquidityChangeOrigination.OnChain) {
-        LiquidityChangeState state = self.changes[hash];
-        require(state == LiquidityChangeState.Initiated, 'Not executable');
+        require(
+          state == LiquidityChangeState.Initiated,
+          'Not executable from on-chain'
+        );
       } else {
+        require(
+          state == LiquidityChangeState.NotInitiated,
+          'Not executable from off-chain'
+        );
         require(
           Hashing.isSignatureValid(hash, addition.signature, addition.wallet),
           'Invalid signature'
@@ -377,17 +389,27 @@ library LiquidityPoolRegistry {
     LiquidityRemoval memory removal,
     LiquidityChangeExecution memory execution
   ) private returns (IIDEXPair pairTokenAddress) {
-    bytes32 hash = Hashing.getLiquidityRemovalHash(removal);
-    if (removal.origination == LiquidityChangeOrigination.OnChain) {
+    {
+      bytes32 hash = Hashing.getLiquidityRemovalHash(removal);
       LiquidityChangeState state = self.changes[hash];
-      require(state == LiquidityChangeState.Initiated, 'Not executable');
-    } else {
-      require(
-        Hashing.isSignatureValid(hash, removal.signature, removal.wallet),
-        'Invalid signature'
-      );
+
+      if (removal.origination == LiquidityChangeOrigination.OnChain) {
+        require(
+          state == LiquidityChangeState.Initiated,
+          'Not executable from on-chain'
+        );
+      } else {
+        require(
+          state == LiquidityChangeState.NotInitiated,
+          'Not executable from off-chain'
+        );
+        require(
+          Hashing.isSignatureValid(hash, removal.signature, removal.wallet),
+          'Invalid signature'
+        );
+      }
+      self.changes[hash] = LiquidityChangeState.Executed;
     }
-    self.changes[hash] = LiquidityChangeState.Executed;
 
     LiquidityPool storage pool =
       loadLiquidityPoolByAssetAddresses(
@@ -427,7 +449,7 @@ library LiquidityPoolRegistry {
           grossQuoteAssetQuantityInAssetUnits,
           grossBaseAssetQuantityInAssetUnits
         );
-    pool.pairTokenAddress.hybridBurn(
+    pairTokenAddress.hybridBurn(
       removal.wallet,
       execution.liquidity,
       amount0,
@@ -492,12 +514,23 @@ library LiquidityPoolRegistry {
       pool.quoteAssetReserveInPips -= outputQuoteAssetQuantityInPips;
     }
 
+    (uint256 amount0, uint256 amount1) =
+      baseAssetAddress == pool.pairTokenAddress.token0()
+        ? (
+          outputBaseAssetQuantityInAssetUnits,
+          outputQuoteAssetQuantityInAssetUnits
+        )
+        : (
+          outputQuoteAssetQuantityInAssetUnits,
+          outputBaseAssetQuantityInAssetUnits
+        );
+
     // Burn deposited Pair tokens
     pool.pairTokenAddress.hybridBurn(
       msg.sender,
       liquidityToBurnInAssetUnits,
-      outputBaseAssetQuantityInAssetUnits,
-      outputQuoteAssetQuantityInAssetUnits,
+      amount0,
+      amount1,
       msg.sender
     );
 
@@ -547,7 +580,7 @@ library LiquidityPoolRegistry {
       updatedProduct =
         uint128(pool.baseAssetReserveInPips) *
         uint128(
-          pool.quoteAssetReserveInPips - poolTrade.totalInputFeeQuantityInPips()
+          pool.quoteAssetReserveInPips - poolTrade.takerPoolFeeQuantityInPips
         );
     } else {
       pool.baseAssetReserveInPips += poolTrade.poolCreditQuantityInPips(
@@ -559,7 +592,7 @@ library LiquidityPoolRegistry {
 
       updatedProduct =
         uint128(
-          pool.baseAssetReserveInPips - poolTrade.totalInputFeeQuantityInPips()
+          pool.baseAssetReserveInPips - poolTrade.takerPoolFeeQuantityInPips
         ) *
         uint128(pool.quoteAssetReserveInPips);
     }
@@ -589,7 +622,7 @@ library LiquidityPoolRegistry {
     ICustodian custodian,
     IWETH9 WETH
   ) private {
-    // Unwrap WBNB
+    // Unwrap WETH
     if (token == address(WETH)) {
       WETH.withdraw(reserve);
       AssetTransfers.transferTo(

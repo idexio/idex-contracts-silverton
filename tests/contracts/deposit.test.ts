@@ -2,7 +2,7 @@ import {
   deployAndAssociateContracts,
   deployAndRegisterToken,
   minimumTokenQuantity,
-  bnbSymbol,
+  ethSymbol,
 } from './helpers';
 import { assetUnitsToPips, bnbAddress } from '../../lib';
 
@@ -18,7 +18,7 @@ contract('Exchange (deposits)', (accounts) => {
 
   const tokenSymbol = 'TKN';
 
-  it('should revert when receiving BNB directly', async () => {
+  it('should revert when receiving ETH directly', async () => {
     const exchange = await Exchange.new(
       (await BalanceMigrationSourceMock.new()).address,
       (await WETH.new()).address,
@@ -58,7 +58,7 @@ contract('Exchange (deposits)', (accounts) => {
 
       expect(wallet).to.equal(accounts[0]);
       expect(assetAddress).to.equal(bnbAddress);
-      expect(assetSymbol).to.equal(bnbSymbol);
+      expect(assetSymbol).to.equal(ethSymbol);
 
       expect(
         (
@@ -75,12 +75,12 @@ contract('Exchange (deposits)', (accounts) => {
       ).to.equal(assetUnitsToPips(minimumTokenQuantity, 18));
       expect(
         (
-          await exchange.loadBalanceInAssetUnitsBySymbol(accounts[0], bnbSymbol)
+          await exchange.loadBalanceInAssetUnitsBySymbol(accounts[0], ethSymbol)
         ).toString(),
       ).to.equal(minimumTokenQuantity);
       expect(
         (
-          await exchange.loadBalanceInPipsBySymbol(accounts[0], bnbSymbol)
+          await exchange.loadBalanceInPipsBySymbol(accounts[0], ethSymbol)
         ).toString(),
       ).to.equal(assetUnitsToPips(minimumTokenQuantity, 18));
     });
@@ -123,7 +123,7 @@ contract('Exchange (deposits)', (accounts) => {
       expect(assetSymbol).to.equal(tokenSymbol);
     });
 
-    it('should revert for BNB', async () => {
+    it('should revert for ETH', async () => {
       const { exchange } = await deployAndAssociateContracts();
       const token = await deployAndRegisterToken(exchange, tokenSymbol);
 
@@ -219,7 +219,7 @@ contract('Exchange (deposits)', (accounts) => {
       expect(events.length).to.equal(1);
     });
 
-    it('should revert for BNB', async () => {
+    it('should revert for ETH', async () => {
       const { exchange } = await deployAndAssociateContracts();
       const token = await deployAndRegisterToken(exchange, tokenSymbol);
 

@@ -6,7 +6,7 @@ library Constants {
   // 100 basis points/percent * 100 percent/total
   uint64 public constant basisPointsInTotal = 100 * 100;
 
-  // 1 week at 15s/block
+  // 1 week at 3s/block
   uint256 public constant maxChainPropagationPeriod = (7 * 24 * 60 * 60) / 3;
 
   // 20%

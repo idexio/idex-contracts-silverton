@@ -1,13 +1,12 @@
 /**
- * Submitted for verification at Bscscan.com on 2020-09-03
- * https://bscscan.com/address/0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c#code
+ * Code taken from verified mainnet deployment
  */
 
 pragma solidity =0.4.18;
 
 contract WETH {
-  string public name = 'Wrapped BNB';
-  string public symbol = 'WBNB';
+  string public name = 'Wrapped ETH';
+  string public symbol = 'WETH';
   uint8 public decimals = 18;
 
   event Approval(address indexed src, address indexed guy, uint256 wad);

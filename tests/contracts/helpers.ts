@@ -13,7 +13,7 @@ import {
   getWithdrawalHash,
 } from '../../lib';
 
-export const bnbSymbol = 'BNB';
+export const ethSymbol = 'BNB';
 
 // TODO Test tokens with decimals other than 18
 export const minimumDecimalQuantity = '0.00000001';

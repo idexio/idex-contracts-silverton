@@ -45,7 +45,7 @@ library HybridTradeValidations {
     PoolTradeValidations.validatePoolTradeFees(takerOrder.side, poolTrade);
   }
 
-  function validateLimitPrice(
+  function validatePoolPrice(
     Order memory makerOrder,
     uint64 baseAssetReserveInPips,
     uint64 quoteAssetReserveInPips
@@ -59,7 +59,8 @@ library HybridTradeValidations {
         Validations.getImpliedQuoteQuantityInPips(
           baseAssetReserveInPips,
           makerOrder.limitPriceInPips
-        ) <= quoteAssetReserveInPips,
+          // Allow 1 pip buffer for integer rounding
+        ) <= quoteAssetReserveInPips + 1,
         'Pool marginal buy price exceeded'
       );
     }
@@ -73,7 +74,8 @@ library HybridTradeValidations {
         Validations.getImpliedQuoteQuantityInPips(
           baseAssetReserveInPips,
           makerOrder.limitPriceInPips
-        ) >= quoteAssetReserveInPips,
+          // Allow 1 pip buffer for integer rounding
+        ) >= quoteAssetReserveInPips - 1,
         'Pool marginal sell price exceeded'
       );
     }

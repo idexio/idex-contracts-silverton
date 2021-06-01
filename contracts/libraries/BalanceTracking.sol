@@ -58,7 +58,7 @@ library BalanceTracking {
    * @dev Updates buyer, seller, and fee wallet balances for both assets in trade pair according to
    * trade parameters
    */
-  function updateForTrade(
+  function updateForOrderBookTrade(
     Storage storage self,
     Order memory buy,
     Order memory sell,
@@ -142,7 +142,7 @@ library BalanceTracking {
       feeWallet,
       poolTrade.orderDebitAssetAddress(order.side)
     );
-    balance.balanceInPips += poolTrade.takerPoolProtocolFeeQuantityInPips;
+    balance.balanceInPips += poolTrade.takerProtocolFeeQuantityInPips;
     // Fee wallet receives gas fee from asset credited to order wallet
     balance = loadBalanceAndMigrateIfNeeded(
       self,

@@ -1,4 +1,4 @@
-import { deployAndAssociateContracts, bnbSymbol } from './helpers';
+import { deployAndAssociateContracts, ethSymbol } from './helpers';
 
 contract('Exchange (tunable parameters)', (accounts) => {
   const BalanceMigrationSourceMock = artifacts.require(
@@ -28,9 +28,24 @@ contract('Exchange (tunable parameters)', (accounts) => {
       expect(error).to.not.be.undefined;
       expect(error.message).to.match(/invalid migration source/i);
     });
+
+    it('should revert for invalid WETH address', async () => {
+      let error;
+      try {
+        await Exchange.new(
+          (await BalanceMigrationSourceMock.new()).address,
+          bnbAddress,
+        );
+      } catch (e) {
+        error = e;
+      }
+
+      expect(error).to.not.be.undefined;
+      expect(error.message).to.match(/invalid WETH address/i);
+    });
   });
 
-  it('should revert when receiving BNB directly', async () => {
+  it('should revert when receiving ETH directly', async () => {
     const exchange = await Exchange.new(
       (await BalanceMigrationSourceMock.new()).address,
       (await WETH.new()).address,
@@ -89,7 +104,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
 
       let error;
       try {
-        await exchange.loadBalanceInPipsBySymbol(bnbAddress, bnbSymbol);
+        await exchange.loadBalanceInPipsBySymbol(bnbAddress, ethSymbol);
       } catch (e) {
         error = e;
       }
@@ -105,13 +120,38 @@ contract('Exchange (tunable parameters)', (accounts) => {
 
       let error;
       try {
-        await exchange.loadBalanceInAssetUnitsBySymbol(bnbAddress, bnbSymbol);
+        await exchange.loadBalanceInAssetUnitsBySymbol(bnbAddress, ethSymbol);
       } catch (e) {
         error = e;
       }
 
       expect(error).to.not.be.undefined;
       expect(error.message).to.match(/invalid wallet address/i);
+    });
+  });
+
+  describe('loadPairFactoryContractAddress', () => {
+    it('should work', async () => {
+      const { exchange } = await deployAndAssociateContracts();
+
+      const { address } = await WETH.new();
+      await exchange.setPairFactoryAddress(address);
+
+      const result = await exchange.loadPairFactoryContractAddress();
+      expect(result).to.equal(address);
+    });
+  });
+
+  describe('loadWETHAddress', () => {
+    it('should work', async () => {
+      const { address } = await WETH.new();
+      const exchange = await Exchange.new(
+        (await BalanceMigrationSourceMock.new()).address,
+        address,
+      );
+
+      const result = await exchange.loadWETHAddress();
+      expect(result).to.equal(address);
     });
   });
 
@@ -171,6 +211,67 @@ contract('Exchange (tunable parameters)', (accounts) => {
 
       expect(error).to.not.be.undefined;
       expect(error.message).to.match(/caller must be owner/i);
+    });
+  });
+
+  describe('setPairFactoryAddress', async () => {
+    it('should work for valid address', async () => {
+      const exchange = await Exchange.new(
+        (await BalanceMigrationSourceMock.new()).address,
+        (await WETH.new()).address,
+      );
+
+      await exchange.setPairFactoryAddress((await WETH.new()).address);
+    });
+
+    it('should revert for empty address', async () => {
+      const exchange = await Exchange.new(
+        (await BalanceMigrationSourceMock.new()).address,
+        (await WETH.new()).address,
+      );
+
+      let error;
+      try {
+        await exchange.setPairFactoryAddress(bnbAddress);
+      } catch (e) {
+        error = e;
+      }
+
+      expect(error).to.not.be.undefined;
+      expect(error.message).to.match(/invalid address/i);
+    });
+
+    it('should revert when called more than once', async () => {
+      const { exchange } = await deployAndAssociateContracts();
+      await exchange.setPairFactoryAddress((await WETH.new()).address);
+
+      let error;
+      try {
+        await exchange.setPairFactoryAddress((await WETH.new()).address);
+      } catch (e) {
+        error = e;
+      }
+      expect(error).to.not.be.undefined;
+      expect(error.message).to.match(/factory can only be set once/i);
+    });
+
+    it('should revert when not called by admin', async () => {
+      const exchange = await Exchange.new(
+        (await BalanceMigrationSourceMock.new()).address,
+        (await WETH.new()).address,
+      );
+
+      let error;
+      try {
+        await exchange.setPairFactoryAddress(accounts[1], {
+          from: accounts[1],
+        });
+      } catch (e) {
+        error = e;
+      }
+
+      expect(error).to.not.be.undefined;
+      expect(error.message).to.match(/caller must be admin/i);
     });
   });
 
