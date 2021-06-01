@@ -90,7 +90,7 @@ library LiquidityPoolRegistry {
     // Promote pool to hybrid and transfer token reserves to Exchange
     (address token0, address token1, uint112 reserve0, uint112 reserve1) =
       pairTokenAddress.promote();
-    // Transfer reserves to Custodian and unwrap WBNB if needed
+    // Transfer reserves to Custodian and unwrap WETH if needed
     transferTokenReserveToCustodian(token0, reserve0, custodian, WETH);
     transferTokenReserveToCustodian(token1, reserve1, custodian, WETH);
     // Reset pair reserves to zero
@@ -264,9 +264,15 @@ library LiquidityPoolRegistry {
       LiquidityChangeState state = self.changes[hash];
 
       if (addition.origination == LiquidityChangeOrigination.OnChain) {
-        require(state == LiquidityChangeState.Initiated, 'Not executable');
+        require(
+          state == LiquidityChangeState.Initiated,
+          'Not executable from on-chain'
+        );
       } else {
-        require(state == LiquidityChangeState.NotInitiated, 'Not executable');
+        require(
+          state == LiquidityChangeState.NotInitiated,
+          'Not executable from off-chain'
+        );
         require(
           Hashing.isSignatureValid(hash, addition.signature, addition.wallet),
           'Invalid signature'
@@ -388,9 +394,15 @@ library LiquidityPoolRegistry {
       LiquidityChangeState state = self.changes[hash];
 
       if (removal.origination == LiquidityChangeOrigination.OnChain) {
-        require(state == LiquidityChangeState.Initiated, 'Not executable');
+        require(
+          state == LiquidityChangeState.Initiated,
+          'Not executable from on-chain'
+        );
       } else {
-        require(state == LiquidityChangeState.NotInitiated, 'Not executable');
+        require(
+          state == LiquidityChangeState.NotInitiated,
+          'Not executable from off-chain'
+        );
         require(
           Hashing.isSignatureValid(hash, removal.signature, removal.wallet),
           'Invalid signature'
@@ -610,7 +622,7 @@ library LiquidityPoolRegistry {
     ICustodian custodian,
     IWETH9 WETH
   ) private {
-    // Unwrap WBNB
+    // Unwrap WETH
     if (token == address(WETH)) {
       WETH.withdraw(reserve);
       AssetTransfers.transferTo(

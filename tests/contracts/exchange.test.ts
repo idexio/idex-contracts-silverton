@@ -1,4 +1,4 @@
-import { deployAndAssociateContracts, bnbSymbol } from './helpers';
+import { deployAndAssociateContracts, ethSymbol } from './helpers';
 
 contract('Exchange (tunable parameters)', (accounts) => {
   const BalanceMigrationSourceMock = artifacts.require(
@@ -45,7 +45,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
     });
   });
 
-  it('should revert when receiving BNB directly', async () => {
+  it('should revert when receiving ETH directly', async () => {
     const exchange = await Exchange.new(
       (await BalanceMigrationSourceMock.new()).address,
       (await WETH.new()).address,
@@ -104,7 +104,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
 
       let error;
       try {
-        await exchange.loadBalanceInPipsBySymbol(bnbAddress, bnbSymbol);
+        await exchange.loadBalanceInPipsBySymbol(bnbAddress, ethSymbol);
       } catch (e) {
         error = e;
       }
@@ -120,7 +120,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
 
       let error;
       try {
-        await exchange.loadBalanceInAssetUnitsBySymbol(bnbAddress, bnbSymbol);
+        await exchange.loadBalanceInAssetUnitsBySymbol(bnbAddress, ethSymbol);
       } catch (e) {
         error = e;
       }

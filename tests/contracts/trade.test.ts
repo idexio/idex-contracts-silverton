@@ -9,7 +9,7 @@ import type {
 import {
   deployAndAssociateContracts,
   deployAndRegisterToken,
-  bnbSymbol,
+  ethSymbol,
   getSignature,
 } from './helpers';
 import {
@@ -26,7 +26,7 @@ import {
 } from '../../lib';
 
 const tokenSymbol = 'TKN';
-const marketSymbol = `${tokenSymbol}-${bnbSymbol}`;
+const marketSymbol = `${tokenSymbol}-${ethSymbol}`;
 
 contract('Exchange (trades)', (accounts) => {
   const Token = artifacts.require('TestToken');
@@ -65,7 +65,7 @@ contract('Exchange (trades)', (accounts) => {
       expect(loggedSellWallet).to.equal(sellWallet);
 
       expect(baseAssetSymbol).to.equal(tokenSymbol);
-      expect(quoteAssetSymbol).to.equal(bnbSymbol);
+      expect(quoteAssetSymbol).to.equal(ethSymbol);
 
       expect(
         (
@@ -362,7 +362,7 @@ contract('Exchange (trades)', (accounts) => {
       expect(loggedSellWallet).to.equal(sellWallet);
 
       expect(baseAssetSymbol).to.equal(tokenSymbol);
-      expect(quoteAssetSymbol).to.equal(bnbSymbol);
+      expect(quoteAssetSymbol).to.equal(ethSymbol);
 
       expect(
         (
@@ -1394,8 +1394,8 @@ contract('Exchange (trades)', (accounts) => {
         buyWallet,
         sellWallet,
       );
-      buyOrder.market = `${bnbSymbol}-${bnbSymbol}`;
-      sellOrder.market = `${bnbSymbol}-${bnbSymbol}`;
+      buyOrder.market = `${ethSymbol}-${ethSymbol}`;
+      sellOrder.market = `${ethSymbol}-${ethSymbol}`;
       fill.baseAssetAddress = bnbAddress;
 
       let error;
@@ -1561,7 +1561,7 @@ export const deposit = async (
   sellWallet: string,
   decimals = 18,
   quantity = '10.00000000',
-  price = '0.10000000', // 1 BNB buys 10 TKN
+  price = '0.10000000', // 1 ETH buys 10 TKN
 ): Promise<void> => {
   const quoteQuantity = new BigNumber(quantity)
     .multipliedBy(new BigNumber(price).shiftedBy(18 - decimals))
@@ -1595,7 +1595,7 @@ export const depositTokenPair = async (
   sellWallet: string,
   decimals = 18,
   quantity = '10.00000000',
-  price = '0.10000000', // 1 BNB buys 10 TKN
+  price = '0.10000000', // 1 ETH buys 10 TKN
 ): Promise<void> => {
   await baseToken.approve(
     exchange.address,
@@ -1662,7 +1662,7 @@ export const generateOrdersAndFill = async (
   buyWallet: string,
   sellWallet: string,
   quantity = '10.00000000',
-  price = '0.10000000', // 1 BNB buys 10 TKN
+  price = '0.10000000', // 1 ETH buys 10 TKN
   market = marketSymbol,
 ): Promise<{ buyOrder: Order; sellOrder: Order; fill: Trade }> => {
   const quoteQuantity = new BigNumber(quantity)

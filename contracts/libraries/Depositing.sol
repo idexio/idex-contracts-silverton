@@ -127,7 +127,7 @@ library Depositing {
     require(quantityInPips > 0, 'Quantity is too low');
 
     // Convert from pips back into asset units to remove any fractional amount that is too small
-    // to express in pips. If the asset is BNB, this leftover fractional amount accumulates as dust
+    // to express in pips. If the asset is ETH, this leftover fractional amount accumulates as dust
     // in the `Exchange` contract. If the asset is a token the `Exchange` will call `transferFrom`
     // without this fractional amount and there will be no dust
     uint256 quantityInAssetUnitsWithoutFractionalPips =
@@ -135,7 +135,7 @@ library Depositing {
 
     // Forward the funds to the `Custodian`
     if (asset.assetAddress == address(0x0)) {
-      // If the asset is BNB then the funds were already assigned to this contract via msg.value.
+      // If the asset is ETH then the funds were already assigned to this contract via msg.value.
       AssetTransfers.transferTo(
         payable(address(custodian)),
         asset.assetAddress,

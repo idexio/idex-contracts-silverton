@@ -52,7 +52,7 @@ contract Custodian is ICustodian, Owned {
   }
 
   /**
-   * @notice BNB can only be sent by the Exchange
+   * @notice ETH can only be sent by the Exchange
    */
   receive() external payable override onlyExchange {}
 
@@ -62,7 +62,7 @@ contract Custodian is ICustodian, Owned {
    * @dev No balance checking performed
    *
    * @param wallet The wallet to which assets will be returned
-   * @param asset The address of the asset to withdraw (BNB or ERC-20 contract)
+   * @param asset The address of the asset to withdraw (ETH or ERC-20 contract)
    * @param quantityInAssetUnits The quantity in asset units to withdraw
    */
   function withdraw(

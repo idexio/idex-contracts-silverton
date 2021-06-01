@@ -16,7 +16,7 @@ import {
 } from '../../lib';
 import {
   deployAndRegisterToken,
-  bnbSymbol,
+  ethSymbol,
   getSignature,
   minimumDecimalQuantity,
   minimumTokenQuantity,
@@ -39,7 +39,7 @@ contract('Exchange (withdrawals)', (accounts) => {
   const tokenSymbol = 'TKN';
 
   describe('withdraw', () => {
-    it('should work by symbol for BNB', async () => {
+    it('should work by symbol for ETH', async () => {
       const { exchange } = await deployAndAssociateContracts();
       await exchange.setDispatcher(accounts[0]);
       await exchange.depositEther({
@@ -55,7 +55,7 @@ contract('Exchange (withdrawals)', (accounts) => {
           wallet: accounts[0],
           quantity: minimumDecimalQuantity,
           autoDispatchEnabled: true,
-          asset: bnbSymbol,
+          asset: ethSymbol,
         },
         accounts[0],
       );
@@ -64,7 +64,7 @@ contract('Exchange (withdrawals)', (accounts) => {
         exchange,
         accounts[0],
         bnbAddress,
-        bnbSymbol,
+        ethSymbol,
         minimumDecimalQuantity,
       );
 
@@ -83,7 +83,7 @@ contract('Exchange (withdrawals)', (accounts) => {
       ).to.equal('0');
     });
 
-    it('should work by address for BNB', async () => {
+    it('should work by address for ETH', async () => {
       const { exchange } = await deployAndAssociateContracts();
       await exchange.setDispatcher(accounts[0]);
       await exchange.depositEther({
@@ -108,7 +108,7 @@ contract('Exchange (withdrawals)', (accounts) => {
         exchange,
         accounts[0],
         bnbAddress,
-        bnbSymbol,
+        ethSymbol,
         minimumDecimalQuantity,
       );
 
@@ -365,7 +365,7 @@ contract('Exchange (withdrawals)', (accounts) => {
         wallet: accounts[0],
         quantity: minimumDecimalQuantity,
         autoDispatchEnabled: true,
-        asset: bnbSymbol,
+        asset: ethSymbol,
       };
       const [withdrawalStruct] = await getWithdrawArguments(
         withdrawal,
@@ -403,7 +403,7 @@ contract('Exchange (withdrawals)', (accounts) => {
             wallet: accounts[0],
             quantity: minimumDecimalQuantity,
             autoDispatchEnabled: true,
-            asset: bnbSymbol,
+            asset: ethSymbol,
           },
           accounts[0],
         );
@@ -432,7 +432,7 @@ contract('Exchange (withdrawals)', (accounts) => {
             wallet: accounts[0],
             quantity: minimumDecimalQuantity,
             autoDispatchEnabled: true,
-            asset: bnbSymbol,
+            asset: ethSymbol,
           },
           accounts[0],
           minimumDecimalQuantity, // 100% fee
@@ -456,7 +456,7 @@ contract('Exchange (withdrawals)', (accounts) => {
         wallet: accounts[0],
         quantity: minimumDecimalQuantity,
         autoDispatchEnabled: true,
-        asset: bnbSymbol,
+        asset: ethSymbol,
       };
       const [withdrawalStruct] = await getWithdrawArguments(
         withdrawal,

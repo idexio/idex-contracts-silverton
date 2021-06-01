@@ -266,7 +266,7 @@ contract('Custodian', (accounts) => {
       ).to.equal(web3.utils.toWei('1', 'ether'));
     });
 
-    it('should revert withdrawing BNB not deposited', async () => {
+    it('should revert withdrawing ETH not deposited', async () => {
       const [sourceWallet, destinationWallet] = accounts;
 
       let error;
@@ -281,7 +281,7 @@ contract('Custodian', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/BNB transfer failed/i);
+      expect(error.message).to.match(/ETH transfer failed/i);
     });
 
     it('should revert withdrawing tokens not deposited', async () => {

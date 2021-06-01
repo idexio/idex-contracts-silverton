@@ -582,9 +582,9 @@ contract Exchange is IExchange, Owned {
    * the wallet hash, since this is cheaper than splitting the market symbol into its two constituent asset symbols
    * @dev Stack level too deep if declared external
    *
-   * @param buy A `Order` struct encoding the parameters of the buy-side order (receiving base, giving quote)
-   * @param sell A `Order` struct encoding the parameters of the sell-side order (giving base, receiving quote)
-   * @param orderBookTrade A `Trade` struct encoding the parameters of this trade execution of the two orders
+   * @param buy An `Order` struct encoding the parameters of the buy-side order (receiving base, giving quote)
+   * @param sell An `Order` struct encoding the parameters of the sell-side order (giving base, receiving quote)
+   * @param orderBookTrade An `OrderBookTrade` struct encoding the parameters of this trade execution of the two orders
    */
   function executeOrderBookTrade(
     Order memory buy,

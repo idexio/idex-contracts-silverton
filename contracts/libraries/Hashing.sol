@@ -149,8 +149,8 @@ library Hashing {
 
   /**
    * @dev Combines base and quote asset symbols into the market symbol originally signed by the
-   * wallet. For example if base is 'IDEX' and quote is 'BNB', the resulting market symbol is
-   * 'IDEX-BNB'. This approach is used rather than passing in the market symbol and splitting it
+   * wallet. For example if base is 'IDEX' and quote is 'ETH', the resulting market symbol is
+   * 'IDEX-ETH'. This approach is used rather than passing in the market symbol and splitting it
    * since the latter incurs a higher gas cost
    */
   function getMarketSymbol(string memory baseSymbol, string memory quoteSymbol)

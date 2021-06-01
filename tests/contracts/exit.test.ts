@@ -35,7 +35,7 @@ contract('Exchange (exits)', (accounts) => {
   });
 
   describe('withdrawExit', () => {
-    it('should work for BNB', async () => {
+    it('should work for ETH', async () => {
       const { exchange } = await deployAndAssociateContracts();
 
       await exchange.depositEther({

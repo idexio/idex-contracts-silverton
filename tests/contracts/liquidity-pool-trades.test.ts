@@ -19,10 +19,10 @@ import {
 } from '../../types/truffle-contracts';
 
 import { deployContractsAndCreateHybridETHPool } from './liquidity-pools.test';
-import { bnbSymbol, getSignature } from './helpers';
+import { ethSymbol, getSignature } from './helpers';
 
 const token0Symbol = 'DIL';
-const ethMarketSymbol = `${token0Symbol}-${bnbSymbol}`;
+const ethMarketSymbol = `${token0Symbol}-${ethSymbol}`;
 
 contract(
   'Exchange (liquidity pools)',

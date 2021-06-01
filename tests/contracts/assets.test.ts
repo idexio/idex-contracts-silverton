@@ -3,7 +3,7 @@ import BigNumber from 'bignumber.js';
 import {
   deployAndAssociateContracts,
   deployAndRegisterToken,
-  bnbSymbol,
+  ethSymbol,
 } from './helpers';
 import { bnbAddress } from '../../lib';
 import { AssetsMockInstance } from '../../types/truffle-contracts';
@@ -38,7 +38,7 @@ contract('Exchange (tokens)', () => {
       );
     });
 
-    it('should revert for BNB address', async () => {
+    it('should revert for ETH address', async () => {
       const { exchange } = await deployAndAssociateContracts();
 
       let error;
@@ -214,7 +214,7 @@ contract('Exchange (tokens)', () => {
       expect(error.message).to.match(/not finalized/i);
     });
 
-    it('should revert for reserved BNB symbol', async () => {
+    it('should revert for reserved ETH symbol', async () => {
       const { exchange } = await deployAndAssociateContracts();
       const token = await Token.new();
 
@@ -223,7 +223,7 @@ contract('Exchange (tokens)', () => {
 
       let error;
       try {
-        await exchange.addTokenSymbol(token.address, 'BNB');
+        await exchange.addTokenSymbol(token.address, ethSymbol);
       } catch (e) {
         error = e;
       }
@@ -231,7 +231,7 @@ contract('Exchange (tokens)', () => {
       expect(error.message).to.match(/BNB symbol reserved/i);
     });
 
-    it('should revert for BNB address', async () => {
+    it('should revert for ETH address', async () => {
       const { exchange } = await deployAndAssociateContracts();
       const token = await Token.new();
 
@@ -250,11 +250,11 @@ contract('Exchange (tokens)', () => {
   });
 
   describe('loadAssetBySymbol', () => {
-    it('should work for BNB', async () => {
+    it('should work for ETH', async () => {
       const { exchange } = await deployAndAssociateContracts();
 
       const registeredAddress = (
-        await exchange.loadAssetBySymbol(bnbSymbol, new Date().getTime())
+        await exchange.loadAssetBySymbol(ethSymbol, new Date().getTime())
       ).assetAddress;
 
       expect(registeredAddress).to.equal(bnbAddress);

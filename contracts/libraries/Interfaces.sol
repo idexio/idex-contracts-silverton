@@ -100,7 +100,7 @@ interface IERC20 {
  */
 interface ICustodian {
   /**
-   * @notice BNB can only be sent by the Exchange
+   * @notice ETH can only be sent by the Exchange
    */
   receive() external payable;
 
