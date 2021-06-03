@@ -149,22 +149,11 @@ interface ICustodian {
 }
 
 /**
- * @notice Interface to Exchange contract
+ * @notice Interface to Whistler Exchange contract
+ *
+ * @dev Used for lazy balance migrations from old to new Exchange after upgrade
  */
 interface IExchange {
-  /**
-   * @notice Settles a trade between two orders submitted and matched off-chain
-   *
-   * @param buy An `Order` struct encoding the parameters of the buy-side order (receiving base, giving quote)
-   * @param sell An `Order` struct encoding the parameters of the sell-side order (giving base, receiving quote)
-   * @param trade An `OrderBookTrade` struct encoding the parameters of this trade execution of the two orders
-   */
-  function executeOrderBookTrade(
-    Order calldata buy,
-    Order calldata sell,
-    OrderBookTrade calldata trade
-  ) external;
-
   /**
    * @notice Load a wallet's balance by asset address, in pips
    *
@@ -177,13 +166,6 @@ interface IExchange {
     external
     view
     returns (uint64);
-
-  /**
-   * @notice Settles a user withdrawal submitted off-chain. Calls restricted to currently whitelisted Dispatcher wallet
-   *
-   * @param withdrawal A `Withdrawal` struct encoding the parameters of the withdrawal
-   */
-  function withdraw(Withdrawal calldata withdrawal) external;
 }
 
 interface IWETH9 is IERC20 {

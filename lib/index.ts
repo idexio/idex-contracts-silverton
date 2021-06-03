@@ -12,6 +12,8 @@ export { contracts };
 /** The fixed number of digits following the decimal in quantities expressed as pips */
 export const pipsDecimals = 8;
 
+export const signatureHashVersion = 2;
+
 export enum LiquidityChangeOrigination {
   OnChain,
   OffChain,

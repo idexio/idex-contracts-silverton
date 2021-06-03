@@ -45,7 +45,7 @@
     "prettier": "prettier --write **/*.sol",
     "test": "yarn test:contracts:dist",
     "test:contracts:dist": "multi='spec=- json=./coverage/mocha-summary.json' truffle test ./build/tests/contracts/*.test.js",
-    "test:contracts:coverage": "multi='spec=- json=./coverage/mocha-summary.json' truffle run coverage --file=\"./build/tests/contracts/*.test.js\" && node bin/get-badges.js",
+    "test:contracts:coverage": "multi='spec=- json=./coverage/mocha-summary.json' truffle run coverage --network coverage --file=\"./build/tests/contracts/*.test.js\" && node bin/get-badges.js",
     "verify": "truffle run verify"
   },
   "dependencies": {
@@ -75,6 +75,7 @@
     "eslint-plugin-prettier": "^3.3.1",
     "eslint-plugin-promise": "^4.2.1",
     "eslint-plugin-truffle": "^0.3.1",
+    "ganache-cli": "^6.12.2",
     "hardhat": "2.2.1",
     "husky": "^4.3.8",
     "markdownlint-cli": "0.26.0",
@@ -85,7 +86,7 @@
     "prettier-eslint-cli": "5.0.0",
     "prettier-plugin-solidity": "1.0.0-beta.3",
     "solidity-coverage": "0.7.16",
-    "truffle": "5.1.63",
+    "truffle": "^5.3.8",
     "ts-node": "9.1.1",
     "ts-node-dev": "1.1.1",
     "typechain": "4.0.3",

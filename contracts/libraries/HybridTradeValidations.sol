@@ -38,7 +38,7 @@ library HybridTradeValidations {
     require(
       trade.baseAssetAddress == poolTrade.baseAssetAddress &&
         trade.quoteAssetAddress == poolTrade.quoteAssetAddress,
-      'Mismatched trades'
+      'Mismatched trade assets'
     );
     Order memory takerOrder = trade.makerSide == OrderSide.Buy ? sell : buy;
     PoolTradeValidations.validateLimitPrice(takerOrder, poolTrade);
