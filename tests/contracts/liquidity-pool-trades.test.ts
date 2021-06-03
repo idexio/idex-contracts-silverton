@@ -296,6 +296,212 @@ contract(
         */
       });
 
+      it('should work for taker sell order', async () => {
+        const initialBaseReserve = '10000.00000000';
+        const initialQuoteReserve = '10.00000000';
+
+        const { exchange, token } = await deployContractsAndCreateHybridETHPool(
+          initialBaseReserve,
+          initialQuoteReserve,
+          ownerWallet,
+        );
+        await exchange.setDispatcher(ownerWallet);
+
+        await deposit(exchange, token, buyWallet, '0.00000000', '10.00000000');
+        await token.transfer(
+          sellWallet,
+          decimalToAssetUnits('5000.00000000', 18),
+        );
+        await deposit(
+          exchange,
+          token,
+          sellWallet,
+          '5000.00000000',
+          '0.00000000',
+        );
+
+        const { buyOrder, poolTrade } = await generateOrderAndPoolTrade(
+          token.address,
+          bnbAddress,
+          buyWallet,
+          '2222.22222224',
+          '0.00081000',
+        );
+        buyOrder.quantity = '1111.11111112';
+        const buySignature = await getSignature(
+          web3,
+          getOrderHash(buyOrder),
+          buyWallet,
+        );
+        poolTrade.netQuoteQuantity = '1.000000000';
+        poolTrade.grossQuoteQuantity = '1.000000000';
+        poolTrade.netBaseQuantity = '1111.11111112';
+        poolTrade.grossBaseQuantity = '1111.11111112';
+
+        const { sellOrder, fill } = await generateOrdersAndFill(
+          token.address,
+          bnbAddress,
+          buyWallet,
+          sellWallet,
+          '1111.11111112',
+          '0.00081000',
+          ethMarketSymbol,
+        );
+        sellOrder.quantity = '2222.22222224';
+        const sellSignature = await getSignature(
+          web3,
+          getOrderHash(sellOrder),
+          sellWallet,
+        );
+        fill.makerSide = OrderSide.Buy;
+
+        // https://github.com/microsoft/TypeScript/issues/28486
+        await (exchange.executeHybridTrade as any)(
+          ...getHybridTradeArguments(
+            buyOrder,
+            buySignature,
+            sellOrder,
+            sellSignature,
+            fill,
+            poolTrade,
+          ),
+        );
+      });
+
+      it('should revert when pool marginal buy price exceeded', async () => {
+        const initialBaseReserve = '10000.00000000';
+        const initialQuoteReserve = '10.00000000';
+
+        const { exchange, token } = await deployContractsAndCreateHybridETHPool(
+          initialBaseReserve,
+          initialQuoteReserve,
+          ownerWallet,
+        );
+        await exchange.setDispatcher(ownerWallet);
+
+        await deposit(exchange, token, buyWallet, '0.00000000', '10.00000000');
+        await token.transfer(
+          sellWallet,
+          decimalToAssetUnits('5000.00000000', 18),
+        );
+        await deposit(
+          exchange,
+          token,
+          sellWallet,
+          '5000.00000000',
+          '0.00000000',
+        );
+
+        const { buyOrder, poolTrade } = await generateOrderAndPoolTrade(
+          token.address,
+          bnbAddress,
+          buyWallet,
+          '2222.22222224',
+          '0.00081000',
+        );
+        buyOrder.price = '0.00082000';
+        const buySignature = await getSignature(
+          web3,
+          getOrderHash(buyOrder),
+          buyWallet,
+        );
+        poolTrade.netQuoteQuantity = '1.000000000';
+        poolTrade.grossQuoteQuantity = '1.000000000';
+        poolTrade.netBaseQuantity = '1111.11111112';
+        poolTrade.grossBaseQuantity = '1111.11111112';
+
+        const { sellOrder, fill } = await generateOrdersAndFill(
+          token.address,
+          bnbAddress,
+          buyWallet,
+          sellWallet,
+          '1111.11111112',
+          '0.00081000',
+          ethMarketSymbol,
+        );
+        sellOrder.quantity = '2222.22222224';
+        const sellSignature = await getSignature(
+          web3,
+          getOrderHash(sellOrder),
+          sellWallet,
+        );
+        fill.makerSide = OrderSide.Buy;
+
+        let error;
+        try {
+          // https://github.com/microsoft/TypeScript/issues/28486
+          await (exchange.executeHybridTrade as any)(
+            ...getHybridTradeArguments(
+              buyOrder,
+              buySignature,
+              sellOrder,
+              sellSignature,
+              fill,
+              poolTrade,
+            ),
+          );
+        } catch (e) {
+          error = e;
+        }
+        expect(error).to.not.be.undefined;
+        expect(error.message).to.match(/marginal buy price exceeded/i);
+      });
+
+      it('should revert when pool marginal sell price exceeded', async () => {
+        const initialBaseReserve = '10000.00000000';
+        const initialQuoteReserve = '10.00000000';
+
+        const { exchange, token } = await deployContractsAndCreateHybridETHPool(
+          initialBaseReserve,
+          initialQuoteReserve,
+          ownerWallet,
+        );
+        await exchange.setDispatcher(ownerWallet);
+
+        await deposit(exchange, token, buyWallet, '0.00000000', '10.00000000');
+        await token.transfer(
+          sellWallet,
+          decimalToAssetUnits('5000.00000000', 18),
+        );
+        await deposit(
+          exchange,
+          token,
+          sellWallet,
+          '5000.00000000',
+          '0.00000000',
+        );
+
+        const {
+          buyOrder,
+          buySignature,
+          sellOrder,
+          sellSignature,
+          fill,
+          poolTrade,
+        } = await generateHybridTrade(token, buyWallet, sellWallet, web3);
+        poolTrade.netQuoteQuantity = '1.00100000';
+        poolTrade.grossQuoteQuantity = '1.00100000';
+
+        let error;
+        try {
+          // https://github.com/microsoft/TypeScript/issues/28486
+          await (exchange.executeHybridTrade as any)(
+            ...getHybridTradeArguments(
+              buyOrder,
+              buySignature,
+              sellOrder,
+              sellSignature,
+              fill,
+              poolTrade,
+            ),
+          );
+        } catch (e) {
+          error = e;
+        }
+        expect(error).to.not.be.undefined;
+        expect(error.message).to.match(/marginal sell price exceeded/i);
+      });
+
       it('should revert for exited buy wallet', async () => {
         const initialBaseReserve = '10000.00000000';
         const initialQuoteReserve = '10.00000000';
@@ -379,6 +585,47 @@ contract(
         }
         expect(error).to.not.be.undefined;
         expect(error.message).to.match(/self-trading not allowed/i);
+      });
+
+      it('should revert for mismatched trades', async () => {
+        const initialBaseReserve = '10000.00000000';
+        const initialQuoteReserve = '10.00000000';
+
+        const { exchange, token } = await deployContractsAndCreateHybridETHPool(
+          initialBaseReserve,
+          initialQuoteReserve,
+          ownerWallet,
+        );
+        await exchange.setDispatcher(ownerWallet);
+
+        const {
+          buyOrder,
+          buySignature,
+          sellOrder,
+          sellSignature,
+          fill,
+          poolTrade,
+        } = await generateHybridTrade(token, buyWallet, sellWallet, web3);
+        poolTrade.quoteAssetAddress = token.address;
+
+        let error;
+        try {
+          // https://github.com/microsoft/TypeScript/issues/28486
+          await (exchange.executeHybridTrade as any)(
+            ...getHybridTradeArguments(
+              buyOrder,
+              buySignature,
+              sellOrder,
+              sellSignature,
+              fill,
+              poolTrade,
+            ),
+          );
+        } catch (e) {
+          error = e;
+        }
+        expect(error).to.not.be.undefined;
+        expect(error.message).to.match(/mismatched trade assets/i);
       });
     });
   },

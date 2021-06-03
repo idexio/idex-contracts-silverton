@@ -135,7 +135,7 @@ library Depositing {
 
     // Forward the funds to the `Custodian`
     if (asset.assetAddress == address(0x0)) {
-      // If the asset is ETH then the funds were already assigned to this contract via msg.value.
+      // If the asset is ETH then the funds were already assigned to the `Exchange` via msg.value.
       AssetTransfers.transferTo(
         payable(address(custodian)),
         asset.assetAddress,

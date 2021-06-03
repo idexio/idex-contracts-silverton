@@ -59,7 +59,7 @@ contract Exchange is IExchange, Owned {
    */
   event ChainPropagationPeriodChanged(uint256 previousValue, uint256 newValue);
   /**
-   * @notice Emitted when a user deposits ETH with `depositEther` or a token with `depositTokenByAddress` or `depositAssetBySymbol`
+   * @notice Emitted when a user deposits ETH with `depositEther` or a token with `depositTokenByAddress` or `depositTokenBySymbol`
    */
   event Deposited(
     uint64 index,
@@ -109,7 +109,7 @@ contract Exchange is IExchange, Owned {
     address to
   );
   /**
-   * @notice Emitted when a user initiates an Add Liquidity request via `removeLiquidity` or
+   * @notice Emitted when a user initiates a Remove Liquidity request via `removeLiquidity` or
    * `removeLiquidityETH`
    */
   event LiquidityRemoved(
@@ -125,7 +125,7 @@ contract Exchange is IExchange, Owned {
    * @notice Emitted when a user invalidates an order nonce with `invalidateOrderNonce`
    */
   event OrderNonceInvalidated(
-    address indexed wallet,
+    address wallet,
     uint128 nonce,
     uint128 timestampInMs,
     uint256 effectiveBlockNumber
@@ -145,7 +145,7 @@ contract Exchange is IExchange, Owned {
    * @notice Emitted when an admin initiates the token registration process with `registerToken`
    */
   event TokenRegistered(
-    IERC20 indexed assetAddress,
+    IERC20 assetAddress,
     string assetSymbol,
     uint8 decimals
   );
@@ -154,7 +154,7 @@ contract Exchange is IExchange, Owned {
    * which it can be deposited, traded, or withdrawn
    */
   event TokenRegistrationConfirmed(
-    IERC20 indexed assetAddress,
+    IERC20 assetAddress,
     string assetSymbol,
     uint8 decimals
   );
@@ -162,7 +162,7 @@ contract Exchange is IExchange, Owned {
    * @notice Emitted when an admin adds a symbol to a previously registered and confirmed token
    * via `addTokenSymbol`
    */
-  event TokenSymbolAdded(IERC20 indexed assetAddress, string assetSymbol);
+  event TokenSymbolAdded(IERC20 assetAddress, string assetSymbol);
   /**
    * @notice Emitted when the Dispatcher Wallet submits a trade for execution with `executeOrderBookTrade`
    */
@@ -178,7 +178,7 @@ contract Exchange is IExchange, Owned {
   /**
    * @notice Emitted when a user invokes the Exit Wallet mechanism with `exitWallet`
    */
-  event WalletExited(address indexed wallet, uint256 effectiveBlockNumber);
+  event WalletExited(address wallet, uint256 effectiveBlockNumber);
   /**
    * @notice Emitted when a user withdraws an asset balance through the Exit Wallet mechanism with `withdrawExit`
    */
@@ -193,7 +193,7 @@ contract Exchange is IExchange, Owned {
   /**
    * @notice Emitted when a user clears the exited status of a wallet previously exited with `exitWallet`
    */
-  event WalletExitCleared(address indexed wallet);
+  event WalletExitCleared(address wallet);
   /**
    * @notice Emitted when the Dispatcher Wallet submits a withdrawal with `withdraw`
    */
@@ -283,11 +283,28 @@ contract Exchange is IExchange, Owned {
     _custodian = newCustodian;
   }
 
+  /**
+   * @notice Enable depositing assets into the Exchange by setting the current deposit index from
+   * the old Exchange contract's value
+   *
+   * @dev The Whistler Exchange does not expose its `_depositIndex` making this manual migration
+   * necessary. The old Exchange must have had at least one deposit. This value cannot be changed
+   * again once set
+   *
+   * @param newDepositIndex The value of `_depositIndex` currently set on the old Exchange contract
+   */
+  function setDepositIndex(uint64 newDepositIndex) external onlyAdmin {
+    require(_depositIndex == 0, 'Can only be set once');
+    require(newDepositIndex > 0, 'Must be nonzero');
+
+    _depositIndex = newDepositIndex;
+  }
+
   /*** Tunable parameters ***/
 
   /**
    * @notice Sets a new Chain Propagation Period - the block delay after which order nonce invalidations
-   * are respected by `executeOrderBookTrade` and wallet exits are respected by `executeOrderBookTrade` and `withdraw`
+   * and wallet exits go into effect
    *
    * @param newChainPropagationPeriod The new Chain Propagation Period expressed as a number of blocks. Must
    * be less than `Constants.maxChainPropagationPeriod`
@@ -298,7 +315,7 @@ contract Exchange is IExchange, Owned {
   {
     require(
       newChainPropagationPeriod < Constants.maxChainPropagationPeriod,
-      'Must be less than 1 week'
+      'New period greater than max'
     );
 
     uint256 oldChainPropagationPeriod = _chainPropagationPeriod;
@@ -370,7 +387,7 @@ contract Exchange is IExchange, Owned {
   }
 
   /**
-   * @notice Load a wallet's balance by asset address, in asset units
+   * @notice Load a wallet's balance by asset symbol, in asset units
    *
    * @param wallet The wallet address to load the balance for. Can be different from `msg.sender`
    * @param assetSymbol The asset symbol to load the wallet's balance for
@@ -447,10 +464,37 @@ contract Exchange is IExchange, Owned {
     return _feeWallet;
   }
 
+  /**
+   * @notice Load the internally-tracked liquidity pool descriptor for a base-quote asset pair
+   *
+   * @return A `LiquidityPool` struct encapsulating the current state of the internally-tracked
+   * liquidity pool for the given base-quote asset pair. Reverts if no such pool exists
+   */
+  function loadLiquidityPoolByAssetAddresses(
+    address baseAssetAddress,
+    address quoteAssetAddress
+  ) public view returns (LiquidityPool memory) {
+    return
+      _liquidityPoolRegistry.loadLiquidityPoolByAssetAddresses(
+        baseAssetAddress,
+        quoteAssetAddress
+      );
+  }
+
+  /**
+   * @notice Load the address of the `IDEXPairFactory` contract associated with the Exchange
+   *
+   * @return The address of the `IDEXPairFactory` contract
+   */
   function loadPairFactoryContractAddress() external view returns (address) {
     return address(_pairFactoryContractAddress);
   }
 
+  /**
+   * @notice Load the address of the `WETH` contract associated with the Exchange
+   *
+   * @return The address of the `WETH` contract
+   */
   function loadWETHAddress() external view returns (address) {
     return address(_WETH);
   }
@@ -515,7 +559,7 @@ contract Exchange is IExchange, Owned {
 
     require(address(tokenAddress) != address(0x0), 'Use depositEther');
 
-    deposit(address(msg.sender), asset, quantityInAssetUnits);
+    deposit(msg.sender, asset, quantityInAssetUnits);
   }
 
   /**
@@ -542,6 +586,9 @@ contract Exchange is IExchange, Owned {
     Asset memory asset,
     uint256 quantityInAssetUnits
   ) private {
+    // Deposits are disabled until `setDepositIndex` is called successfully
+    require(_depositIndex > 0, 'Deposits disabled');
+
     // Calling exitWallet disables deposits immediately on mining, in contrast to withdrawals and
     // trades which respect the Chain Propagation Period given by `effectiveBlockNumber` via
     // `isWalletExitFinalized`
@@ -590,7 +637,7 @@ contract Exchange is IExchange, Owned {
     Order memory buy,
     Order memory sell,
     OrderBookTrade memory orderBookTrade
-  ) public override onlyDispatcher {
+  ) public onlyDispatcher {
     require(
       !isWalletExitFinalized(buy.walletAddress),
       'Buy wallet exit finalized'
@@ -718,11 +765,7 @@ contract Exchange is IExchange, Owned {
    *
    * @param withdrawal A `Withdrawal` struct encoding the parameters of the withdrawal
    */
-  function withdraw(Withdrawal memory withdrawal)
-    public
-    override
-    onlyDispatcher
-  {
+  function withdraw(Withdrawal memory withdrawal) public onlyDispatcher {
     require(!isWalletExitFinalized(withdrawal.walletAddress), 'Wallet exited');
 
     (
@@ -751,17 +794,6 @@ contract Exchange is IExchange, Owned {
   }
 
   // Liquidity pools //
-
-  function loadLiquidityPoolByAssetAddresses(
-    address baseAssetAddress,
-    address quoteAssetAddress
-  ) public view returns (LiquidityPool memory) {
-    return
-      _liquidityPoolRegistry.loadLiquidityPoolByAssetAddresses(
-        baseAssetAddress,
-        quoteAssetAddress
-      );
-  }
 
   function promotePool(
     address baseAssetAddress,
