@@ -201,6 +201,55 @@ export const getWithdrawalHash = (withdrawal: Withdrawal): string => {
   ]);
 };
 
+export const getAddLiquidityArguments = (
+  addition: LiquidityAddition,
+  walletSignature: string,
+  execution: ExchangeInstance['executeAddLiquidity']['arguments'][1],
+): ExchangeInstance['executeAddLiquidity']['arguments'] => {
+  return [
+    {
+      signatureHashVersion: addition.signatureHashVersion,
+      origination: LiquidityChangeOrigination.OffChain,
+      nonce: uuidToHexString(addition.nonce),
+      wallet: addition.wallet,
+      assetA: addition.assetA,
+      assetB: addition.assetB,
+      amountADesired: addition.amountADesired,
+      amountBDesired: addition.amountBDesired,
+      amountAMin: addition.amountAMin,
+      amountBMin: addition.amountBMin,
+      to: addition.to,
+      deadline: addition.deadline,
+      signature: walletSignature,
+    },
+    execution,
+  ];
+};
+
+export const getRemoveLiquidityArguments = (
+  removal: LiquidityRemoval,
+  walletSignature: string,
+  execution: ExchangeInstance['executeRemoveLiquidity']['arguments'][1],
+): ExchangeInstance['executeRemoveLiquidity']['arguments'] => {
+  return [
+    {
+      signatureHashVersion: removal.signatureHashVersion,
+      origination: LiquidityChangeOrigination.OffChain,
+      nonce: uuidToHexString(removal.nonce),
+      wallet: removal.wallet,
+      assetA: removal.assetA,
+      assetB: removal.assetB,
+      liquidity: removal.liquidity,
+      amountAMin: removal.amountAMin,
+      amountBMin: removal.amountBMin,
+      to: removal.to,
+      deadline: removal.deadline,
+      signature: walletSignature,
+    },
+    execution,
+  ];
+};
+
 export const getTradeArguments = (
   buyOrder: Order,
   buyWalletSignature: string,

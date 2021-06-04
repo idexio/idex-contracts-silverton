@@ -1,10 +1,16 @@
 import BigNumber from 'bignumber.js';
+import { v1 as uuidv1 } from 'uuid';
 
 import {
   bnbAddress,
   decimalToAssetUnits,
   decimalToPips,
+  getAddLiquidityArguments,
   getLiquidityAdditionHash,
+  getLiquidityRemovalHash,
+  getRemoveLiquidityArguments,
+  LiquidityAddition,
+  LiquidityRemoval,
   signatureHashVersion,
 } from '../../lib';
 import {
@@ -15,7 +21,11 @@ import {
   TestTokenInstance,
   WETHInstance,
 } from '../../types/truffle-contracts';
-import { deployAndAssociateContracts, deployAndRegisterToken } from './helpers';
+import {
+  deployAndAssociateContracts,
+  deployAndRegisterToken,
+  getSignature,
+} from './helpers';
 
 const token0Symbol = 'DIL';
 
@@ -246,69 +256,6 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
       expect(mintEvents.length).to.equal(2);
       expect(mintEvents[1].returnValues.amount0).to.equal(execution.liquidity);
       expect(mintEvents[1].returnValues.amount1).to.equal(execution.liquidity);
-    });
-
-    it.skip('should work when initiated off-chain', async () => {
-      const depositQuantity = '1.00000000';
-      const depositQuantityInAssetUnits = decimalToAssetUnits(
-        depositQuantity,
-        18,
-      );
-
-      const {
-        exchange,
-        pair,
-        token0,
-        token1,
-      } = await deployContractsAndCreateHybridPool(
-        depositQuantity,
-        depositQuantity,
-        ownerWallet,
-      );
-      await exchange.setDispatcher(ownerWallet);
-
-      await token0.approve(exchange.address, depositQuantityInAssetUnits);
-      await token1.approve(exchange.address, depositQuantityInAssetUnits);
-      await exchange.depositTokenByAddress(
-        token0.address,
-        depositQuantityInAssetUnits,
-      );
-      await exchange.depositTokenByAddress(
-        token1.address,
-        depositQuantityInAssetUnits,
-      );
-      const addition = {
-        signatureHashVersion,
-        assetA: token0.address,
-        assetB: token1.address,
-        amountADesired: depositQuantityInAssetUnits,
-        amountBDesired: depositQuantityInAssetUnits,
-        amountAMin: depositQuantityInAssetUnits,
-        amountBMin: depositQuantityInAssetUnits,
-        to: ownerWallet,
-        deadline: 0,
-      };
-
-      const transferEvents = await pair.getPastEvents('Transfer', {
-        fromBlock: 0,
-      });
-      expect(transferEvents).to.be.an('array');
-      expect(transferEvents.length).to.equal(3);
-      expect(transferEvents[2].returnValues.value).to.equal(
-        decimalToAssetUnits(depositQuantity, 18),
-      );
-
-      const mintEvents = await pair.getPastEvents('Mint', {
-        fromBlock: 0,
-      });
-      expect(mintEvents).to.be.an('array');
-      expect(mintEvents.length).to.equal(2);
-      expect(mintEvents[1].returnValues.amount0).to.equal(
-        decimalToAssetUnits(depositQuantity, 18),
-      );
-      expect(mintEvents[1].returnValues.amount1).to.equal(
-        decimalToAssetUnits(depositQuantity, 18),
-      );
     });
 
     it('should revert when already initiated', async () => {
@@ -613,6 +560,218 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
       }
       expect(error).to.not.be.undefined;
       expect(error.message).to.match(/idex: expired/i);
+    });
+  });
+
+  describe('executeAddLiquidity', () => {
+    it('should work when initiated off-chain', async () => {
+      const depositQuantity = '1.00000000';
+      const depositQuantityInAssetUnits = decimalToAssetUnits(
+        depositQuantity,
+        18,
+      );
+
+      const {
+        exchange,
+        pair,
+        token0,
+        token1,
+      } = await deployContractsAndCreateHybridPool(
+        depositQuantity,
+        depositQuantity,
+        ownerWallet,
+      );
+      await exchange.setDispatcher(ownerWallet);
+
+      const { addition, execution } = await generateOffChainLiquidityAddition(
+        depositQuantityInAssetUnits,
+        ownerWallet,
+        exchange,
+        token0,
+        token1,
+      );
+      const signature = await getSignature(
+        web3,
+        getLiquidityAdditionHash(addition),
+        ownerWallet,
+      );
+
+      // https://github.com/microsoft/TypeScript/issues/28486
+      await (exchange.executeAddLiquidity as any)(
+        ...getAddLiquidityArguments(addition, signature, execution),
+        { from: ownerWallet },
+      );
+
+      const transferEvents = await pair.getPastEvents('Transfer', {
+        fromBlock: 0,
+      });
+      expect(transferEvents).to.be.an('array');
+      expect(transferEvents.length).to.equal(3);
+      expect(transferEvents[2].returnValues.value).to.equal(
+        decimalToAssetUnits(depositQuantity, 18),
+      );
+
+      const mintEvents = await pair.getPastEvents('Mint', {
+        fromBlock: 0,
+      });
+      expect(mintEvents).to.be.an('array');
+      expect(mintEvents.length).to.equal(2);
+      expect(mintEvents[1].returnValues.amount0).to.equal(
+        decimalToAssetUnits(depositQuantity, 18),
+      );
+      expect(mintEvents[1].returnValues.amount1).to.equal(
+        decimalToAssetUnits(depositQuantity, 18),
+      );
+    });
+
+    it('should revert duplicate initiated off-chain', async () => {
+      const depositQuantity = '1.00000000';
+      const depositQuantityInAssetUnits = decimalToAssetUnits(
+        depositQuantity,
+        18,
+      );
+
+      const {
+        exchange,
+        token0,
+        token1,
+      } = await deployContractsAndCreateHybridPool(
+        depositQuantity,
+        depositQuantity,
+        ownerWallet,
+      );
+      await exchange.setDispatcher(ownerWallet);
+
+      const { addition, execution } = await generateOffChainLiquidityAddition(
+        depositQuantityInAssetUnits,
+        ownerWallet,
+        exchange,
+        token0,
+        token1,
+      );
+      const signature = await getSignature(
+        web3,
+        getLiquidityAdditionHash(addition),
+        ownerWallet,
+      );
+
+      // https://github.com/microsoft/TypeScript/issues/28486
+      await (exchange.executeAddLiquidity as any)(
+        ...getAddLiquidityArguments(addition, signature, execution),
+        { from: ownerWallet },
+      );
+
+      let error;
+      try {
+        // https://github.com/microsoft/TypeScript/issues/28486
+        await (exchange.executeAddLiquidity as any)(
+          ...getAddLiquidityArguments(addition, signature, execution),
+          { from: ownerWallet },
+        );
+      } catch (e) {
+        error = e;
+      }
+      expect(error).to.not.be.undefined;
+      expect(error.message).to.match(/not executable from off-chain/i);
+    });
+
+    it('should revert invalid signature initiated off-chain', async () => {
+      const depositQuantity = '1.00000000';
+      const depositQuantityInAssetUnits = decimalToAssetUnits(
+        depositQuantity,
+        18,
+      );
+
+      const {
+        exchange,
+        token0,
+        token1,
+      } = await deployContractsAndCreateHybridPool(
+        depositQuantity,
+        depositQuantity,
+        ownerWallet,
+      );
+      await exchange.setDispatcher(ownerWallet);
+
+      const { addition, execution } = await generateOffChainLiquidityAddition(
+        depositQuantityInAssetUnits,
+        ownerWallet,
+        exchange,
+        token0,
+        token1,
+      );
+      const signature = await getSignature(
+        web3,
+        getLiquidityAdditionHash(addition),
+        ownerWallet,
+      );
+      addition.deadline = 5;
+
+      let error;
+      try {
+        // https://github.com/microsoft/TypeScript/issues/28486
+        await (exchange.executeAddLiquidity as any)(
+          ...getAddLiquidityArguments(addition, signature, execution),
+          { from: ownerWallet },
+        );
+      } catch (e) {
+        error = e;
+      }
+      expect(error).to.not.be.undefined;
+      expect(error.message).to.match(/invalid signature/i);
+    });
+
+    it('should revert when not initiated on-chain', async () => {
+      const depositQuantity = '1.00000000';
+      const depositQuantityInAssetUnits = decimalToAssetUnits(
+        depositQuantity,
+        18,
+      );
+
+      const {
+        exchange,
+        token0,
+        token1,
+      } = await deployContractsAndCreateHybridPool(
+        depositQuantity,
+        depositQuantity,
+        ownerWallet,
+      );
+      await exchange.setDispatcher(ownerWallet);
+
+      const addition = {
+        signatureHashVersion: 2,
+        origination: 0,
+        nonce: 0,
+        wallet: ownerWallet,
+        assetA: token0.address,
+        assetB: token1.address,
+        amountADesired: depositQuantityInAssetUnits,
+        amountBDesired: depositQuantityInAssetUnits,
+        amountAMin: depositQuantityInAssetUnits,
+        amountBMin: depositQuantityInAssetUnits,
+        to: ownerWallet,
+        deadline: Date.now() + 10000,
+        signature: '0x',
+      };
+      const execution = {
+        liquidity: depositQuantityInAssetUnits,
+        amountA: depositQuantityInAssetUnits,
+        amountB: depositQuantityInAssetUnits,
+        feeAmountA: 0,
+        feeAmountB: 0,
+        baseAssetAddress: token0.address,
+        quoteAssetAddress: token1.address,
+      };
+
+      let error;
+      try {
+        await exchange.executeAddLiquidity(addition, execution);
+      } catch (e) {
+        error = e;
+      }
+      expect(error).to.not.be.undefined;
+      expect(error.message).to.match(/not executable from on-chain/i);
     });
   });
 
@@ -1038,6 +1197,245 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
       }
       expect(error).to.not.be.undefined;
       expect(error.message).to.match(/idex: expired/i);
+    });
+  });
+
+  describe('executeRemoveLiquidity', () => {
+    it('should work when initiated off-chain', async () => {
+      const depositQuantity = '1.00000000';
+      const depositQuantityInAssetUnits = decimalToAssetUnits(
+        depositQuantity,
+        18,
+      );
+
+      const {
+        exchange,
+        pair,
+        token0,
+        token1,
+      } = await deployContractsAndCreateHybridPool(
+        depositQuantity,
+        depositQuantity,
+        ownerWallet,
+      );
+      await exchange.setDispatcher(ownerWallet);
+      await addLiquidityAndExecute(
+        depositQuantity,
+        ownerWallet,
+        exchange,
+        token0,
+        token1,
+      );
+
+      const { removal, execution } = await generateOffChainLiquidityRemoval(
+        depositQuantityInAssetUnits,
+        ownerWallet,
+        exchange,
+        pair,
+        token0,
+        token1,
+      );
+      const signature = await getSignature(
+        web3,
+        getLiquidityRemovalHash(removal),
+        ownerWallet,
+      );
+
+      // https://github.com/microsoft/TypeScript/issues/28486
+      await (exchange.executeRemoveLiquidity as any)(
+        ...getRemoveLiquidityArguments(removal, signature, execution),
+        { from: ownerWallet },
+      );
+
+      const burnEvents = await pair.getPastEvents('Burn', {
+        fromBlock: 0,
+      });
+      expect(burnEvents).to.be.an('array');
+      expect(burnEvents.length).to.equal(1);
+      expect(burnEvents[0].returnValues.amount0).to.equal(
+        depositQuantityInAssetUnits,
+      );
+      expect(burnEvents[0].returnValues.amount1).to.equal(
+        depositQuantityInAssetUnits,
+      );
+    });
+
+    it('should revert duplicate initiated off-chain', async () => {
+      const depositQuantity = '1.00000000';
+      const depositQuantityInAssetUnits = decimalToAssetUnits(
+        depositQuantity,
+        18,
+      );
+
+      const {
+        exchange,
+        pair,
+        token0,
+        token1,
+      } = await deployContractsAndCreateHybridPool(
+        depositQuantity,
+        depositQuantity,
+        ownerWallet,
+      );
+      await exchange.setDispatcher(ownerWallet);
+      await addLiquidityAndExecute(
+        depositQuantity,
+        ownerWallet,
+        exchange,
+        token0,
+        token1,
+      );
+
+      const { removal, execution } = await generateOffChainLiquidityRemoval(
+        depositQuantityInAssetUnits,
+        ownerWallet,
+        exchange,
+        pair,
+        token0,
+        token1,
+      );
+      const signature = await getSignature(
+        web3,
+        getLiquidityRemovalHash(removal),
+        ownerWallet,
+      );
+
+      // https://github.com/microsoft/TypeScript/issues/28486
+      await (exchange.executeRemoveLiquidity as any)(
+        ...getRemoveLiquidityArguments(removal, signature, execution),
+        { from: ownerWallet },
+      );
+
+      let error;
+      try {
+        // https://github.com/microsoft/TypeScript/issues/28486
+
+        await (exchange.executeRemoveLiquidity as any)(
+          ...getRemoveLiquidityArguments(removal, signature, execution),
+          { from: ownerWallet },
+        );
+      } catch (e) {
+        error = e;
+      }
+      expect(error).to.not.be.undefined;
+      expect(error.message).to.match(/not executable from off-chain/i);
+    });
+
+    it('should revert invalid signature initiated off-chain', async () => {
+      const depositQuantity = '1.00000000';
+      const depositQuantityInAssetUnits = decimalToAssetUnits(
+        depositQuantity,
+        18,
+      );
+
+      const {
+        exchange,
+        pair,
+        token0,
+        token1,
+      } = await deployContractsAndCreateHybridPool(
+        depositQuantity,
+        depositQuantity,
+        ownerWallet,
+      );
+      await exchange.setDispatcher(ownerWallet);
+      await addLiquidityAndExecute(
+        depositQuantity,
+        ownerWallet,
+        exchange,
+        token0,
+        token1,
+      );
+
+      const { removal, execution } = await generateOffChainLiquidityRemoval(
+        depositQuantityInAssetUnits,
+        ownerWallet,
+        exchange,
+        pair,
+        token0,
+        token1,
+      );
+      const signature = await getSignature(
+        web3,
+        getLiquidityRemovalHash(removal),
+        ownerWallet,
+      );
+      removal.deadline = 5;
+
+      let error;
+      try {
+        // https://github.com/microsoft/TypeScript/issues/28486
+
+        await (exchange.executeRemoveLiquidity as any)(
+          ...getRemoveLiquidityArguments(removal, signature, execution),
+          { from: ownerWallet },
+        );
+      } catch (e) {
+        error = e;
+      }
+      expect(error).to.not.be.undefined;
+      expect(error.message).to.match(/invalid signature/i);
+    });
+
+    it('should revert when not initiated on-chain', async () => {
+      const depositQuantity = '1.00000000';
+      const depositQuantityInAssetUnits = decimalToAssetUnits(
+        depositQuantity,
+        18,
+      );
+
+      const {
+        exchange,
+        token0,
+        token1,
+      } = await deployContractsAndCreateHybridPool(
+        depositQuantity,
+        depositQuantity,
+        ownerWallet,
+      );
+      await exchange.setDispatcher(ownerWallet);
+      await addLiquidityAndExecute(
+        depositQuantity,
+        ownerWallet,
+        exchange,
+        token0,
+        token1,
+      );
+
+      const removal = {
+        signatureHashVersion: 2,
+        origination: 0,
+        nonce: 0,
+        wallet: ownerWallet,
+        assetA: token0.address,
+        assetB: token1.address,
+        liquidity: depositQuantityInAssetUnits,
+        amountAMin: depositQuantityInAssetUnits,
+        amountBMin: depositQuantityInAssetUnits,
+        to: ownerWallet,
+        deadline: Date.now() + 10000,
+        signature: '0x',
+      };
+      const execution = {
+        liquidity: depositQuantityInAssetUnits,
+        amountA: depositQuantityInAssetUnits,
+        amountB: depositQuantityInAssetUnits,
+        feeAmountA: 0,
+        feeAmountB: 0,
+        baseAssetAddress: token0.address,
+        quoteAssetAddress: token1.address,
+      };
+
+      let error;
+      try {
+        await exchange.executeRemoveLiquidity(removal, execution, {
+          from: ownerWallet,
+        });
+      } catch (e) {
+        error = e;
+      }
+      expect(error).to.not.be.undefined;
+      expect(error.message).to.match(/not executable from on-chain/i);
     });
   });
 
@@ -1570,4 +1968,97 @@ async function removeLiquidityETHAndExecute(
   );
 
   return { execution };
+}
+
+async function generateOffChainLiquidityAddition(
+  depositQuantityInAssetUnits: string,
+  ownerWallet: string,
+  exchange: ExchangeInstance,
+  token0: TestTokenInstance,
+  token1: TestTokenInstance,
+): Promise<{
+  addition: LiquidityAddition;
+  execution: ExchangeInstance['executeAddLiquidity']['arguments'][1];
+}> {
+  await token0.approve(exchange.address, depositQuantityInAssetUnits);
+  await token1.approve(exchange.address, depositQuantityInAssetUnits);
+  await exchange.depositTokenByAddress(
+    token0.address,
+    depositQuantityInAssetUnits,
+  );
+  await exchange.depositTokenByAddress(
+    token1.address,
+    depositQuantityInAssetUnits,
+  );
+
+  const addition: LiquidityAddition = {
+    signatureHashVersion,
+    nonce: uuidv1(),
+    wallet: ownerWallet,
+    assetA: token0.address,
+    assetB: token1.address,
+    amountADesired: depositQuantityInAssetUnits,
+    amountBDesired: depositQuantityInAssetUnits,
+    amountAMin: depositQuantityInAssetUnits,
+    amountBMin: depositQuantityInAssetUnits,
+    to: ownerWallet,
+    deadline: 0,
+  };
+
+  const execution = {
+    liquidity: depositQuantityInAssetUnits,
+    amountA: depositQuantityInAssetUnits,
+    amountB: depositQuantityInAssetUnits,
+    feeAmountA: 0,
+    feeAmountB: 0,
+    baseAssetAddress: token0.address,
+    quoteAssetAddress: token1.address,
+  };
+
+  return { addition, execution };
+}
+
+async function generateOffChainLiquidityRemoval(
+  depositQuantityInAssetUnits: string,
+  ownerWallet: string,
+  exchange: ExchangeInstance,
+  pair: IIDEXPairInstance,
+  token0: TestTokenInstance,
+  token1: TestTokenInstance,
+): Promise<{
+  removal: LiquidityRemoval;
+  execution: ExchangeInstance['executeAddLiquidity']['arguments'][1];
+}> {
+  await pair.approve(exchange.address, depositQuantityInAssetUnits, {
+    from: ownerWallet,
+  });
+  await exchange.depositTokenByAddress(
+    pair.address,
+    depositQuantityInAssetUnits,
+  );
+
+  const removal: LiquidityRemoval = {
+    signatureHashVersion,
+    nonce: uuidv1(),
+    wallet: ownerWallet,
+    assetA: token0.address,
+    assetB: token1.address,
+    liquidity: depositQuantityInAssetUnits,
+    amountAMin: depositQuantityInAssetUnits,
+    amountBMin: depositQuantityInAssetUnits,
+    to: ownerWallet,
+    deadline: 0,
+  };
+
+  const execution = {
+    liquidity: depositQuantityInAssetUnits,
+    amountA: depositQuantityInAssetUnits,
+    amountB: depositQuantityInAssetUnits,
+    feeAmountA: 0,
+    feeAmountB: 0,
+    baseAssetAddress: token0.address,
+    quoteAssetAddress: token1.address,
+  };
+
+  return { removal, execution };
 }

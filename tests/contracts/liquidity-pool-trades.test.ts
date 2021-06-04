@@ -183,6 +183,44 @@ contract(
         expect(error).to.not.be.undefined;
         expect(error.message).to.match(/order wallet exit finalized/i);
       });
+
+      it('should revert for decreasing constant product', async () => {
+        const initialBaseReserve = '10000.00000000';
+        const initialQuoteReserve = '10.00000000';
+
+        const { exchange, token } = await deployContractsAndCreateHybridETHPool(
+          initialBaseReserve,
+          initialQuoteReserve,
+          ownerWallet,
+        );
+        await exchange.setDispatcher(ownerWallet);
+
+        await deposit(exchange, token, buyWallet, '0.00000000', '10.00000000');
+        const { buyOrder, poolTrade } = await generateOrderAndPoolTrade(
+          token.address,
+          bnbAddress,
+          buyWallet,
+          '10.00000000',
+          '0.00100000',
+        );
+        const buySignature = await getSignature(
+          web3,
+          getOrderHash(buyOrder),
+          buyWallet,
+        );
+
+        let error;
+        try {
+          // https://github.com/microsoft/TypeScript/issues/28486
+          await (exchange.executePoolTrade as any)(
+            ...getPoolTradeArguments(buyOrder, buySignature, poolTrade),
+          );
+        } catch (e) {
+          error = e;
+        }
+        expect(error).to.not.be.undefined;
+        expect(error.message).to.match(/constant product cannot decrease/i);
+      });
     });
 
     describe('executeHybridTrade', () => {

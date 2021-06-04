@@ -50,6 +50,7 @@ export const deployAndAssociateContracts = async (
   const custodian = await Custodian.new(exchange.address, governance.address);
   await exchange.setCustodian(custodian.address);
   await governance.setCustodian(custodian.address);
+  await exchange.setDepositIndex(1);
 
   return { custodian, exchange, governance, wbnb };
 };

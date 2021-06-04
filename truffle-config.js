@@ -48,6 +48,7 @@ module.exports = {
       network_id: '*', // Any network (default: none)
       mnemonic:
         'peanut pink culture pumpkin favorite hamster estate evidence above top firm speed',
+      disableConfirmationListener: true,
     },
     // Another network with more advanced options...
     // advanced: {

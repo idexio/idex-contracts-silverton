@@ -344,7 +344,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/must be less than/i);
+      expect(error.message).to.match(/greater than max/i);
     });
   });
 
