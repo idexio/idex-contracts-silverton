@@ -3,7 +3,7 @@ import { v1 as uuidv1 } from 'uuid';
 
 import { generateOrdersAndFill } from './trade.test';
 import {
-  bnbAddress,
+  ethAddress,
   decimalToAssetUnits,
   getHybridTradeArguments,
   getOrderHash,
@@ -12,6 +12,7 @@ import {
   OrderSide,
   OrderType,
   PoolTrade,
+  uuidToHexString,
 } from '../../lib';
 import {
   ExchangeInstance,
@@ -42,7 +43,7 @@ contract(
         await deposit(exchange, token, buyWallet, '0.00000000', '1.00000000');
         const { buyOrder, poolTrade } = await generateOrderAndPoolTrade(
           token.address,
-          bnbAddress,
+          ethAddress,
           buyWallet,
           '909.09090909',
           '0.00121000',
@@ -75,7 +76,7 @@ contract(
         await deposit(exchange, token, buyWallet, '0.00000000', '1.00000000');
         const { buyOrder, poolTrade } = await generateOrderAndPoolTrade(
           token.address,
-          bnbAddress,
+          ethAddress,
           buyWallet,
           '909.09090909',
           '0.00121000',
@@ -125,7 +126,7 @@ contract(
           poolTrade,
         } = await generateOrderAndPoolTrade(
           token.address,
-          bnbAddress,
+          ethAddress,
           sellWallet,
           '1111.11111112',
           '0.00081000',
@@ -145,6 +146,48 @@ contract(
         );
       });
 
+      it('should revert for invalidated nonce', async () => {
+        const initialBaseReserve = '10000.00000000';
+        const initialQuoteReserve = '10.00000000';
+
+        const { exchange, token } = await deployContractsAndCreateHybridETHPool(
+          initialBaseReserve,
+          initialQuoteReserve,
+          ownerWallet,
+        );
+        await exchange.setDispatcher(ownerWallet);
+
+        await exchange.invalidateOrderNonce(
+          uuidToHexString(uuidv1({ msecs: new Date().getTime() + 100000 })),
+          { from: buyWallet },
+        );
+
+        const { buyOrder, poolTrade } = await generateOrderAndPoolTrade(
+          token.address,
+          ethAddress,
+          buyWallet,
+          '1.00000000',
+          '0.10000000',
+        );
+        const buySignature = await getSignature(
+          web3,
+          getOrderHash(buyOrder),
+          buyWallet,
+        );
+
+        let error;
+        try {
+          // https://github.com/microsoft/TypeScript/issues/28486
+          await (exchange.executePoolTrade as any)(
+            ...getPoolTradeArguments(buyOrder, buySignature, poolTrade),
+          );
+        } catch (e) {
+          error = e;
+        }
+        expect(error).to.not.be.undefined;
+        expect(error.message).to.match(/order nonce timestamp too low/i);
+      });
+
       it('should revert for exited wallet', async () => {
         const initialBaseReserve = '10000.00000000';
         const initialQuoteReserve = '10.00000000';
@@ -160,7 +203,7 @@ contract(
 
         const { buyOrder, poolTrade } = await generateOrderAndPoolTrade(
           token.address,
-          bnbAddress,
+          ethAddress,
           buyWallet,
           '1.00000000',
           '0.10000000',
@@ -198,7 +241,7 @@ contract(
         await deposit(exchange, token, buyWallet, '0.00000000', '10.00000000');
         const { buyOrder, poolTrade } = await generateOrderAndPoolTrade(
           token.address,
-          bnbAddress,
+          ethAddress,
           buyWallet,
           '10.00000000',
           '0.00100000',
@@ -235,7 +278,7 @@ contract(
 
         const { buyOrder, poolTrade } = await generateOrderAndPoolTrade(
           token.address,
-          bnbAddress,
+          ethAddress,
           buyWallet,
           '1.00000000',
           '0.10000000',
@@ -277,7 +320,7 @@ contract(
 
         const { buyOrder, poolTrade } = await generateOrderAndPoolTrade(
           token.address,
-          bnbAddress,
+          ethAddress,
           buyWallet,
           '1.00000000',
           '0.10000000',
@@ -315,7 +358,7 @@ contract(
 
         const { buyOrder, poolTrade } = await generateOrderAndPoolTrade(
           token.address,
-          bnbAddress,
+          ethAddress,
           buyWallet,
           '1.00000000',
           '0.10000000',
@@ -355,7 +398,7 @@ contract(
 
         const { buyOrder, poolTrade } = await generateOrderAndPoolTrade(
           token.address,
-          bnbAddress,
+          ethAddress,
           buyWallet,
           '1.00000000',
           '0.10000000',
@@ -395,7 +438,7 @@ contract(
 
         const { buyOrder, poolTrade } = await generateOrderAndPoolTrade(
           token.address,
-          bnbAddress,
+          ethAddress,
           buyWallet,
           '1.00000000',
           '0.10000000',
@@ -436,7 +479,7 @@ contract(
           poolTrade,
         } = await generateOrderAndPoolTrade(
           token.address,
-          bnbAddress,
+          ethAddress,
           sellWallet,
           '1.00000000',
           '0.10000000',
@@ -475,7 +518,7 @@ contract(
 
         const { buyOrder, poolTrade } = await generateOrderAndPoolTrade(
           token.address,
-          bnbAddress,
+          ethAddress,
           buyWallet,
           '1.00000000',
           '0.10000000',
@@ -513,7 +556,7 @@ contract(
 
         const { buyOrder, poolTrade } = await generateOrderAndPoolTrade(
           token.address,
-          bnbAddress,
+          ethAddress,
           buyWallet,
           '1.00000000',
           '0.10000000',
@@ -551,7 +594,7 @@ contract(
 
         const { buyOrder, poolTrade } = await generateOrderAndPoolTrade(
           token.address,
-          bnbAddress,
+          ethAddress,
           buyWallet,
           '1.00000000',
           '0.10000000',
@@ -592,7 +635,7 @@ contract(
           poolTrade,
         } = await generateOrderAndPoolTrade(
           token.address,
-          bnbAddress,
+          ethAddress,
           sellWallet,
           '1.00000000',
           '0.10000000',
@@ -756,7 +799,7 @@ contract(
 
         const { buyOrder, poolTrade } = await generateOrderAndPoolTrade(
           token.address,
-          bnbAddress,
+          ethAddress,
           buyWallet,
           '2222.22222224',
           '0.00081000',
@@ -774,7 +817,7 @@ contract(
 
         const { sellOrder, fill } = await generateOrdersAndFill(
           token.address,
-          bnbAddress,
+          ethAddress,
           buyWallet,
           sellWallet,
           '1111.11111112',
@@ -828,7 +871,7 @@ contract(
 
         const { buyOrder, poolTrade } = await generateOrderAndPoolTrade(
           token.address,
-          bnbAddress,
+          ethAddress,
           buyWallet,
           '2222.22222224',
           '0.00081000',
@@ -846,7 +889,7 @@ contract(
 
         const { sellOrder, fill } = await generateOrdersAndFill(
           token.address,
-          bnbAddress,
+          ethAddress,
           buyWallet,
           sellWallet,
           '1111.11111112',
@@ -1151,7 +1194,7 @@ const generateHybridTrade = async (
 ) => {
   const { buyOrder, poolTrade } = await generateOrderAndPoolTrade(
     token.address,
-    bnbAddress,
+    ethAddress,
     buyWallet,
     takerOrderBaseQuantity,
     price,
@@ -1168,7 +1211,7 @@ const generateHybridTrade = async (
 
   const { sellOrder, fill } = await generateOrdersAndFill(
     token.address,
-    bnbAddress,
+    ethAddress,
     buyWallet,
     sellWallet,
     orderBookTradeBaseQuantity,
@@ -1198,7 +1241,7 @@ const generateAndExecuteHybridTrade = async (
 ): Promise<void> => {
   const { buyOrder, poolTrade } = await generateOrderAndPoolTrade(
     token.address,
-    bnbAddress,
+    ethAddress,
     buyWallet,
     takerOrderBaseQuantity,
     price,
@@ -1215,7 +1258,7 @@ const generateAndExecuteHybridTrade = async (
 
   const { sellOrder, fill } = await generateOrdersAndFill(
     token.address,
-    bnbAddress,
+    ethAddress,
     buyWallet,
     sellWallet,
     orderBookTradeBaseQuantity,

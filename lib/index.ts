@@ -127,7 +127,7 @@ export interface Withdrawal {
   assetContractAddress?: string;
 }
 
-export const bnbAddress = '0x0000000000000000000000000000000000000000';
+export const ethAddress = '0x0000000000000000000000000000000000000000';
 
 export const getLiquidityAdditionHash = (addition: LiquidityAddition): string =>
   solidityHashOfParams([
@@ -285,7 +285,6 @@ export const getPoolTradeArguments = (
   walletSignature: string,
   poolTrade: PoolTrade,
 ): ExchangeInstance['executePoolTrade']['arguments'] => {
-  console.log(poolTradeToArgumentStruct(poolTrade, order));
   return [
     orderToArgumentStruct(order, walletSignature),
     poolTradeToArgumentStruct(poolTrade, order),
@@ -305,7 +304,7 @@ export const getWithdrawArguments = (
       nonce: uuidToHexString(withdrawal.nonce),
       walletAddress: withdrawal.wallet,
       assetSymbol: withdrawal.asset || '',
-      assetAddress: withdrawal.assetContractAddress || bnbAddress,
+      assetAddress: withdrawal.assetContractAddress || ethAddress,
       grossQuantityInPips: decimalToPips(withdrawal.quantity),
       gasFeeInPips: decimalToPips(gasFee),
       autoDispatchEnabled: true,

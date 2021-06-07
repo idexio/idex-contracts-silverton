@@ -4,7 +4,8 @@ import {
   minimumTokenQuantity,
   ethSymbol,
 } from './helpers';
-import { assetUnitsToPips, bnbAddress } from '../../lib';
+import { assetUnitsToPips, ethAddress } from '../../lib';
+import { BigNumber } from 'ethers';
 
 contract('Exchange (deposits)', (accounts) => {
   const BalanceMigrationSourceMock = artifacts.require(
@@ -38,6 +39,97 @@ contract('Exchange (deposits)', (accounts) => {
     expect(error.message).to.match(/revert/i);
   });
 
+  it('should migrate balance on deposit', async () => {
+    const {
+      balanceMigrationSource,
+      exchange,
+    } = await deployAndAssociateContracts();
+    await balanceMigrationSource.setBalanceInPipsByAddress(
+      accounts[0],
+      ethAddress,
+      assetUnitsToPips(minimumTokenQuantity, 18),
+    );
+
+    await exchange.depositEther({
+      value: minimumTokenQuantity,
+      from: accounts[0],
+    });
+
+    const events = await exchange.getPastEvents('Deposited', {
+      fromBlock: 0,
+    });
+    expect(events).to.be.an('array');
+    expect(events.length).to.equal(1);
+
+    const { wallet, assetAddress, assetSymbol } = events[0].returnValues;
+
+    expect(wallet).to.equal(accounts[0]);
+    expect(assetAddress).to.equal(ethAddress);
+    expect(assetSymbol).to.equal(ethSymbol);
+
+    const expectedQuantity = BigNumber.from(minimumTokenQuantity)
+      .mul(2)
+      .toString();
+    expect(
+      (
+        await exchange.loadBalanceInAssetUnitsByAddress(accounts[0], ethAddress)
+      ).toString(),
+    ).to.equal(expectedQuantity);
+    expect(
+      (
+        await exchange.loadBalanceInPipsByAddress(accounts[0], ethAddress)
+      ).toString(),
+    ).to.equal(assetUnitsToPips(expectedQuantity, 18));
+    expect(
+      (
+        await exchange.loadBalanceInAssetUnitsBySymbol(accounts[0], ethSymbol)
+      ).toString(),
+    ).to.equal(expectedQuantity);
+    expect(
+      (
+        await exchange.loadBalanceInPipsBySymbol(accounts[0], ethSymbol)
+      ).toString(),
+    ).to.equal(assetUnitsToPips(expectedQuantity, 18));
+  });
+
+  describe('setDepositIndex', () => {
+    it('revert when called twice', async () => {
+      const exchange = await Exchange.new(
+        (await BalanceMigrationSourceMock.new()).address,
+        (await WETH.new()).address,
+      );
+
+      await exchange.setDepositIndex(1);
+
+      let error;
+      try {
+        await exchange.setDepositIndex(1);
+      } catch (e) {
+        error = e;
+      }
+
+      expect(error).to.not.be.undefined;
+      expect(error.message).to.match(/can only be set once/i);
+    });
+
+    it('revert when called with zero', async () => {
+      const exchange = await Exchange.new(
+        (await BalanceMigrationSourceMock.new()).address,
+        (await WETH.new()).address,
+      );
+
+      let error;
+      try {
+        await exchange.setDepositIndex(0);
+      } catch (e) {
+        error = e;
+      }
+
+      expect(error).to.not.be.undefined;
+      expect(error.message).to.match(/must be nonzero/i);
+    });
+  });
+
   // TODO Verify balances
   describe('depositEther', () => {
     it('should work for minimum quantity', async () => {
@@ -57,20 +149,20 @@ contract('Exchange (deposits)', (accounts) => {
       const { wallet, assetAddress, assetSymbol } = events[0].returnValues;
 
       expect(wallet).to.equal(accounts[0]);
-      expect(assetAddress).to.equal(bnbAddress);
+      expect(assetAddress).to.equal(ethAddress);
       expect(assetSymbol).to.equal(ethSymbol);
 
       expect(
         (
           await exchange.loadBalanceInAssetUnitsByAddress(
             accounts[0],
-            bnbAddress,
+            ethAddress,
           )
         ).toString(),
       ).to.equal(minimumTokenQuantity);
       expect(
         (
-          await exchange.loadBalanceInPipsByAddress(accounts[0], bnbAddress)
+          await exchange.loadBalanceInPipsByAddress(accounts[0], ethAddress)
         ).toString(),
       ).to.equal(assetUnitsToPips(minimumTokenQuantity, 18));
       expect(
@@ -99,6 +191,25 @@ contract('Exchange (deposits)', (accounts) => {
       }
       expect(error).to.not.be.undefined;
       expect(error.message).to.match(/Quantity is too low/i);
+    });
+
+    it('should revert when depositIndex is unset', async () => {
+      const exchange = await Exchange.new(
+        (await BalanceMigrationSourceMock.new()).address,
+        (await WETH.new()).address,
+      );
+
+      let error;
+      try {
+        await exchange.depositEther({
+          value: (BigInt(minimumTokenQuantity) - BigInt(1)).toString(),
+          from: accounts[0],
+        });
+      } catch (e) {
+        error = e;
+      }
+      expect(error).to.not.be.undefined;
+      expect(error.message).to.match(/deposits disabled/i);
     });
   });
 
@@ -226,7 +337,7 @@ contract('Exchange (deposits)', (accounts) => {
       let error;
       try {
         await token.approve(exchange.address, minimumTokenQuantity);
-        await exchange.depositTokenByAddress(bnbAddress, minimumTokenQuantity);
+        await exchange.depositTokenByAddress(ethAddress, minimumTokenQuantity);
       } catch (e) {
         error = e;
       }

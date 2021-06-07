@@ -2,7 +2,7 @@ import BigNumber from 'bignumber.js';
 import { v1 as uuidv1 } from 'uuid';
 
 import {
-  bnbAddress,
+  ethAddress,
   decimalToAssetUnits,
   decimalToPips,
   getAddLiquidityArguments,
@@ -37,7 +37,7 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
         custodian,
         exchange,
         token,
-        wbnb,
+        weth,
       } = await deployContractsAndCreateHybridETHPool(
         depositQuantity,
         depositQuantity,
@@ -58,19 +58,19 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
       );
       expect(tokenEvents[3].returnValues.to).to.equal(custodian.address);
 
-      const wbnbEvents = await wbnb.getPastEvents('Transfer', {
+      const wethEvents = await weth.getPastEvents('Transfer', {
         fromBlock: 0,
       });
-      expect(wbnbEvents).to.be.an('array');
-      expect(wbnbEvents.length).to.equal(2);
-      expect(wbnbEvents[1].returnValues.wad).to.equal(
+      expect(wethEvents).to.be.an('array');
+      expect(wethEvents.length).to.equal(2);
+      expect(wethEvents[1].returnValues.wad).to.equal(
         decimalToAssetUnits(depositQuantity, 18),
       );
-      expect(wbnbEvents[1].returnValues.dst).to.equal(exchange.address);
+      expect(wethEvents[1].returnValues.dst).to.equal(exchange.address);
 
       const pool = await exchange.loadLiquidityPoolByAssetAddresses(
         token.address,
-        bnbAddress,
+        ethAddress,
       );
       expect(pool.baseAssetReserveInPips).to.equal(
         decimalToPips(depositQuantity),
@@ -81,20 +81,20 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
     });
 
     it('should fail when no liquidity has been minted', async () => {
-      const { custodian, exchange, wbnb } = await deployAndAssociateContracts();
+      const { custodian, exchange, weth } = await deployAndAssociateContracts();
       const token = await deployAndRegisterToken(exchange, token0Symbol);
       const { factory, pair } = await deployPancakeCoreAndCreateETHPool(
         ownerWallet,
         custodian,
         token,
-        wbnb,
+        weth,
         ownerWallet,
       );
       await exchange.setPairFactoryAddress(factory.address);
 
       let error;
       try {
-        await exchange.promotePool(token.address, bnbAddress, pair.address);
+        await exchange.promotePool(token.address, ethAddress, pair.address);
       } catch (e) {
         error = e;
       }
@@ -103,20 +103,20 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
     });
 
     it('should fail when pair address does not match factory', async () => {
-      const { custodian, exchange, wbnb } = await deployAndAssociateContracts();
+      const { custodian, exchange, weth } = await deployAndAssociateContracts();
       const token = await deployAndRegisterToken(exchange, token0Symbol);
       const { factory } = await deployPancakeCoreAndCreateETHPool(
         ownerWallet,
         custodian,
         token,
-        wbnb,
+        weth,
         ownerWallet,
       );
       await exchange.setPairFactoryAddress(factory.address);
 
       let error;
       try {
-        await exchange.promotePool(token.address, bnbAddress, wbnb.address);
+        await exchange.promotePool(token.address, ethAddress, weth.address);
       } catch (e) {
         error = e;
       }
@@ -138,7 +138,7 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
 
       let error;
       try {
-        await exchange.promotePool(token.address, bnbAddress, pair.address);
+        await exchange.promotePool(token.address, ethAddress, pair.address);
       } catch (e) {
         error = e;
       }
@@ -156,13 +156,13 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
         ownerWallet,
       );
 
-      await exchange.demotePool(token.address, bnbAddress);
+      await exchange.demotePool(token.address, ethAddress);
 
       let error;
       try {
         await exchange.loadLiquidityPoolByAssetAddresses(
           token.address,
-          bnbAddress,
+          ethAddress,
         );
       } catch (e) {
         error = e;
@@ -1003,6 +1003,43 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
       }
       expect(error).to.not.be.undefined;
       expect(error.message).to.match(/invalid liquidity/i);
+    });
+
+    it('should revert for invalid signatureHashVersion', async () => {
+      const depositQuantity = '1.00000000';
+      const depositQuantityInAssetUnits = decimalToAssetUnits(
+        depositQuantity,
+        18,
+      );
+
+      const {
+        exchange,
+        token0,
+        token1,
+      } = await deployContractsAndCreateHybridPool(
+        depositQuantity,
+        depositQuantity,
+        ownerWallet,
+      );
+      await exchange.setDispatcher(ownerWallet);
+
+      const { addition, execution } = await generateOnChainLiquidityAddition(
+        exchange,
+        depositQuantityInAssetUnits,
+        ownerWallet,
+        token0,
+        token1,
+      );
+      addition.signatureHashVersion = 88;
+
+      let error;
+      try {
+        await exchange.executeAddLiquidity(addition, execution);
+      } catch (e) {
+        error = e;
+      }
+      expect(error).to.not.be.undefined;
+      expect(error.message).to.match(/signature hash version invalid/i);
     });
   });
 
@@ -2100,6 +2137,53 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
       expect(error).to.not.be.undefined;
       expect(error.message).to.match(/invalid quote amount/i);
     });
+
+    it('should revert for invalid signatureHashVersion', async () => {
+      const depositQuantity = '1.00000000';
+      const depositQuantityInAssetUnits = decimalToAssetUnits(
+        depositQuantity,
+        18,
+      );
+
+      const {
+        exchange,
+        pair,
+        token0,
+        token1,
+      } = await deployContractsAndCreateHybridPool(
+        depositQuantity,
+        depositQuantity,
+        ownerWallet,
+      );
+      await exchange.setDispatcher(ownerWallet);
+
+      await addLiquidityAndExecute(
+        depositQuantity,
+        ownerWallet,
+        exchange,
+        token0,
+        token1,
+      );
+
+      const { removal, execution } = await generateOnChainLiquidityRemoval(
+        exchange,
+        pair,
+        depositQuantityInAssetUnits,
+        ownerWallet,
+        token0,
+        token1,
+      );
+      removal.signatureHashVersion = 88;
+
+      let error;
+      try {
+        await exchange.executeRemoveLiquidity(removal, execution);
+      } catch (e) {
+        error = e;
+      }
+      expect(error).to.not.be.undefined;
+      expect(error.message).to.match(/signature hash version invalid/i);
+    });
   });
 
   describe('removeLiquidityExit', () => {
@@ -2136,7 +2220,7 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
 
       await exchange.exitWallet();
 
-      await exchange.removeLiquidityExit(token.address, bnbAddress);
+      await exchange.removeLiquidityExit(token.address, ethAddress);
 
       const burnEvents = await pair.getPastEvents('Burn', {
         fromBlock: 0,
@@ -2161,7 +2245,7 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
 
       let error;
       try {
-        await exchange.removeLiquidityExit(token.address, bnbAddress);
+        await exchange.removeLiquidityExit(token.address, ethAddress);
       } catch (e) {
         error = e;
       }
@@ -2170,6 +2254,7 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
     });
   });
 
+  // TODO Move to exchange.test.ts
   describe('skim', () => {
     it('should work', async () => {
       const initialBaseReserve = '10000.00000000';
@@ -2200,6 +2285,26 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
       );
       expect(tokenEvents[5].returnValues.to).to.equal(ownerWallet);
     });
+
+    it('should revert for invalid token address', async () => {
+      const initialBaseReserve = '10000.00000000';
+      const initialQuoteReserve = '10.00000000';
+
+      const { exchange } = await deployContractsAndCreateHybridETHPool(
+        initialBaseReserve,
+        initialQuoteReserve,
+        ownerWallet,
+      );
+
+      let error;
+      try {
+        await exchange.skim(ethAddress);
+      } catch (e) {
+        error = e;
+      }
+      expect(error).to.not.be.undefined;
+      expect(error.message).to.match(/invalid token address/i);
+    });
   });
 });
 
@@ -2215,7 +2320,7 @@ export async function deployContractsAndCreateHybridPool(
   token0: TestTokenInstance;
   token1: TestTokenInstance;
 }> {
-  const { custodian, exchange, wbnb } = await deployAndAssociateContracts();
+  const { custodian, exchange, weth } = await deployAndAssociateContracts();
   const token0 = await deployAndRegisterToken(exchange, token0Symbol);
   const token1 = await deployAndRegisterToken(exchange, token0Symbol);
   const { factory, pair } = await deployPancakeCoreAndCreatePool(
@@ -2231,7 +2336,7 @@ export async function deployContractsAndCreateHybridPool(
   await exchange.registerToken(pair.address, pairSymbol, 18);
   await exchange.confirmTokenRegistration(pair.address, pairSymbol, 18);
 
-  await wbnb.deposit({
+  await weth.deposit({
     value: decimalToAssetUnits(initialQuoteReserve, 18),
     from: ownerWallet,
   });
@@ -2266,15 +2371,15 @@ export async function deployContractsAndCreateHybridETHPool(
   exchange: ExchangeInstance;
   pair: IIDEXPairInstance;
   token: TestTokenInstance;
-  wbnb: WETHInstance;
+  weth: WETHInstance;
 }> {
-  const { custodian, exchange, wbnb } = await deployAndAssociateContracts();
+  const { custodian, exchange, weth } = await deployAndAssociateContracts();
   const token = await deployAndRegisterToken(exchange, token0Symbol);
   const { factory, pair } = await deployPancakeCoreAndCreateETHPool(
     ownerWallet,
     custodian,
     token,
-    wbnb,
+    weth,
     feeWallet,
   );
   await exchange.setPairFactoryAddress(factory.address);
@@ -2283,11 +2388,11 @@ export async function deployContractsAndCreateHybridETHPool(
   await exchange.registerToken(pair.address, pairSymbol, 18);
   await exchange.confirmTokenRegistration(pair.address, pairSymbol, 18);
 
-  await wbnb.deposit({
+  await weth.deposit({
     value: decimalToAssetUnits(initialQuoteReserve, 18),
     from: ownerWallet,
   });
-  await wbnb.transfer(
+  await weth.transfer(
     pair.address,
     decimalToAssetUnits(initialQuoteReserve, 18),
     {
@@ -2303,9 +2408,9 @@ export async function deployContractsAndCreateHybridETHPool(
   );
   await pair.mint(ownerWallet);
 
-  await exchange.promotePool(token.address, bnbAddress, pair.address);
+  await exchange.promotePool(token.address, ethAddress, pair.address);
 
-  return { custodian, exchange, pair, token, wbnb };
+  return { custodian, exchange, pair, token, weth };
 }
 
 export async function deployPancakeCoreAndCreatePool(
@@ -2333,7 +2438,7 @@ export async function deployPancakeCoreAndCreateETHPool(
   ownerWallet: string,
   custodian: CustodianInstance,
   token: TestTokenInstance,
-  wbnb: WETHInstance,
+  weth: WETHInstance,
   feeWallet = ownerWallet,
 ): Promise<{
   factory: FactoryInstance;
@@ -2343,7 +2448,7 @@ export async function deployPancakeCoreAndCreateETHPool(
   const IIDEXPair = artifacts.require('IIDEXPair');
   const factory = await Factory.new(feeWallet, custodian.address);
 
-  const tx = await factory.createPair(token.address, wbnb.address);
+  const tx = await factory.createPair(token.address, weth.address);
   const pairAddress = tx.logs[0].args.pair;
   const pair = await IIDEXPair.at(pairAddress);
 
@@ -2472,7 +2577,7 @@ async function addLiquidityETHAndExecute(
     feeAmountA: feeAmount,
     feeAmountB: feeAmount,
     baseAssetAddress: token.address,
-    quoteAssetAddress: bnbAddress,
+    quoteAssetAddress: ethAddress,
   };
 
   await exchange.executeAddLiquidity(
@@ -2482,7 +2587,7 @@ async function addLiquidityETHAndExecute(
       nonce: 0,
       wallet: ownerWallet,
       assetA: token.address,
-      assetB: bnbAddress,
+      assetB: ethAddress,
       amountADesired: depositQuantityInAssetUnits,
       amountBDesired: depositQuantityInAssetUnits,
       amountAMin: depositQuantityInAssetUnits,
@@ -2608,7 +2713,7 @@ async function removeLiquidityETHAndExecute(
     feeAmountA: feeAmount,
     feeAmountB: feeAmount,
     baseAssetAddress: token.address,
-    quoteAssetAddress: bnbAddress,
+    quoteAssetAddress: ethAddress,
   };
 
   await exchange.executeRemoveLiquidity(
@@ -2618,7 +2723,7 @@ async function removeLiquidityETHAndExecute(
       nonce: 0,
       wallet: ownerWallet,
       assetA: token.address,
-      assetB: bnbAddress,
+      assetB: ethAddress,
       liquidity: depositQuantityInAssetUnits,
       amountAMin: depositQuantityInAssetUnits,
       amountBMin: depositQuantityInAssetUnits,

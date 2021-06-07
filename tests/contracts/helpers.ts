@@ -1,4 +1,5 @@
 import type {
+  BalanceMigrationSourceMockInstance,
   CustodianInstance,
   ExchangeInstance,
   GovernanceInstance,
@@ -23,12 +24,13 @@ export const minimumTokenQuantity = decimalToAssetUnits(
 );
 export const deployAndAssociateContracts = async (
   blockDelay = 0,
-  balanceMigrationSource?: string,
+  balanceMigrationSourceAddress?: string,
 ): Promise<{
+  balanceMigrationSource: BalanceMigrationSourceMockInstance;
   custodian: CustodianInstance;
   exchange: ExchangeInstance;
   governance: GovernanceInstance;
-  wbnb: WETHInstance;
+  weth: WETHInstance;
 }> => {
   const BalanceMigrationSourceMock = artifacts.require(
     'BalanceMigrationSourceMock',
@@ -36,15 +38,16 @@ export const deployAndAssociateContracts = async (
   const Custodian = artifacts.require('Custodian');
   const Exchange = artifacts.require('Exchange');
   const Governance = artifacts.require('Governance');
-  const WETH = artifacts.require('WETH');
 
-  const wbnb = await WETH.new();
+  const WETH = artifacts.require('WETH');
+  const weth = await WETH.new();
+
+  const balanceMigrationSource = await (balanceMigrationSourceAddress
+    ? BalanceMigrationSourceMock.at(balanceMigrationSourceAddress)
+    : BalanceMigrationSourceMock.new());
+
   const [exchange, governance] = await Promise.all([
-    Exchange.new(
-      balanceMigrationSource ??
-        (await BalanceMigrationSourceMock.new()).address,
-      wbnb.address,
-    ),
+    Exchange.new(balanceMigrationSource.address, weth.address),
     Governance.new(blockDelay),
   ]);
   const custodian = await Custodian.new(exchange.address, governance.address);
@@ -52,7 +55,7 @@ export const deployAndAssociateContracts = async (
   await governance.setCustodian(custodian.address);
   await exchange.setDepositIndex(1);
 
-  return { custodian, exchange, governance, wbnb };
+  return { balanceMigrationSource, custodian, exchange, governance, weth };
 };
 
 export const deployAndRegisterToken = async (

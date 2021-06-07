@@ -1,6 +1,6 @@
 import BigNumber from 'bignumber.js';
 
-import { bnbAddress } from '../../lib';
+import { ethAddress } from '../../lib';
 import {
   CustodianInstance,
   ExchangeInstance,
@@ -40,7 +40,7 @@ contract('Custodian', (accounts) => {
     it('should revert for invalid exchange address', async () => {
       let error;
       try {
-        await Custodian.new(bnbAddress, governance.address);
+        await Custodian.new(ethAddress, governance.address);
       } catch (e) {
         error = e;
       }
@@ -62,7 +62,7 @@ contract('Custodian', (accounts) => {
     it('should revert for invalid governance address', async () => {
       let error;
       try {
-        await Custodian.new(exchange.address, bnbAddress);
+        await Custodian.new(exchange.address, ethAddress);
       } catch (e) {
         error = e;
       }
@@ -142,7 +142,7 @@ contract('Custodian', (accounts) => {
     it('should revert for invalid address', async () => {
       let error;
       try {
-        await governanceMock.setExchange(bnbAddress);
+        await governanceMock.setExchange(ethAddress);
       } catch (e) {
         error = e;
       }
@@ -164,7 +164,7 @@ contract('Custodian', (accounts) => {
     it('should revert when not sent from governance address', async () => {
       let error;
       try {
-        await custodian.setExchange(bnbAddress, {
+        await custodian.setExchange(ethAddress, {
           from: accounts[1],
         });
       } catch (e) {
@@ -199,7 +199,7 @@ contract('Custodian', (accounts) => {
     it('should revert for invalid address', async () => {
       let error;
       try {
-        await governanceMock.setGovernance(bnbAddress);
+        await governanceMock.setGovernance(ethAddress);
       } catch (e) {
         error = e;
       }
@@ -221,7 +221,7 @@ contract('Custodian', (accounts) => {
     it('should revert when not sent from governance address', async () => {
       let error;
       try {
-        await custodian.setGovernance(bnbAddress, {
+        await custodian.setGovernance(ethAddress, {
           from: accounts[1],
         });
       } catch (e) {
@@ -253,7 +253,7 @@ contract('Custodian', (accounts) => {
 
       await exchangeMock.withdraw(
         destinationWallet,
-        bnbAddress,
+        ethAddress,
         web3.utils.toWei('1', 'ether'),
       );
 
@@ -273,7 +273,7 @@ contract('Custodian', (accounts) => {
       try {
         await exchangeMock.withdraw(
           destinationWallet,
-          bnbAddress,
+          ethAddress,
           web3.utils.toWei('1', 'ether'),
           { from: sourceWallet },
         );
@@ -310,7 +310,7 @@ contract('Custodian', (accounts) => {
       try {
         await custodian.withdraw(
           destinationWallet,
-          bnbAddress,
+          ethAddress,
           web3.utils.toWei('1', 'ether'),
           { from: sourceWallet },
         );

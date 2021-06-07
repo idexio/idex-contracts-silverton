@@ -1,6 +1,6 @@
 import { v1 as uuidv1 } from 'uuid';
 
-import { bnbAddress } from '../../lib';
+import { ethAddress } from '../../lib';
 import {
   deployAndAssociateContracts,
   deployAndRegisterToken,
@@ -34,7 +34,7 @@ contract('Exchange (trades)', (accounts) => {
 
       const { buyOrder, sellOrder, fill } = await generateOrdersAndFill(
         token.address,
-        bnbAddress,
+        ethAddress,
         buyWallet,
         sellWallet,
       );
@@ -73,7 +73,7 @@ contract('Exchange (trades)', (accounts) => {
 
       const { buyOrder, sellOrder, fill } = await generateOrdersAndFill(
         token.address,
-        bnbAddress,
+        ethAddress,
         buyWallet,
         sellWallet,
       );

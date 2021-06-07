@@ -5,7 +5,7 @@ import {
   deployAndRegisterToken,
   ethSymbol,
 } from './helpers';
-import { bnbAddress } from '../../lib';
+import { ethAddress } from '../../lib';
 import { AssetsMockInstance } from '../../types/truffle-contracts';
 
 contract('Exchange (tokens)', () => {
@@ -43,7 +43,7 @@ contract('Exchange (tokens)', () => {
 
       let error;
       try {
-        await exchange.registerToken(bnbAddress, tokenSymbol, 18);
+        await exchange.registerToken(ethAddress, tokenSymbol, 18);
       } catch (e) {
         error = e;
       }
@@ -240,7 +240,7 @@ contract('Exchange (tokens)', () => {
 
       let error;
       try {
-        await exchange.addTokenSymbol(bnbAddress, 'TKN');
+        await exchange.addTokenSymbol(ethAddress, 'TKN');
       } catch (e) {
         error = e;
       }
@@ -257,7 +257,7 @@ contract('Exchange (tokens)', () => {
         await exchange.loadAssetBySymbol(ethSymbol, new Date().getTime())
       ).assetAddress;
 
-      expect(registeredAddress).to.equal(bnbAddress);
+      expect(registeredAddress).to.equal(ethAddress);
     });
 
     it('should work for registered token', async () => {

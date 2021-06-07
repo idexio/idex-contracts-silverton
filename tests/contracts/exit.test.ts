@@ -1,5 +1,5 @@
 import { deployAndAssociateContracts, minimumTokenQuantity } from './helpers';
-import { bnbAddress, pipsToAssetUnits } from '../../lib';
+import { ethAddress, pipsToAssetUnits } from '../../lib';
 
 contract('Exchange (exits)', (accounts) => {
   describe('exitWallet', () => {
@@ -44,7 +44,7 @@ contract('Exchange (exits)', (accounts) => {
       });
       await exchange.exitWallet({ from: accounts[0] });
 
-      await exchange.withdrawExit(bnbAddress);
+      await exchange.withdrawExit(ethAddress);
 
       const events = await exchange.getPastEvents('WalletExitWithdrawn', {
         fromBlock: 0,
@@ -52,7 +52,7 @@ contract('Exchange (exits)', (accounts) => {
       expect(events).to.be.an('array');
       expect(events.length).to.equal(1);
       expect(events[0].returnValues.wallet).to.equal(accounts[0]);
-      expect(events[0].returnValues.assetAddress).to.equal(bnbAddress);
+      expect(events[0].returnValues.assetAddress).to.equal(ethAddress);
       expect(
         pipsToAssetUnits(events[0].returnValues.quantityInPips, 18),
       ).to.equal(minimumTokenQuantity);
@@ -63,7 +63,7 @@ contract('Exchange (exits)', (accounts) => {
 
       let error;
       try {
-        await exchange.withdrawExit(bnbAddress);
+        await exchange.withdrawExit(ethAddress);
       } catch (e) {
         error = e;
       }
@@ -78,7 +78,7 @@ contract('Exchange (exits)', (accounts) => {
 
       let error;
       try {
-        await exchange.withdrawExit(bnbAddress);
+        await exchange.withdrawExit(ethAddress);
       } catch (e) {
         error = e;
       }
@@ -92,7 +92,7 @@ contract('Exchange (exits)', (accounts) => {
 
       let error;
       try {
-        await exchange.withdrawExit(bnbAddress);
+        await exchange.withdrawExit(ethAddress);
       } catch (e) {
         error = e;
       }

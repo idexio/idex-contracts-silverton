@@ -8,7 +8,7 @@ import type {
 } from '../../types/truffle-contracts';
 
 import {
-  bnbAddress,
+  ethAddress,
   decimalToAssetUnits,
   decimalToPips,
   getWithdrawArguments,
@@ -63,7 +63,7 @@ contract('Exchange (withdrawals)', (accounts) => {
       await assertWithdrawnEvent(
         exchange,
         accounts[0],
-        bnbAddress,
+        ethAddress,
         ethSymbol,
         minimumDecimalQuantity,
       );
@@ -72,13 +72,13 @@ contract('Exchange (withdrawals)', (accounts) => {
         (
           await exchange.loadBalanceInAssetUnitsByAddress(
             accounts[0],
-            bnbAddress,
+            ethAddress,
           )
         ).toString(),
       ).to.equal('0');
       expect(
         (
-          await exchange.loadBalanceInPipsByAddress(accounts[0], bnbAddress)
+          await exchange.loadBalanceInPipsByAddress(accounts[0], ethAddress)
         ).toString(),
       ).to.equal('0');
     });
@@ -99,7 +99,7 @@ contract('Exchange (withdrawals)', (accounts) => {
           wallet: accounts[0],
           quantity: minimumDecimalQuantity,
           autoDispatchEnabled: true,
-          assetContractAddress: bnbAddress,
+          assetContractAddress: ethAddress,
         },
         accounts[0],
       );
@@ -107,7 +107,7 @@ contract('Exchange (withdrawals)', (accounts) => {
       await assertWithdrawnEvent(
         exchange,
         accounts[0],
-        bnbAddress,
+        ethAddress,
         ethSymbol,
         minimumDecimalQuantity,
       );
@@ -116,13 +116,13 @@ contract('Exchange (withdrawals)', (accounts) => {
         (
           await exchange.loadBalanceInAssetUnitsByAddress(
             accounts[0],
-            bnbAddress,
+            ethAddress,
           )
         ).toString(),
       ).to.equal('0');
       expect(
         (
-          await exchange.loadBalanceInPipsByAddress(accounts[0], bnbAddress)
+          await exchange.loadBalanceInPipsByAddress(accounts[0], ethAddress)
         ).toString(),
       ).to.equal('0');
     });
@@ -159,13 +159,13 @@ contract('Exchange (withdrawals)', (accounts) => {
         (
           await exchange.loadBalanceInAssetUnitsByAddress(
             accounts[0],
-            bnbAddress,
+            ethAddress,
           )
         ).toString(),
       ).to.equal('0');
       expect(
         (
-          await exchange.loadBalanceInPipsByAddress(accounts[0], bnbAddress)
+          await exchange.loadBalanceInPipsByAddress(accounts[0], ethAddress)
         ).toString(),
       ).to.equal('0');
     });
@@ -205,13 +205,13 @@ contract('Exchange (withdrawals)', (accounts) => {
         (
           await exchange.loadBalanceInAssetUnitsByAddress(
             accounts[0],
-            bnbAddress,
+            ethAddress,
           )
         ).toString(),
       ).to.equal('0');
       expect(
         (
-          await exchange.loadBalanceInPipsByAddress(accounts[0], bnbAddress)
+          await exchange.loadBalanceInPipsByAddress(accounts[0], ethAddress)
         ).toString(),
       ).to.equal('0');
     });

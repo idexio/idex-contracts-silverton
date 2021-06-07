@@ -7,7 +7,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
   const Exchange = artifacts.require('Exchange');
   const WETH = artifacts.require('WETH');
 
-  const bnbAddress = web3.utils.bytesToHex([...Buffer.alloc(20)]);
+  const ethAddress = web3.utils.bytesToHex([...Buffer.alloc(20)]);
 
   describe('constructor', () => {
     it('should work', async () => {
@@ -20,7 +20,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
     it('should revert for invalid balance migration source', async () => {
       let error;
       try {
-        await Exchange.new(bnbAddress, (await WETH.new()).address);
+        await Exchange.new(ethAddress, (await WETH.new()).address);
       } catch (e) {
         error = e;
       }
@@ -34,7 +34,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
       try {
         await Exchange.new(
           (await BalanceMigrationSourceMock.new()).address,
-          bnbAddress,
+          ethAddress,
         );
       } catch (e) {
         error = e;
@@ -72,7 +72,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
 
       let error;
       try {
-        await exchange.loadBalanceInAssetUnitsByAddress(bnbAddress, bnbAddress);
+        await exchange.loadBalanceInAssetUnitsByAddress(ethAddress, ethAddress);
       } catch (e) {
         error = e;
       }
@@ -88,7 +88,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
 
       let error;
       try {
-        await exchange.loadBalanceInPipsByAddress(bnbAddress, bnbAddress);
+        await exchange.loadBalanceInPipsByAddress(ethAddress, ethAddress);
       } catch (e) {
         error = e;
       }
@@ -104,7 +104,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
 
       let error;
       try {
-        await exchange.loadBalanceInPipsBySymbol(bnbAddress, ethSymbol);
+        await exchange.loadBalanceInPipsBySymbol(ethAddress, ethSymbol);
       } catch (e) {
         error = e;
       }
@@ -120,7 +120,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
 
       let error;
       try {
-        await exchange.loadBalanceInAssetUnitsBySymbol(bnbAddress, ethSymbol);
+        await exchange.loadBalanceInAssetUnitsBySymbol(ethAddress, ethSymbol);
       } catch (e) {
         error = e;
       }
@@ -155,6 +155,22 @@ contract('Exchange (tunable parameters)', (accounts) => {
     });
   });
 
+  describe('cleanupWalletBalance', async () => {
+    it('should revert if not called by current Exchange', async () => {
+      const { exchange } = await deployAndAssociateContracts();
+
+      let error;
+      try {
+        await exchange.cleanupWalletBalance(ethAddress, ethAddress);
+      } catch (e) {
+        error = e;
+      }
+
+      expect(error).to.not.be.undefined;
+      expect(error.message).to.match(/caller is not exchange/i);
+    });
+  });
+
   describe('setAdmin', async () => {
     it('should work for valid address', async () => {
       const exchange = await Exchange.new(
@@ -173,7 +189,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
 
       let error;
       try {
-        await exchange.setAdmin(bnbAddress);
+        await exchange.setAdmin(ethAddress);
       } catch (e) {
         error = e;
       }
@@ -232,7 +248,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
 
       let error;
       try {
-        await exchange.setPairFactoryAddress(bnbAddress);
+        await exchange.setPairFactoryAddress(ethAddress);
       } catch (e) {
         error = e;
       }
@@ -296,7 +312,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
 
       let error;
       try {
-        await exchange.setCustodian(bnbAddress);
+        await exchange.setCustodian(ethAddress);
       } catch (e) {
         error = e;
       }
@@ -369,7 +385,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
 
       let error;
       try {
-        await exchange.setDispatcher(bnbAddress);
+        await exchange.setDispatcher(ethAddress);
       } catch (e) {
         error = e;
       }
@@ -405,7 +421,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
       });
       expect(events).to.be.an('array');
       expect(events.length).to.equal(2);
-      expect(events[1].returnValues.newValue).to.equal(bnbAddress);
+      expect(events[1].returnValues.newValue).to.equal(ethAddress);
     });
   });
 
@@ -432,7 +448,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
 
       let error;
       try {
-        await exchange.setFeeWallet(bnbAddress);
+        await exchange.setFeeWallet(ethAddress);
       } catch (e) {
         error = e;
       }
