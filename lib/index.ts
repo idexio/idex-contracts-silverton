@@ -100,9 +100,9 @@ export interface PoolTrade {
   grossQuoteQuantity: string;
   netBaseQuantity: string;
   netQuoteQuantity: string;
-  takerPoolFeeQuantityInPips: string;
-  takerProtocolFeeQuantityInPips: string;
-  takerGasFeeQuantityInPips: string;
+  takerPoolFeeQuantity: string;
+  takerProtocolFeeQuantity: string;
+  takerGasFeeQuantity: string;
 }
 export interface Trade {
   baseAssetAddress: string;
@@ -285,6 +285,7 @@ export const getPoolTradeArguments = (
   walletSignature: string,
   poolTrade: PoolTrade,
 ): ExchangeInstance['executePoolTrade']['arguments'] => {
+  console.log(poolTradeToArgumentStruct(poolTrade, order));
   return [
     orderToArgumentStruct(order, walletSignature),
     poolTradeToArgumentStruct(poolTrade, order),
@@ -361,11 +362,9 @@ const poolTradeToArgumentStruct = (p: PoolTrade, order: Order) => {
     grossQuoteQuantityInPips: decimalToPips(p.grossQuoteQuantity),
     netBaseQuantityInPips: decimalToPips(p.netBaseQuantity),
     netQuoteQuantityInPips: decimalToPips(p.netQuoteQuantity),
-    takerPoolFeeQuantityInPips: decimalToPips(p.takerPoolFeeQuantityInPips),
-    takerProtocolFeeQuantityInPips: decimalToPips(
-      p.takerProtocolFeeQuantityInPips,
-    ),
-    takerGasFeeQuantityInPips: decimalToPips(p.takerGasFeeQuantityInPips),
+    takerPoolFeeQuantityInPips: decimalToPips(p.takerPoolFeeQuantity),
+    takerProtocolFeeQuantityInPips: decimalToPips(p.takerProtocolFeeQuantity),
+    takerGasFeeQuantityInPips: decimalToPips(p.takerGasFeeQuantity),
   };
 };
 

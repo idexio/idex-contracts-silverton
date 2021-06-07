@@ -773,6 +773,237 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
       expect(error).to.not.be.undefined;
       expect(error.message).to.match(/not executable from on-chain/i);
     });
+
+    it('should revert on asset address mismatch', async () => {
+      const depositQuantity = '1.00000000';
+      const depositQuantityInAssetUnits = decimalToAssetUnits(
+        depositQuantity,
+        18,
+      );
+
+      const {
+        exchange,
+        token0,
+        token1,
+      } = await deployContractsAndCreateHybridPool(
+        depositQuantity,
+        depositQuantity,
+        ownerWallet,
+      );
+      await exchange.setDispatcher(ownerWallet);
+
+      const { addition, execution } = await generateOffChainLiquidityAddition(
+        depositQuantityInAssetUnits,
+        ownerWallet,
+        exchange,
+        token0,
+        token1,
+      );
+      addition.assetA = addition.assetB;
+      const signature = await getSignature(
+        web3,
+        getLiquidityAdditionHash(addition),
+        ownerWallet,
+      );
+
+      let error;
+      try {
+        // https://github.com/microsoft/TypeScript/issues/28486
+        await (exchange.executeAddLiquidity as any)(
+          ...getAddLiquidityArguments(addition, signature, execution),
+          { from: ownerWallet },
+        );
+      } catch (e) {
+        error = e;
+      }
+      expect(error).to.not.be.undefined;
+      expect(error.message).to.match(/asset address mismatch/i);
+    });
+
+    it('should revert when assetA minimum not met', async () => {
+      const depositQuantity = '1.00000000';
+      const depositQuantityInAssetUnits = decimalToAssetUnits(
+        depositQuantity,
+        18,
+      );
+
+      const {
+        exchange,
+        token0,
+        token1,
+      } = await deployContractsAndCreateHybridPool(
+        depositQuantity,
+        depositQuantity,
+        ownerWallet,
+      );
+      await exchange.setDispatcher(ownerWallet);
+
+      const { addition, execution } = await generateOnChainLiquidityAddition(
+        exchange,
+        depositQuantityInAssetUnits,
+        ownerWallet,
+        token0,
+        token1,
+      );
+      execution.amountA = decimalToAssetUnits('0.90000000', 18);
+
+      let error;
+      try {
+        await exchange.executeAddLiquidity(addition, execution);
+      } catch (e) {
+        error = e;
+      }
+      expect(error).to.not.be.undefined;
+      expect(error.message).to.match(/invalid amountA/i);
+    });
+
+    it('should revert when assetB minimum not met', async () => {
+      const depositQuantity = '1.00000000';
+      const depositQuantityInAssetUnits = decimalToAssetUnits(
+        depositQuantity,
+        18,
+      );
+
+      const {
+        exchange,
+        token0,
+        token1,
+      } = await deployContractsAndCreateHybridPool(
+        depositQuantity,
+        depositQuantity,
+        ownerWallet,
+      );
+      await exchange.setDispatcher(ownerWallet);
+
+      const { addition, execution } = await generateOnChainLiquidityAddition(
+        exchange,
+        depositQuantityInAssetUnits,
+        ownerWallet,
+        token0,
+        token1,
+      );
+      execution.amountB = decimalToAssetUnits('0.90000000', 18);
+
+      let error;
+      try {
+        await exchange.executeAddLiquidity(addition, execution);
+      } catch (e) {
+        error = e;
+      }
+      expect(error).to.not.be.undefined;
+      expect(error.message).to.match(/invalid amountB/i);
+    });
+
+    it('should revert for excessive A fee', async () => {
+      const depositQuantity = '1.00000000';
+      const depositQuantityInAssetUnits = decimalToAssetUnits(
+        depositQuantity,
+        18,
+      );
+
+      const {
+        exchange,
+        token0,
+        token1,
+      } = await deployContractsAndCreateHybridPool(
+        depositQuantity,
+        depositQuantity,
+        ownerWallet,
+      );
+      await exchange.setDispatcher(ownerWallet);
+
+      const { addition, execution } = await generateOnChainLiquidityAddition(
+        exchange,
+        depositQuantityInAssetUnits,
+        ownerWallet,
+        token0,
+        token1,
+      );
+      execution.feeAmountA = decimalToAssetUnits('0.50000000', 18);
+
+      let error;
+      try {
+        await exchange.executeAddLiquidity(addition, execution);
+      } catch (e) {
+        error = e;
+      }
+      expect(error).to.not.be.undefined;
+      expect(error.message).to.match(/excessive A fee/i);
+    });
+
+    it('should revert for excessive B fee', async () => {
+      const depositQuantity = '1.00000000';
+      const depositQuantityInAssetUnits = decimalToAssetUnits(
+        depositQuantity,
+        18,
+      );
+
+      const {
+        exchange,
+        token0,
+        token1,
+      } = await deployContractsAndCreateHybridPool(
+        depositQuantity,
+        depositQuantity,
+        ownerWallet,
+      );
+      await exchange.setDispatcher(ownerWallet);
+
+      const { addition, execution } = await generateOnChainLiquidityAddition(
+        exchange,
+        depositQuantityInAssetUnits,
+        ownerWallet,
+        token0,
+        token1,
+      );
+      execution.feeAmountB = decimalToAssetUnits('0.50000000', 18);
+
+      let error;
+      try {
+        await exchange.executeAddLiquidity(addition, execution);
+      } catch (e) {
+        error = e;
+      }
+      expect(error).to.not.be.undefined;
+      expect(error.message).to.match(/excessive B fee/i);
+    });
+
+    it('should revert for invalid liquidity', async () => {
+      const depositQuantity = '1.00000000';
+      const depositQuantityInAssetUnits = decimalToAssetUnits(
+        depositQuantity,
+        18,
+      );
+
+      const {
+        exchange,
+        token0,
+        token1,
+      } = await deployContractsAndCreateHybridPool(
+        depositQuantity,
+        depositQuantity,
+        ownerWallet,
+      );
+      await exchange.setDispatcher(ownerWallet);
+
+      const { addition, execution } = await generateOnChainLiquidityAddition(
+        exchange,
+        depositQuantityInAssetUnits,
+        ownerWallet,
+        token0,
+        token1,
+      );
+      execution.liquidity = decimalToAssetUnits('1.50000000', 18);
+
+      let error;
+      try {
+        await exchange.executeAddLiquidity(addition, execution);
+      } catch (e) {
+        error = e;
+      }
+      expect(error).to.not.be.undefined;
+      expect(error.message).to.match(/invalid liquidity/i);
+    });
   });
 
   describe('removeLiquidity', () => {
@@ -1437,6 +1668,438 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
       expect(error).to.not.be.undefined;
       expect(error.message).to.match(/not executable from on-chain/i);
     });
+
+    it('should revert on asset address mismatch', async () => {
+      const depositQuantity = '1.00000000';
+      const depositQuantityInAssetUnits = decimalToAssetUnits(
+        depositQuantity,
+        18,
+      );
+
+      const {
+        exchange,
+        pair,
+        token0,
+        token1,
+      } = await deployContractsAndCreateHybridPool(
+        depositQuantity,
+        depositQuantity,
+        ownerWallet,
+      );
+      await exchange.setDispatcher(ownerWallet);
+
+      await addLiquidityAndExecute(
+        depositQuantity,
+        ownerWallet,
+        exchange,
+        token0,
+        token1,
+      );
+
+      const { removal, execution } = await generateOffChainLiquidityRemoval(
+        depositQuantityInAssetUnits,
+        ownerWallet,
+        exchange,
+        pair,
+        token0,
+        token1,
+      );
+      removal.assetA = removal.assetB;
+      const signature = await getSignature(
+        web3,
+        getLiquidityRemovalHash(removal),
+        ownerWallet,
+      );
+
+      let error;
+      try {
+        // https://github.com/microsoft/TypeScript/issues/28486
+        await (exchange.executeRemoveLiquidity as any)(
+          ...getRemoveLiquidityArguments(removal, signature, execution),
+          { from: ownerWallet },
+        );
+      } catch (e) {
+        error = e;
+      }
+      expect(error).to.not.be.undefined;
+      expect(error.message).to.match(/asset address mismatch/i);
+    });
+
+    it('should revert when liquidity is zero', async () => {
+      const depositQuantity = '1.00000000';
+      const depositQuantityInAssetUnits = decimalToAssetUnits(
+        depositQuantity,
+        18,
+      );
+
+      const {
+        exchange,
+        pair,
+        token0,
+        token1,
+      } = await deployContractsAndCreateHybridPool(
+        depositQuantity,
+        depositQuantity,
+        ownerWallet,
+      );
+      await exchange.setDispatcher(ownerWallet);
+
+      await addLiquidityAndExecute(
+        depositQuantity,
+        ownerWallet,
+        exchange,
+        token0,
+        token1,
+      );
+
+      const { removal, execution } = await generateOnChainLiquidityRemoval(
+        exchange,
+        pair,
+        depositQuantityInAssetUnits,
+        ownerWallet,
+        token0,
+        token1,
+      );
+      execution.amountA = '0';
+
+      let error;
+      try {
+        await exchange.executeRemoveLiquidity(removal, execution);
+      } catch (e) {
+        error = e;
+      }
+      expect(error).to.not.be.undefined;
+      expect(error.message).to.match(/insufficient liquidity burned/i);
+    });
+
+    it('should revert on invalid amountA', async () => {
+      const depositQuantity = '1.00000000';
+      const depositQuantityInAssetUnits = decimalToAssetUnits(
+        depositQuantity,
+        18,
+      );
+
+      const {
+        exchange,
+        pair,
+        token0,
+        token1,
+      } = await deployContractsAndCreateHybridPool(
+        depositQuantity,
+        depositQuantity,
+        ownerWallet,
+      );
+      await exchange.setDispatcher(ownerWallet);
+
+      await addLiquidityAndExecute(
+        depositQuantity,
+        ownerWallet,
+        exchange,
+        token0,
+        token1,
+      );
+
+      const { removal, execution } = await generateOnChainLiquidityRemoval(
+        exchange,
+        pair,
+        depositQuantityInAssetUnits,
+        ownerWallet,
+        token0,
+        token1,
+      );
+      execution.amountA = decimalToAssetUnits('0.50000000', 18);
+
+      let error;
+      try {
+        await exchange.executeRemoveLiquidity(removal, execution);
+      } catch (e) {
+        error = e;
+      }
+      expect(error).to.not.be.undefined;
+      expect(error.message).to.match(/invalid amountA/i);
+    });
+
+    it('should revert on invalid amountB', async () => {
+      const depositQuantity = '1.00000000';
+      const depositQuantityInAssetUnits = decimalToAssetUnits(
+        depositQuantity,
+        18,
+      );
+
+      const {
+        exchange,
+        pair,
+        token0,
+        token1,
+      } = await deployContractsAndCreateHybridPool(
+        depositQuantity,
+        depositQuantity,
+        ownerWallet,
+      );
+      await exchange.setDispatcher(ownerWallet);
+
+      await addLiquidityAndExecute(
+        depositQuantity,
+        ownerWallet,
+        exchange,
+        token0,
+        token1,
+      );
+
+      const { removal, execution } = await generateOnChainLiquidityRemoval(
+        exchange,
+        pair,
+        depositQuantityInAssetUnits,
+        ownerWallet,
+        token0,
+        token1,
+      );
+      execution.amountB = decimalToAssetUnits('0.50000000', 18);
+
+      let error;
+      try {
+        await exchange.executeRemoveLiquidity(removal, execution);
+      } catch (e) {
+        error = e;
+      }
+      expect(error).to.not.be.undefined;
+      expect(error.message).to.match(/invalid amountB/i);
+    });
+
+    it('should revert on excessive A fee', async () => {
+      const depositQuantity = '1.00000000';
+      const depositQuantityInAssetUnits = decimalToAssetUnits(
+        depositQuantity,
+        18,
+      );
+
+      const {
+        exchange,
+        pair,
+        token0,
+        token1,
+      } = await deployContractsAndCreateHybridPool(
+        depositQuantity,
+        depositQuantity,
+        ownerWallet,
+      );
+      await exchange.setDispatcher(ownerWallet);
+
+      await addLiquidityAndExecute(
+        depositQuantity,
+        ownerWallet,
+        exchange,
+        token0,
+        token1,
+      );
+
+      const { removal, execution } = await generateOnChainLiquidityRemoval(
+        exchange,
+        pair,
+        depositQuantityInAssetUnits,
+        ownerWallet,
+        token0,
+        token1,
+      );
+      execution.feeAmountA = decimalToAssetUnits('0.50000000', 18);
+
+      let error;
+      try {
+        await exchange.executeRemoveLiquidity(removal, execution);
+      } catch (e) {
+        error = e;
+      }
+      expect(error).to.not.be.undefined;
+      expect(error.message).to.match(/excessive A fee/i);
+    });
+
+    it('should revert on excessive B fee', async () => {
+      const depositQuantity = '1.00000000';
+      const depositQuantityInAssetUnits = decimalToAssetUnits(
+        depositQuantity,
+        18,
+      );
+
+      const {
+        exchange,
+        pair,
+        token0,
+        token1,
+      } = await deployContractsAndCreateHybridPool(
+        depositQuantity,
+        depositQuantity,
+        ownerWallet,
+      );
+      await exchange.setDispatcher(ownerWallet);
+
+      await addLiquidityAndExecute(
+        depositQuantity,
+        ownerWallet,
+        exchange,
+        token0,
+        token1,
+      );
+
+      const { removal, execution } = await generateOnChainLiquidityRemoval(
+        exchange,
+        pair,
+        depositQuantityInAssetUnits,
+        ownerWallet,
+        token0,
+        token1,
+      );
+      execution.feeAmountB = decimalToAssetUnits('0.50000000', 18);
+
+      let error;
+      try {
+        await exchange.executeRemoveLiquidity(removal, execution);
+      } catch (e) {
+        error = e;
+      }
+      expect(error).to.not.be.undefined;
+      expect(error.message).to.match(/excessive B fee/i);
+    });
+
+    it('should revert on invalid liquidity amount', async () => {
+      const depositQuantity = '1.00000000';
+      const depositQuantityInAssetUnits = decimalToAssetUnits(
+        depositQuantity,
+        18,
+      );
+
+      const {
+        exchange,
+        pair,
+        token0,
+        token1,
+      } = await deployContractsAndCreateHybridPool(
+        depositQuantity,
+        depositQuantity,
+        ownerWallet,
+      );
+      await exchange.setDispatcher(ownerWallet);
+
+      await addLiquidityAndExecute(
+        depositQuantity,
+        ownerWallet,
+        exchange,
+        token0,
+        token1,
+      );
+
+      const { removal, execution } = await generateOnChainLiquidityRemoval(
+        exchange,
+        pair,
+        depositQuantityInAssetUnits,
+        ownerWallet,
+        token0,
+        token1,
+      );
+      execution.liquidity = decimalToAssetUnits('0.50000000', 18);
+
+      let error;
+      try {
+        await exchange.executeRemoveLiquidity(removal, execution);
+      } catch (e) {
+        error = e;
+      }
+      expect(error).to.not.be.undefined;
+      expect(error.message).to.match(/invalid liquidity burned/i);
+    });
+
+    it('should revert on invalid base amount', async () => {
+      const depositQuantity = '1.00000000';
+      const depositQuantityInAssetUnits = decimalToAssetUnits(
+        depositQuantity,
+        18,
+      );
+
+      const {
+        exchange,
+        pair,
+        token0,
+        token1,
+      } = await deployContractsAndCreateHybridPool(
+        depositQuantity,
+        depositQuantity,
+        ownerWallet,
+      );
+      await exchange.setDispatcher(ownerWallet);
+
+      await addLiquidityAndExecute(
+        depositQuantity,
+        ownerWallet,
+        exchange,
+        token0,
+        token1,
+      );
+
+      const { removal, execution } = await generateOnChainLiquidityRemoval(
+        exchange,
+        pair,
+        depositQuantityInAssetUnits,
+        ownerWallet,
+        token0,
+        token1,
+      );
+      execution.amountA = decimalToAssetUnits('1.10000000', 18);
+
+      let error;
+      try {
+        await exchange.executeRemoveLiquidity(removal, execution);
+      } catch (e) {
+        error = e;
+      }
+      expect(error).to.not.be.undefined;
+      expect(error.message).to.match(/invalid base amount/i);
+    });
+
+    it('should revert on invalid quote amount', async () => {
+      const depositQuantity = '1.00000000';
+      const depositQuantityInAssetUnits = decimalToAssetUnits(
+        depositQuantity,
+        18,
+      );
+
+      const {
+        exchange,
+        pair,
+        token0,
+        token1,
+      } = await deployContractsAndCreateHybridPool(
+        depositQuantity,
+        depositQuantity,
+        ownerWallet,
+      );
+      await exchange.setDispatcher(ownerWallet);
+
+      await addLiquidityAndExecute(
+        depositQuantity,
+        ownerWallet,
+        exchange,
+        token0,
+        token1,
+      );
+
+      const { removal, execution } = await generateOnChainLiquidityRemoval(
+        exchange,
+        pair,
+        depositQuantityInAssetUnits,
+        ownerWallet,
+        token0,
+        token1,
+      );
+      execution.amountB = decimalToAssetUnits('1.10000000', 18);
+
+      let error;
+      try {
+        await exchange.executeRemoveLiquidity(removal, execution);
+      } catch (e) {
+        error = e;
+      }
+      expect(error).to.not.be.undefined;
+      expect(error.message).to.match(/invalid quote amount/i);
+    });
   });
 
   describe('removeLiquidityExit', () => {
@@ -1968,6 +2631,113 @@ async function removeLiquidityETHAndExecute(
   );
 
   return { execution };
+}
+
+async function generateOnChainLiquidityAddition(
+  exchange: ExchangeInstance,
+  depositQuantityInAssetUnits: string,
+  ownerWallet: string,
+  token0: TestTokenInstance,
+  token1: TestTokenInstance,
+): Promise<{
+  addition: ExchangeInstance['executeAddLiquidity']['arguments'][0];
+  execution: ExchangeInstance['executeAddLiquidity']['arguments'][1];
+}> {
+  const deadline = Date.now() + 10000;
+
+  await token0.approve(exchange.address, depositQuantityInAssetUnits);
+  await token1.approve(exchange.address, depositQuantityInAssetUnits);
+  await exchange.addLiquidity(
+    token0.address,
+    token1.address,
+    depositQuantityInAssetUnits,
+    depositQuantityInAssetUnits,
+    depositQuantityInAssetUnits,
+    depositQuantityInAssetUnits,
+    ownerWallet,
+    deadline,
+  );
+
+  const addition = {
+    signatureHashVersion: 2,
+    origination: 0,
+    nonce: 0,
+    wallet: ownerWallet,
+    assetA: token0.address,
+    assetB: token1.address,
+    amountADesired: depositQuantityInAssetUnits,
+    amountBDesired: depositQuantityInAssetUnits,
+    amountAMin: depositQuantityInAssetUnits,
+    amountBMin: depositQuantityInAssetUnits,
+    to: ownerWallet,
+    deadline,
+    signature: '0x',
+  };
+  const execution = {
+    liquidity: depositQuantityInAssetUnits,
+    amountA: depositQuantityInAssetUnits,
+    amountB: depositQuantityInAssetUnits,
+    feeAmountA: 0,
+    feeAmountB: 0,
+    baseAssetAddress: token0.address,
+    quoteAssetAddress: token1.address,
+  };
+
+  return { addition, execution };
+}
+
+async function generateOnChainLiquidityRemoval(
+  exchange: ExchangeInstance,
+  pair: IIDEXPairInstance,
+  depositQuantityInAssetUnits: string,
+  ownerWallet: string,
+  token0: TestTokenInstance,
+  token1: TestTokenInstance,
+): Promise<{
+  removal: ExchangeInstance['executeRemoveLiquidity']['arguments'][0];
+  execution: ExchangeInstance['executeRemoveLiquidity']['arguments'][1];
+}> {
+  const deadline = Date.now() + 10000;
+
+  await pair.approve(exchange.address, depositQuantityInAssetUnits, {
+    from: ownerWallet,
+  });
+  await exchange.removeLiquidity(
+    token0.address,
+    token1.address,
+    depositQuantityInAssetUnits,
+    depositQuantityInAssetUnits,
+    depositQuantityInAssetUnits,
+    ownerWallet,
+    deadline,
+  );
+
+  const removal = {
+    signatureHashVersion: 2,
+    origination: 0,
+    nonce: 0,
+    wallet: ownerWallet,
+    assetA: token0.address,
+    assetB: token1.address,
+    liquidity: depositQuantityInAssetUnits,
+    amountAMin: depositQuantityInAssetUnits,
+    amountBMin: depositQuantityInAssetUnits,
+    to: ownerWallet,
+    deadline,
+    signature: '0x',
+  };
+
+  const execution = {
+    liquidity: depositQuantityInAssetUnits,
+    amountA: depositQuantityInAssetUnits,
+    amountB: depositQuantityInAssetUnits,
+    feeAmountA: 0,
+    feeAmountB: 0,
+    baseAssetAddress: token0.address,
+    quoteAssetAddress: token1.address,
+  };
+
+  return { removal, execution };
 }
 
 async function generateOffChainLiquidityAddition(
