@@ -4,6 +4,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
   const BalanceMigrationSourceMock = artifacts.require(
     'BalanceMigrationSourceMock',
   );
+  const CleanupExchange = artifacts.require('CleanupExchange');
   const Exchange = artifacts.require('Exchange');
   const WETH = artifacts.require('WETH');
 
@@ -156,6 +157,16 @@ contract('Exchange (tunable parameters)', (accounts) => {
   });
 
   describe('cleanupWalletBalance', async () => {
+    it('should work for valid address', async () => {
+      const { exchange, governance } = await deployAndAssociateContracts();
+      const cleanupExchange = await CleanupExchange.new(exchange.address);
+
+      await governance.initiateExchangeUpgrade(cleanupExchange.address);
+      await governance.finalizeExchangeUpgrade(cleanupExchange.address);
+
+      await cleanupExchange.cleanup(accounts[0], ethAddress);
+    });
+
     it('should revert if not called by current Exchange', async () => {
       const { exchange } = await deployAndAssociateContracts();
 

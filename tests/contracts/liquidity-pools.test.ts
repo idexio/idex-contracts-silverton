@@ -1809,6 +1809,66 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
       expect(error.message).to.match(/insufficient liquidity burned/i);
     });
 
+    it('should revert when pool has insufficient liquidity', async () => {
+      const baseQuantity = '0.00000001';
+      const quoteQuantity = '1000000.00000000';
+
+      const {
+        exchange,
+        pair,
+        token0,
+        token1,
+      } = await deployContractsAndCreateHybridPool(
+        baseQuantity,
+        quoteQuantity,
+        ownerWallet,
+      );
+      await exchange.setDispatcher(ownerWallet);
+
+      const totalLiquidity = (await pair.totalSupply()).toString();
+
+      await addLiquidityAndExecute(
+        quoteQuantity,
+        ownerWallet,
+        exchange,
+        token0,
+        token1,
+        false,
+        18,
+        decimalToAssetUnits(quoteQuantity, 18),
+        decimalToAssetUnits(baseQuantity, 18),
+        totalLiquidity,
+      );
+
+      const { removal, execution } = await generateOffChainLiquidityRemoval(
+        '1',
+        ownerWallet,
+        exchange,
+        pair,
+        token0,
+        token1,
+        true,
+      );
+      const signature = await getSignature(
+        web3,
+        getLiquidityRemovalHash(removal),
+        ownerWallet,
+      );
+
+      let error;
+      try {
+        // https://github.com/microsoft/TypeScript/issues/28486
+        await (exchange.executeRemoveLiquidity as any)(
+          ...getRemoveLiquidityArguments(removal, signature, execution),
+          { from: ownerWallet },
+        );
+      } catch (e) {
+        error = e;
+      }
+      expect(error).to.not.be.undefined;
+      expect(error.message).to.match(/insufficient liquidity/i);
+    });
+
     it('should revert on invalid amountA', async () => {
       const depositQuantity = '1.00000000';
       const depositQuantityInAssetUnits = decimalToAssetUnits(
@@ -2320,7 +2380,7 @@ export async function deployContractsAndCreateHybridPool(
   token0: TestTokenInstance;
   token1: TestTokenInstance;
 }> {
-  const { custodian, exchange, weth } = await deployAndAssociateContracts();
+  const { custodian, exchange } = await deployAndAssociateContracts();
   const token0 = await deployAndRegisterToken(exchange, token0Symbol);
   const token1 = await deployAndRegisterToken(exchange, token0Symbol);
   const { factory, pair } = await deployPancakeCoreAndCreatePool(
@@ -2336,10 +2396,6 @@ export async function deployContractsAndCreateHybridPool(
   await exchange.registerToken(pair.address, pairSymbol, 18);
   await exchange.confirmTokenRegistration(pair.address, pairSymbol, 18);
 
-  await weth.deposit({
-    value: decimalToAssetUnits(initialQuoteReserve, 18),
-    from: ownerWallet,
-  });
   await token0.transfer(
     pair.address,
     decimalToAssetUnits(initialQuoteReserve, 18),
@@ -2463,6 +2519,9 @@ async function addLiquidityAndExecute(
   token1: TestTokenInstance,
   includeFee = false,
   decimals = 18,
+  token0Override?: string,
+  token1Override?: string,
+  liquidityOverride?: string,
 ): Promise<{
   execution: ExchangeInstance['executeAddLiquidity']['arguments'][1];
 }> {
@@ -2471,10 +2530,13 @@ async function addLiquidityAndExecute(
     decimals,
   );
 
-  await token0.approve(exchange.address, depositQuantityInAssetUnits, {
+  const amountA = token0Override || depositQuantityInAssetUnits;
+  const amountB = token1Override || depositQuantityInAssetUnits;
+
+  await token0.approve(exchange.address, amountA, {
     from: ownerWallet,
   });
-  await token1.approve(exchange.address, depositQuantityInAssetUnits, {
+  await token1.approve(exchange.address, amountB, {
     from: ownerWallet,
   });
 
@@ -2482,26 +2544,24 @@ async function addLiquidityAndExecute(
   await exchange.addLiquidity(
     token0.address,
     token1.address,
-    depositQuantityInAssetUnits,
-    depositQuantityInAssetUnits,
-    depositQuantityInAssetUnits,
-    depositQuantityInAssetUnits,
+    amountA,
+    amountB,
+    amountA,
+    amountB,
     ownerWallet,
     deadline,
   );
 
   const feeAmount = includeFee
-    ? new BigNumber(depositQuantityInAssetUnits)
-        .multipliedBy(new BigNumber('0.02'))
-        .toFixed(0)
+    ? new BigNumber(amountA).multipliedBy(new BigNumber('0.02')).toFixed(0)
     : '0';
-  const liquidity = new BigNumber(depositQuantityInAssetUnits)
-    .minus(new BigNumber(feeAmount))
-    .toFixed(0);
+  const liquidity =
+    liquidityOverride ||
+    new BigNumber(amountB).minus(new BigNumber(feeAmount)).toFixed(0);
   const execution = {
     liquidity,
-    amountA: depositQuantityInAssetUnits,
-    amountB: depositQuantityInAssetUnits,
+    amountA,
+    amountB,
     feeAmountA: feeAmount,
     feeAmountB: feeAmount,
     baseAssetAddress: token0.address,
@@ -2516,10 +2576,10 @@ async function addLiquidityAndExecute(
       wallet: ownerWallet,
       assetA: token0.address,
       assetB: token1.address,
-      amountADesired: depositQuantityInAssetUnits,
-      amountBDesired: depositQuantityInAssetUnits,
-      amountAMin: depositQuantityInAssetUnits,
-      amountBMin: depositQuantityInAssetUnits,
+      amountADesired: amountA,
+      amountBDesired: amountB,
+      amountAMin: amountA,
+      amountBMin: amountB,
       to: ownerWallet,
       deadline,
       signature: '0x',
@@ -2900,17 +2960,20 @@ async function generateOffChainLiquidityRemoval(
   pair: IIDEXPairInstance,
   token0: TestTokenInstance,
   token1: TestTokenInstance,
+  skipPairTokenDeposit = false,
 ): Promise<{
   removal: LiquidityRemoval;
   execution: ExchangeInstance['executeAddLiquidity']['arguments'][1];
 }> {
-  await pair.approve(exchange.address, depositQuantityInAssetUnits, {
-    from: ownerWallet,
-  });
-  await exchange.depositTokenByAddress(
-    pair.address,
-    depositQuantityInAssetUnits,
-  );
+  if (!skipPairTokenDeposit) {
+    await pair.approve(exchange.address, depositQuantityInAssetUnits, {
+      from: ownerWallet,
+    });
+    await exchange.depositTokenByAddress(
+      pair.address,
+      depositQuantityInAssetUnits,
+    );
+  }
 
   const removal: LiquidityRemoval = {
     signatureHashVersion,
