@@ -660,6 +660,44 @@ contract(
         expect(error).to.not.be.undefined;
         expect(error.message).to.match(/net plus fee not equal to gross/i);
       });
+
+      it('should revert when order signature invalid', async () => {
+        const initialBaseReserve = '10000.00000000';
+        const initialQuoteReserve = '10.00000000';
+
+        const { exchange, token } = await deployContractsAndCreateHybridETHPool(
+          initialBaseReserve,
+          initialQuoteReserve,
+          ownerWallet,
+        );
+        await exchange.setDispatcher(ownerWallet);
+
+        const { buyOrder, poolTrade } = await generateOrderAndPoolTrade(
+          token.address,
+          ethAddress,
+          buyWallet,
+          '1.00000000',
+          '0.10000000',
+        );
+        const buySignature = await getSignature(
+          web3,
+          getOrderHash(buyOrder),
+          buyWallet,
+        );
+        buyOrder.quantity = '1.00100000';
+
+        let error;
+        try {
+          // https://github.com/microsoft/TypeScript/issues/28486
+          await (exchange.executePoolTrade as any)(
+            ...getPoolTradeArguments(buyOrder, buySignature, poolTrade),
+          );
+        } catch (e) {
+          error = e;
+        }
+        expect(error).to.not.be.undefined;
+        expect(error.message).to.match(/invalid wallet signature/i);
+      });
     });
 
     describe('executeHybridTrade', () => {

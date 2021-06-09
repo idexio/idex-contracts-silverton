@@ -2,9 +2,7 @@
 
 pragma solidity 0.8.4;
 
-import {
-  AssetUnitConversions
-} from '../../contracts/libraries/AssetUnitConversions.sol';
+import { AssetUnitConversions } from '../libraries/AssetUnitConversions.sol';
 
 contract AssetsMock {
   function pipsToAssetUnits(uint64 quantityInPips, uint8 assetDecimals)
