@@ -31,6 +31,7 @@ import {
 } from './libraries/Interfaces.sol';
 import {
   Asset,
+  HybridTrade,
   LiquidityAddition,
   LiquidityChangeExecution,
   LiquidityPool,
@@ -709,8 +710,7 @@ contract Exchange is IExchange, Owned {
   function executeHybridTrade(
     Order memory buy,
     Order memory sell,
-    OrderBookTrade memory orderBookTrade,
-    PoolTrade memory poolTrade
+    HybridTrade memory hybridTrade
   ) public onlyDispatcher {
     // OrderBook trade validations
     require(
@@ -731,8 +731,7 @@ contract Exchange is IExchange, Owned {
     Trading.executeHybridTrade(
       buy,
       sell,
-      orderBookTrade,
-      poolTrade,
+      hybridTrade,
       _feeWallet,
       _assetRegistry,
       _liquidityPoolRegistry,
@@ -744,17 +743,19 @@ contract Exchange is IExchange, Owned {
     emit HybridTradeExecuted(
       buy.walletAddress,
       sell.walletAddress,
-      orderBookTrade.baseAssetSymbol,
-      orderBookTrade.quoteAssetSymbol,
-      orderBookTrade.grossBaseQuantityInPips,
-      orderBookTrade.grossQuoteQuantityInPips,
-      poolTrade.grossBaseQuantityInPips,
-      poolTrade.grossQuoteQuantityInPips,
-      orderBookTrade.grossBaseQuantityInPips +
-        poolTrade.grossBaseQuantityInPips,
-      orderBookTrade.grossQuoteQuantityInPips +
-        poolTrade.grossQuoteQuantityInPips,
-      orderBookTrade.makerSide == OrderSide.Buy ? OrderSide.Sell : OrderSide.Buy
+      hybridTrade.orderBookTrade.baseAssetSymbol,
+      hybridTrade.orderBookTrade.quoteAssetSymbol,
+      hybridTrade.orderBookTrade.grossBaseQuantityInPips,
+      hybridTrade.orderBookTrade.grossQuoteQuantityInPips,
+      hybridTrade.poolTrade.grossBaseQuantityInPips,
+      hybridTrade.poolTrade.grossQuoteQuantityInPips,
+      hybridTrade.orderBookTrade.grossBaseQuantityInPips +
+        hybridTrade.poolTrade.grossBaseQuantityInPips,
+      hybridTrade.orderBookTrade.grossQuoteQuantityInPips +
+        hybridTrade.poolTrade.grossQuoteQuantityInPips,
+      hybridTrade.orderBookTrade.makerSide == OrderSide.Buy
+        ? OrderSide.Sell
+        : OrderSide.Buy
     );
   }
 

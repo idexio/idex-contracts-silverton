@@ -25,7 +25,7 @@ import { ethSymbol, getSignature } from './helpers';
 const token0Symbol = 'DIL';
 const ethMarketSymbol = `${token0Symbol}-${ethSymbol}`;
 
-contract(
+contract.only(
   'Exchange (liquidity pools)',
   ([ownerWallet, buyWallet, sellWallet]) => {
     describe('executePoolTrade', () => {

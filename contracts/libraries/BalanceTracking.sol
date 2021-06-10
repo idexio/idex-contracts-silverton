@@ -10,9 +10,11 @@ import { AssetRegistry } from './AssetRegistry.sol';
 import { AssetUnitConversions } from './AssetUnitConversions.sol';
 import { Constants } from './Constants.sol';
 import { IExchange } from './Interfaces.sol';
+import { OrderSide } from './Enums.sol';
 import { PoolTradeHelpers } from './PoolTradeHelpers.sol';
 import {
   Asset,
+  HybridTrade,
   LiquidityAddition,
   LiquidityChangeExecution,
   LiquidityRemoval,
@@ -150,6 +152,27 @@ library BalanceTracking {
       poolTrade.orderCreditAssetAddress(order.side)
     );
     balance.balanceInPips += poolTrade.takerGasFeeQuantityInPips;
+
+    // Liquidity pool reserves are updated in LiquidityPoolRegistry
+  }
+
+  function updateForHybridTradeGasFee(
+    Storage storage self,
+    HybridTrade memory hybridTrade,
+    address feeWallet
+  ) internal {
+    Balance storage balance;
+    // Fee wallet receives gas fee from asset credited to order wallet
+    balance = loadBalanceAndMigrateIfNeeded(
+      self,
+      feeWallet,
+      hybridTrade.poolTrade.orderCreditAssetAddress(
+        hybridTrade.orderBookTrade.makerSide == OrderSide.Buy
+          ? OrderSide.Sell
+          : OrderSide.Buy
+      )
+    );
+    balance.balanceInPips += hybridTrade.takerGasFeeQuantityInPips;
 
     // Liquidity pool reserves are updated in LiquidityPoolRegistry
   }

@@ -164,6 +164,32 @@ library Validations {
     );
   }
 
+  function validateOrderBookTradeFees(OrderBookTrade memory trade)
+    internal
+    pure
+  {
+    require(
+      trade.netBaseQuantityInPips +
+        (
+          trade.makerFeeAssetAddress == trade.baseAssetAddress
+            ? trade.makerFeeQuantityInPips
+            : trade.takerFeeQuantityInPips
+        ) ==
+        trade.grossBaseQuantityInPips,
+      'Orderbook base fees unbalanced'
+    );
+    require(
+      trade.netQuoteQuantityInPips +
+        (
+          trade.makerFeeAssetAddress == trade.quoteAssetAddress
+            ? trade.makerFeeQuantityInPips
+            : trade.takerFeeQuantityInPips
+        ) ==
+        trade.grossQuoteQuantityInPips,
+      'Orderbook quote fees unbalanced'
+    );
+  }
+
   function validateOrderSignature(
     Order memory order,
     string memory baseAssetSymbol,
@@ -184,6 +210,33 @@ library Validations {
     );
 
     return orderHash;
+  }
+
+  function validatePoolTradeFees(
+    OrderSide orderSide,
+    PoolTrade memory poolTrade
+  ) internal pure {
+    // The quantity received by the wallet is determined by the pool's constant product formula
+    // and enforced in `LiquidityPoolRegistry.updateReservesForPoolTrade`
+    if (orderSide == OrderSide.Buy) {
+      // Buy order sends quote as pool input, receives base as pool output
+      require(
+        poolTrade.netQuoteQuantityInPips +
+          poolTrade.takerPoolFeeQuantityInPips +
+          poolTrade.takerProtocolFeeQuantityInPips ==
+          poolTrade.grossQuoteQuantityInPips,
+        'Pool quote fees unbalanced'
+      );
+    } else {
+      // Sell order sends base as pool input, receives quote as pool output
+      require(
+        poolTrade.netBaseQuantityInPips +
+          poolTrade.takerPoolFeeQuantityInPips +
+          poolTrade.takerProtocolFeeQuantityInPips ==
+          poolTrade.grossBaseQuantityInPips,
+        'Pool base fees unbalanced'
+      );
+    }
   }
 
   function validateWithdrawalSignature(Withdrawal memory withdrawal)

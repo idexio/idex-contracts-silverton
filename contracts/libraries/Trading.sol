@@ -11,7 +11,7 @@ import { PoolTradeHelpers } from './PoolTradeHelpers.sol';
 import { PoolTradeValidations } from './PoolTradeValidations.sol';
 import { Validations } from './Validations.sol';
 import { OrderSide, OrderType } from './Enums.sol';
-import { Order, OrderBookTrade, PoolTrade } from './Structs.sol';
+import { HybridTrade, Order, OrderBookTrade, PoolTrade } from './Structs.sol';
 
 library Trading {
   using AssetRegistry for AssetRegistry.Storage;
@@ -58,8 +58,7 @@ library Trading {
   function executeHybridTrade(
     Order memory buy,
     Order memory sell,
-    OrderBookTrade memory orderBookTrade,
-    PoolTrade memory poolTrade,
+    HybridTrade memory hybridTrade,
     address feeWallet,
     AssetRegistry.Storage storage assetRegistry,
     LiquidityPoolRegistry.Storage storage liquidityPoolRegistry,
@@ -71,8 +70,7 @@ library Trading {
       HybridTradeValidations.validateHybridTrade(
         buy,
         sell,
-        orderBookTrade,
-        poolTrade,
+        hybridTrade,
         assetRegistry
       );
 
@@ -83,24 +81,28 @@ library Trading {
         Order memory takerOrder,
         bytes32 takerOrderHash
       ) =
-        orderBookTrade.makerSide == OrderSide.Buy
+        hybridTrade.orderBookTrade.makerSide == OrderSide.Buy
           ? (buy, sell, sellHash)
           : (sell, buy, buyHash);
 
       updateOrderFilledQuantity(
         takerOrder,
         takerOrderHash,
-        poolTrade.grossBaseQuantityInPips,
-        poolTrade.grossQuoteQuantityInPips,
+        hybridTrade.poolTrade.grossBaseQuantityInPips,
+        hybridTrade.poolTrade.grossQuoteQuantityInPips,
         completedOrderHashes,
         partiallyFilledOrderQuantitiesInPips
       );
 
-      balanceTracking.updateForPoolTrade(takerOrder, poolTrade, feeWallet);
+      balanceTracking.updateForPoolTrade(
+        takerOrder,
+        hybridTrade.poolTrade,
+        feeWallet
+      );
 
       (uint64 baseAssetReserveInPips, uint64 quoteAssetReserveInPips) =
         liquidityPoolRegistry.updateReservesForPoolTrade(
-          poolTrade,
+          hybridTrade.poolTrade,
           takerOrder.side
         );
 
@@ -118,7 +120,7 @@ library Trading {
         buyHash,
         sell,
         sellHash,
-        orderBookTrade,
+        hybridTrade.orderBookTrade,
         completedOrderHashes,
         partiallyFilledOrderQuantitiesInPips
       );
@@ -126,9 +128,13 @@ library Trading {
       balanceTracking.updateForOrderBookTrade(
         buy,
         sell,
-        orderBookTrade,
+        hybridTrade.orderBookTrade,
         feeWallet
       );
+    }
+
+    {
+      balanceTracking.updateForHybridTradeGasFee(hybridTrade, feeWallet);
     }
   }
 
