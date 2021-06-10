@@ -121,5 +121,13 @@ library HybridTradeValidations {
       hybridTrade.poolTrade.takerGasFeeQuantityInPips == 0,
       'Non-zero pool gas fee'
     );
+
+    OrderSide poolOrderSide =
+      hybridTrade.orderBookTrade.makerSide == OrderSide.Buy
+        ? OrderSide.Sell
+        : OrderSide.Buy;
+
+    Validations.validatePoolTradeFees(poolOrderSide, hybridTrade.poolTrade);
+    Validations.validateOrderBookTradeFees(hybridTrade.orderBookTrade);
   }
 }

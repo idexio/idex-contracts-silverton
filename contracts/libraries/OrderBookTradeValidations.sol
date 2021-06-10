@@ -106,34 +106,6 @@ library OrderBookTradeValidations {
     }
   }
 
-  function validateFees(OrderBookTrade memory trade) private pure {
-    uint64 makerTotalQuantityInPips =
-      trade.makerFeeAssetAddress == trade.baseAssetAddress
-        ? trade.grossBaseQuantityInPips
-        : trade.grossQuoteQuantityInPips;
-    require(
-      Validations.getFeeBasisPoints(
-        trade.makerFeeQuantityInPips,
-        makerTotalQuantityInPips
-      ) <= Constants.maxTradeFeeBasisPoints,
-      'Excessive maker fee'
-    );
-
-    uint64 takerTotalQuantityInPips =
-      trade.takerFeeAssetAddress == trade.baseAssetAddress
-        ? trade.grossBaseQuantityInPips
-        : trade.grossQuoteQuantityInPips;
-    require(
-      Validations.getFeeBasisPoints(
-        trade.takerFeeQuantityInPips,
-        takerTotalQuantityInPips
-      ) <= Constants.maxTradeFeeBasisPoints,
-      'Excessive taker fee'
-    );
-
-    Validations.validateOrderBookTradeFees(trade);
-  }
-
   function validateOrderSignatures(
     Order memory buy,
     Order memory sell,
@@ -175,5 +147,33 @@ library OrderBookTradeValidations {
     );
 
     return orderHash;
+  }
+
+  function validateFees(OrderBookTrade memory trade) private pure {
+    uint64 makerTotalQuantityInPips =
+      trade.makerFeeAssetAddress == trade.baseAssetAddress
+        ? trade.grossBaseQuantityInPips
+        : trade.grossQuoteQuantityInPips;
+    require(
+      Validations.getFeeBasisPoints(
+        trade.makerFeeQuantityInPips,
+        makerTotalQuantityInPips
+      ) <= Constants.maxTradeFeeBasisPoints,
+      'Excessive maker fee'
+    );
+
+    uint64 takerTotalQuantityInPips =
+      trade.takerFeeAssetAddress == trade.baseAssetAddress
+        ? trade.grossBaseQuantityInPips
+        : trade.grossQuoteQuantityInPips;
+    require(
+      Validations.getFeeBasisPoints(
+        trade.takerFeeQuantityInPips,
+        takerTotalQuantityInPips
+      ) <= Constants.maxTradeFeeBasisPoints,
+      'Excessive taker fee'
+    );
+
+    Validations.validateOrderBookTradeFees(trade);
   }
 }

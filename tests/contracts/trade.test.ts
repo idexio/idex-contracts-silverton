@@ -810,9 +810,7 @@ contract('Exchange (trades)', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(
-        /net base plus fee is not equal to gross/i,
-      );
+      expect(error.message).to.match(/base fees unbalanced/i);
     });
 
     it('should revert when fill quote net and fee do not sum to gross', async () => {
@@ -846,9 +844,7 @@ contract('Exchange (trades)', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(
-        /net quote plus fee is not equal to gross/i,
-      );
+      expect(error.message).to.match(/quote fees unbalanced/i);
     });
 
     it('should revert for limit order overfill', async () => {
