@@ -2,13 +2,6 @@
 
 pragma solidity 0.8.4;
 
-import {
-  IIDEXFactory
-} from '@idexio/idex-swap-core/contracts/interfaces/IIDEXFactory.sol';
-import {
-  IIDEXPair
-} from '@idexio/idex-swap-core/contracts/interfaces/IIDEXPair.sol';
-
 import { AssetRegistry } from './AssetRegistry.sol';
 import { AssetTransfers } from './AssetTransfers.sol';
 import { AssetUnitConversions } from './AssetUnitConversions.sol';
@@ -80,22 +73,14 @@ library Depositing {
 
   function depositLiquidityTokens(
     address wallet,
-    address assetA,
-    address assetB,
+    address liquidityProviderToken,
     uint256 quantityInAssetUnits,
     ICustodian custodian,
-    IIDEXFactory pairFactoryAddress,
-    address WETH,
     AssetRegistry.Storage storage assetRegistry,
     BalanceTracking.Storage storage balanceTracking
   ) internal {
-    address pairTokenAddress =
-      pairFactoryAddress.getPair(
-        assetA == address(0x0) ? address(WETH) : assetA,
-        assetB == address(0x0) ? address(WETH) : assetB
-      );
-
-    Asset memory asset = assetRegistry.loadAssetByAddress(pairTokenAddress);
+    Asset memory asset =
+      assetRegistry.loadAssetByAddress(liquidityProviderToken);
 
     depositAsset(
       wallet,

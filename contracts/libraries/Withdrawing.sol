@@ -2,15 +2,10 @@
 
 pragma solidity 0.8.4;
 
-import {
-  IIDEXPair
-} from '@idexio/idex-swap-core/contracts/interfaces/IIDEXPair.sol';
-
 import { AssetRegistry } from './AssetRegistry.sol';
 import { AssetUnitConversions } from './AssetUnitConversions.sol';
 import { BalanceTracking } from './BalanceTracking.sol';
 import { Constants } from './Constants.sol';
-import { ICustodian } from './Interfaces.sol';
 import { UUID } from './UUID.sol';
 import { Validations } from './Validations.sol';
 import { WithdrawalType } from './Enums.sol';
@@ -20,6 +15,7 @@ import {
   LiquidityRemoval,
   Withdrawal
 } from './Structs.sol';
+import { ICustodian, ILiquidityProviderToken } from './Interfaces.sol';
 
 library Withdrawing {
   using AssetRegistry for AssetRegistry.Storage;
@@ -100,7 +96,7 @@ library Withdrawing {
     LiquidityChangeExecution memory execution,
     ICustodian custodian,
     address feeWallet,
-    IIDEXPair pairTokenAddress,
+    ILiquidityProviderToken liquidityProviderToken,
     AssetRegistry.Storage storage assetRegistry,
     BalanceTracking.Storage storage balanceTracking
   ) internal {
@@ -113,7 +109,7 @@ library Withdrawing {
         execution,
         feeWallet,
         address(custodian),
-        pairTokenAddress,
+        liquidityProviderToken,
         assetRegistry
       );
 

@@ -4,16 +4,6 @@ pragma solidity 0.8.4;
 
 import { AssetTransfers } from '../libraries/AssetTransfers.sol';
 
-interface ICustodian {
-  receive() external payable;
-
-  function withdraw(
-    address payable wallet,
-    address asset,
-    uint256 quantityInAssetUnits
-  ) external;
-}
-
 contract BalanceMigrationSourceMock {
   mapping(address => mapping(address => uint64)) _balancesInPips;
 

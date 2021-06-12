@@ -2,14 +2,9 @@
 
 pragma solidity 0.8.4;
 
-import {
-  IIDEXPair
-} from '@idexio/idex-swap-core/contracts/interfaces/IIDEXPair.sol';
-
 import { AssetRegistry } from './AssetRegistry.sol';
 import { AssetUnitConversions } from './AssetUnitConversions.sol';
 import { Constants } from './Constants.sol';
-import { IExchange } from './Interfaces.sol';
 import { OrderSide } from './Enums.sol';
 import { PoolTradeHelpers } from './PoolTradeHelpers.sol';
 import {
@@ -23,6 +18,7 @@ import {
   PoolTrade,
   Withdrawal
 } from './Structs.sol';
+import { IExchange, ILiquidityProviderToken } from './Interfaces.sol';
 
 library BalanceTracking {
   using AssetRegistry for AssetRegistry.Storage;
@@ -230,7 +226,7 @@ library BalanceTracking {
     uint8 quoteAssetDecimals,
     address feeWallet,
     address custodianAddress,
-    IIDEXPair pairTokenAddress
+    ILiquidityProviderToken liquidityProviderToken
   ) internal returns (uint256 outputLiquidityInAssetUnits) {
     (
       uint256 grossBaseAssetQuantityInAssetUnits,
@@ -307,12 +303,12 @@ library BalanceTracking {
       // Base net credit
       quantityInPips = AssetUnitConversions.assetUnitsToPips(
         execution.liquidity,
-        Constants.pairTokenDecimals
+        Constants.liquidityProviderTokenDecimals
       );
       balance = loadBalanceAndMigrateIfNeeded(
         self,
         addition.wallet,
-        address(pairTokenAddress)
+        address(liquidityProviderToken)
       );
       balance.balanceInPips += quantityInPips;
     } else {
@@ -330,7 +326,7 @@ library BalanceTracking {
     LiquidityChangeExecution memory execution,
     address feeWallet,
     address custodianAddress,
-    IIDEXPair pairTokenAddress,
+    ILiquidityProviderToken liquidityProviderToken,
     AssetRegistry.Storage storage assetRegistry
   )
     internal
@@ -432,12 +428,12 @@ library BalanceTracking {
     {
       quantityInPips = AssetUnitConversions.assetUnitsToPips(
         execution.liquidity,
-        Constants.pairTokenDecimals
+        Constants.liquidityProviderTokenDecimals
       );
       balance = loadBalanceAndMigrateIfNeeded(
         self,
         removal.wallet,
-        address(pairTokenAddress)
+        address(liquidityProviderToken)
       );
       balance.balanceInPips -= quantityInPips;
     }

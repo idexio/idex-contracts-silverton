@@ -4,12 +4,6 @@ pragma solidity 0.8.4;
 
 import { Address } from '@openzeppelin/contracts/utils/Address.sol';
 import { ECDSA } from '@openzeppelin/contracts/utils/cryptography/ECDSA.sol';
-import {
-  IIDEXFactory
-} from '@idexio/idex-swap-core/contracts/interfaces/IIDEXFactory.sol';
-import {
-  IIDEXPair
-} from '@idexio/idex-swap-core/contracts/interfaces/IIDEXPair.sol';
 
 import { AssetRegistry } from './libraries/AssetRegistry.sol';
 import { AssetRegistryAdmin } from './libraries/AssetRegistryAdmin.sol';
@@ -238,7 +232,7 @@ contract Exchange is IExchange, Owned {
   // Exits
   mapping(address => WalletExit) _walletExits;
   // Liquidity pools
-  IIDEXFactory _pairFactoryContractAddress;
+  address _farm;
   LiquidityPoolRegistry.Storage _liquidityPoolRegistry;
   IWETH9 public immutable _WETH;
   // Withdrawals - mapping of withdrawal wallet hash => isComplete
@@ -252,15 +246,25 @@ contract Exchange is IExchange, Owned {
    * @notice Instantiate a new `Exchange` contract
    *
    * @dev Sets `_balanceMigrationSource` to first argument, and `_owner` and `_admin` to `msg.sender` */
-  constructor(IExchange balanceMigrationSource, IWETH9 WETH) Owned() {
+  constructor(
+    IExchange balanceMigrationSource,
+    address farm,
+    IWETH9 WETH,
+    address feeWallet
+  ) Owned() {
     require(
       Address.isContract(address(balanceMigrationSource)),
       'Invalid migration source'
     );
     _balanceTracking.migrationSource = balanceMigrationSource;
 
+    require(Address.isContract(address(farm)), 'Invalid Farm address');
+    _farm = farm;
+
     require(Address.isContract(address(WETH)), 'Invalid WETH address');
     _WETH = WETH;
+
+    setFeeWallet(feeWallet);
   }
 
   /**
@@ -332,10 +336,11 @@ contract Exchange is IExchange, Owned {
    * @notice Sets the address of the Fee wallet
    *
    * @dev Trade and Withdraw fees will accrue in the `_balances` mappings for this wallet
+   * @dev Visibility public instead of external to allow use in `constructor`
    *
    * @param newFeeWallet The new Fee wallet. Must be different from the current one
    */
-  function setFeeWallet(address newFeeWallet) external onlyAdmin {
+  function setFeeWallet(address newFeeWallet) public onlyAdmin {
     require(newFeeWallet != address(0x0), 'Invalid wallet address');
     require(newFeeWallet != _feeWallet, 'Must be different from current');
 
@@ -343,22 +348,6 @@ contract Exchange is IExchange, Owned {
     _feeWallet = newFeeWallet;
 
     emit FeeWalletChanged(oldFeeWallet, newFeeWallet);
-  }
-
-  function setPairFactoryAddress(IIDEXFactory newPairFactoryAddress)
-    external
-    onlyAdmin
-  {
-    require(
-      address(_pairFactoryContractAddress) == address(0x0),
-      'Factory can only be set once'
-    );
-    require(
-      Address.isContract(address(newPairFactoryAddress)),
-      'Invalid address'
-    );
-
-    _pairFactoryContractAddress = newPairFactoryAddress;
   }
 
   // Accessors //
@@ -457,6 +446,24 @@ contract Exchange is IExchange, Owned {
   }
 
   /**
+   * @notice Load the address of the Custodian contract
+   *
+   * @return The address of the Custodian contract
+   */
+  function loadCustodian() external view override returns (ICustodian) {
+    return _custodian;
+  }
+
+  /**
+   * @notice Load the address of the `IDEXFarm` contract associated with the Exchange
+   *
+   * @return The address of the `IDEXFarm` contract
+   */
+  function loadFarmContractAddress() external view returns (address) {
+    return _farm;
+  }
+
+  /**
    * @notice Load the address of the Fee wallet
    *
    * @return The address of the Fee wallet
@@ -480,15 +487,6 @@ contract Exchange is IExchange, Owned {
         baseAssetAddress,
         quoteAssetAddress
       );
-  }
-
-  /**
-   * @notice Load the address of the `IDEXPairFactory` contract associated with the Exchange
-   *
-   * @return The address of the `IDEXPairFactory` contract
-   */
-  function loadPairFactoryContractAddress() external view returns (address) {
-    return address(_pairFactoryContractAddress);
   }
 
   /**
@@ -796,31 +794,20 @@ contract Exchange is IExchange, Owned {
 
   // Liquidity pools //
 
-  function promotePool(
-    address baseAssetAddress,
-    address quoteAssetAddress,
-    IIDEXPair pairTokenAddress
-  ) external onlyAdmin {
-    _liquidityPoolRegistry.promotePool(
-      baseAssetAddress,
-      quoteAssetAddress,
-      pairTokenAddress,
+  function fundPool(
+    address token0,
+    address token1,
+    uint8 quotePosition,
+    uint256 desiredLiquidity
+  ) external onlyFarm {
+    _liquidityPoolRegistry.fundPool(
+      token0,
+      token1,
+      quotePosition,
+      desiredLiquidity,
       _custodian,
-      _pairFactoryContractAddress,
       _WETH,
       _assetRegistry
-    );
-  }
-
-  function demotePool(address baseAssetAddress, address quoteAssetAddress)
-    external
-    onlyAdmin
-  {
-    _liquidityPoolRegistry.demotePool(
-      baseAssetAddress,
-      quoteAssetAddress,
-      _custodian,
-      _WETH
     );
   }
 
@@ -1000,8 +987,6 @@ contract Exchange is IExchange, Owned {
         bytes('')
       ),
       _custodian,
-      _pairFactoryContractAddress,
-      address(_WETH),
       _assetRegistry,
       _balanceTracking
     );
@@ -1055,8 +1040,6 @@ contract Exchange is IExchange, Owned {
         bytes('')
       ),
       _custodian,
-      _pairFactoryContractAddress,
-      address(_WETH),
       _assetRegistry,
       _balanceTracking
     );
@@ -1324,6 +1307,13 @@ contract Exchange is IExchange, Owned {
 
   modifier onlyDispatcher() {
     require(msg.sender == _dispatcherWallet, 'Caller is not dispatcher');
+    _;
+  }
+
+  // Farm whitelisting //
+
+  modifier onlyFarm() {
+    require(msg.sender == _farm, 'Caller is not Farm');
     _;
   }
 

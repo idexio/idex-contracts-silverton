@@ -78,7 +78,8 @@ library Validations {
         execution.amountA - execution.feeAmountA
       );
 
-    uint256 totalLiquidityInAssetUnits = pool.pairTokenAddress.totalSupply();
+    uint256 totalLiquidityInAssetUnits =
+      pool.liquidityProviderToken.totalSupply();
     require(
       execution.liquidity ==
         min(
@@ -308,9 +309,9 @@ library Validations {
       uint256 outputQuoteAssetQuantityInAssetUnits
     )
   {
-    uint256 totalLiquidityInAssetUnits = pool.pairTokenAddress.totalSupply();
+    uint256 totalLiquidityInAssetUnits =
+      pool.liquidityProviderToken.totalSupply();
 
-    // https://github.com/idexio/idex-swap-core/blob/master/contracts/IDEXPair.sol#L200
     outputBaseAssetQuantityInAssetUnits =
       (liquidityToBurnInAssetUnits *
         AssetUnitConversions.pipsToAssetUnits(

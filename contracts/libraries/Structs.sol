@@ -2,10 +2,7 @@
 
 pragma solidity 0.8.4;
 
-import {
-  IIDEXPair
-} from '@idexio/idex-swap-core/contracts/interfaces/IIDEXPair.sol';
-
+import { ILiquidityProviderToken } from './Interfaces.sol';
 import {
   LiquidityChangeOrigination,
   OrderSelfTradePrevention,
@@ -32,7 +29,7 @@ struct LiquidityPool {
   uint8 baseAssetDecimals;
   uint64 quoteAssetReserveInPips;
   uint8 quoteAssetDecimals;
-  IIDEXPair pairTokenAddress;
+  ILiquidityProviderToken liquidityProviderToken;
 }
 
 /**
