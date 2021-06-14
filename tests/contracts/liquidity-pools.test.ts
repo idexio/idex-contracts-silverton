@@ -30,7 +30,7 @@ import {
 const token0Symbol = 'DIL';
 
 contract('Exchange (liquidity pools)', ([ownerWallet]) => {
-  describe('promotePool', () => {
+  describe.only('fundPool', () => {
     it('should work', async () => {
       const depositQuantity = '1.00000000';
       const {
@@ -2498,6 +2498,7 @@ export async function deployPancakeCoreAndCreateETHPool(
   feeWallet = ownerWallet,
 ): Promise<{
   factory: FactoryInstance;
+  farm: Farm;
   pair: IIDEXPairInstance;
 }> {
   const Factory = artifacts.require('Factory');
@@ -2508,7 +2509,12 @@ export async function deployPancakeCoreAndCreateETHPool(
   const pairAddress = tx.logs[0].args.pair;
   const pair = await IIDEXPair.at(pairAddress);
 
-  return { factory, pair };
+  const Farm = artifacts.require('Farm');
+  const Token = artifacts.require('TestToken');
+  const rewardToken = await Token.new();
+  const farm = await Farm.new(rewardToken.address, 1);
+
+  return { factory, farm, pair };
 }
 
 async function addLiquidityAndExecute(
