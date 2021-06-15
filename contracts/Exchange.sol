@@ -232,7 +232,7 @@ contract Exchange is IExchange, Owned {
   // Exits
   mapping(address => WalletExit) _walletExits;
   // Liquidity pools
-  address _farm;
+  address _migrator;
   LiquidityPoolRegistry.Storage _liquidityPoolRegistry;
   IWETH9 public immutable _WETH;
   // Withdrawals - mapping of withdrawal wallet hash => isComplete
@@ -248,9 +248,8 @@ contract Exchange is IExchange, Owned {
    * @dev Sets `_balanceMigrationSource` to first argument, and `_owner` and `_admin` to `msg.sender` */
   constructor(
     IExchange balanceMigrationSource,
-    address farm,
-    IWETH9 WETH,
-    address feeWallet
+    address feeWallet,
+    IWETH9 WETH
   ) Owned() {
     require(
       Address.isContract(address(balanceMigrationSource)),
@@ -258,13 +257,10 @@ contract Exchange is IExchange, Owned {
     );
     _balanceTracking.migrationSource = balanceMigrationSource;
 
-    require(Address.isContract(address(farm)), 'Invalid Farm address');
-    _farm = farm;
+    setFeeWallet(feeWallet);
 
     require(Address.isContract(address(WETH)), 'Invalid WETH address');
     _WETH = WETH;
-
-    setFeeWallet(feeWallet);
   }
 
   /**
@@ -336,7 +332,7 @@ contract Exchange is IExchange, Owned {
    * @notice Sets the address of the Fee wallet
    *
    * @dev Trade and Withdraw fees will accrue in the `_balances` mappings for this wallet
-   * @dev Visibility public instead of external to allow use in `constructor`
+   * @dev Visibility public instead of external to allow invocation from `constructor`
    *
    * @param newFeeWallet The new Fee wallet. Must be different from the current one
    */
@@ -348,6 +344,15 @@ contract Exchange is IExchange, Owned {
     _feeWallet = newFeeWallet;
 
     emit FeeWalletChanged(oldFeeWallet, newFeeWallet);
+  }
+
+  /**
+   * @notice TODO Sets the address of the `Migrator` contract
+   */
+  function setMigrator(address newMigrator) external onlyAdmin {
+    require(Address.isContract(address(newMigrator)), 'Invalid address');
+
+    _migrator = newMigrator;
   }
 
   // Accessors //
@@ -455,12 +460,12 @@ contract Exchange is IExchange, Owned {
   }
 
   /**
-   * @notice Load the address of the `IDEXFarm` contract associated with the Exchange
+   * @notice Load the address of the `IDEXMigrator` contract associated with the Exchange
    *
-   * @return The address of the `IDEXFarm` contract
+   * @return The address of the `IDEXMigrator` contract
    */
-  function loadFarmContractAddress() external view returns (address) {
-    return _farm;
+  function loadMigratorContractAddress() external view returns (address) {
+    return _migrator;
   }
 
   /**
@@ -798,17 +803,20 @@ contract Exchange is IExchange, Owned {
     address token0,
     address token1,
     uint8 quotePosition,
-    uint256 desiredLiquidity
-  ) external onlyFarm {
-    _liquidityPoolRegistry.fundPool(
-      token0,
-      token1,
-      quotePosition,
-      desiredLiquidity,
-      _custodian,
-      _WETH,
-      _assetRegistry
-    );
+    uint256 desiredLiquidity,
+    address to
+  ) external onlyMigrator returns (address liquidityProviderToken) {
+    return
+      _liquidityPoolRegistry.fundPool(
+        token0,
+        token1,
+        quotePosition,
+        desiredLiquidity,
+        to,
+        _custodian,
+        _WETH,
+        _assetRegistry
+      );
   }
 
   /**
@@ -1310,10 +1318,10 @@ contract Exchange is IExchange, Owned {
     _;
   }
 
-  // Farm whitelisting //
+  // Migrator whitelisting //
 
-  modifier onlyFarm() {
-    require(msg.sender == _farm, 'Caller is not Farm');
+  modifier onlyMigrator() {
+    require(msg.sender == _migrator, 'Caller is not Migrator');
     _;
   }
 

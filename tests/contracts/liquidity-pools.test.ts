@@ -16,10 +16,11 @@ import {
 import {
   CustodianInstance,
   ExchangeInstance,
-  IIDEXPairInstance,
+  IPancakePairInstance,
   FactoryInstance,
   TestTokenInstance,
   WETHInstance,
+  FarmInstance,
 } from '../../types/truffle-contracts';
 import {
   deployAndAssociateContracts,
@@ -80,6 +81,7 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
       );
     });
 
+    /*
     it('should fail when no liquidity has been minted', async () => {
       const { custodian, exchange, weth } = await deployAndAssociateContracts();
       const token = await deployAndRegisterToken(exchange, token0Symbol);
@@ -145,8 +147,10 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
       expect(error).to.not.be.undefined;
       expect(error.message).to.match(/pool already exists/i);
     });
+    */
   });
 
+  /*
   describe('demotePool', () => {
     it('should work', async () => {
       const depositQuantity = '1.00000000';
@@ -2366,8 +2370,10 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
       expect(error.message).to.match(/invalid token address/i);
     });
   });
+  */
 });
 
+/*
 export async function deployContractsAndCreateHybridPool(
   initialBaseReserve: string,
   initialQuoteReserve: string,
@@ -2376,7 +2382,7 @@ export async function deployContractsAndCreateHybridPool(
 ): Promise<{
   custodian: CustodianInstance;
   exchange: ExchangeInstance;
-  pair: IIDEXPairInstance;
+  pair: IPancakePairInstance;
   token0: TestTokenInstance;
   token1: TestTokenInstance;
 }> {
@@ -2416,6 +2422,7 @@ export async function deployContractsAndCreateHybridPool(
 
   return { custodian, exchange, pair, token0, token1 };
 }
+*/
 
 export async function deployContractsAndCreateHybridETHPool(
   initialBaseReserve: string,
@@ -2425,24 +2432,29 @@ export async function deployContractsAndCreateHybridETHPool(
 ): Promise<{
   custodian: CustodianInstance;
   exchange: ExchangeInstance;
-  pair: IIDEXPairInstance;
+  pair: IPancakePairInstance;
   token: TestTokenInstance;
   weth: WETHInstance;
 }> {
-  const { custodian, exchange, weth } = await deployAndAssociateContracts();
+  const {
+    custodian,
+    exchange,
+    farm,
+    weth,
+  } = await deployAndAssociateContracts();
   const token = await deployAndRegisterToken(exchange, token0Symbol);
   const { factory, pair } = await deployPancakeCoreAndCreateETHPool(
     ownerWallet,
-    custodian,
     token,
     weth,
     feeWallet,
   );
-  await exchange.setPairFactoryAddress(factory.address);
 
+  /*
   const pairSymbol = await pair.symbol();
   await exchange.registerToken(pair.address, pairSymbol, 18);
   await exchange.confirmTokenRegistration(pair.address, pairSymbol, 18);
+  */
 
   await weth.deposit({
     value: decimalToAssetUnits(initialQuoteReserve, 18),
@@ -2463,58 +2475,64 @@ export async function deployContractsAndCreateHybridETHPool(
     },
   );
   await pair.mint(ownerWallet);
+  const lpBalance = await pair.balanceOf(ownerWallet);
 
-  await exchange.promotePool(token.address, ethAddress, pair.address);
+  await farm.add(100, pair.address, true);
+  await pair.approve(farm.address, lpBalance);
+  await farm.deposit(0, lpBalance);
+
+  const Migrator = artifacts.require('Migrator');
+  const migrator = await Migrator.new(
+    farm.address,
+    factory.address,
+    custodian.address,
+    0,
+  );
+  await exchange.setMigrator(migrator.address);
+  await farm.setMigrator(migrator.address);
+  await farm.migrate(0, weth.address === (await pair.token0()) ? 0 : 1);
 
   return { custodian, exchange, pair, token, weth };
 }
 
 export async function deployPancakeCoreAndCreatePool(
   ownerWallet: string,
-  custodian: CustodianInstance,
   token0: TestTokenInstance,
   token1: TestTokenInstance,
   feeWallet = ownerWallet,
 ): Promise<{
   factory: FactoryInstance;
-  pair: IIDEXPairInstance;
+  pair: IPancakePairInstance;
 }> {
   const Factory = artifacts.require('Factory');
-  const IIDEXPair = artifacts.require('IIDEXPair');
-  const factory = await Factory.new(feeWallet, custodian.address);
+  const IPancakePair = artifacts.require('IPancakePair');
+  const factory = await Factory.new(feeWallet);
 
   const pairAddress = (await factory.createPair(token0.address, token1.address))
     .logs[0].args.pair;
-  const pair = await IIDEXPair.at(pairAddress);
+  const pair = await IPancakePair.at(pairAddress);
 
   return { factory, pair };
 }
 
 export async function deployPancakeCoreAndCreateETHPool(
   ownerWallet: string,
-  custodian: CustodianInstance,
   token: TestTokenInstance,
   weth: WETHInstance,
   feeWallet = ownerWallet,
 ): Promise<{
   factory: FactoryInstance;
-  farm: Farm;
-  pair: IIDEXPairInstance;
+  pair: IPancakePairInstance;
 }> {
   const Factory = artifacts.require('Factory');
-  const IIDEXPair = artifacts.require('IIDEXPair');
-  const factory = await Factory.new(feeWallet, custodian.address);
+  const IPancakePair = artifacts.require('IPancakePair');
+  const factory = await Factory.new(feeWallet);
 
   const tx = await factory.createPair(token.address, weth.address);
   const pairAddress = tx.logs[0].args.pair;
-  const pair = await IIDEXPair.at(pairAddress);
+  const pair = await IPancakePair.at(pairAddress);
 
-  const Farm = artifacts.require('Farm');
-  const Token = artifacts.require('TestToken');
-  const rewardToken = await Token.new();
-  const farm = await Farm.new(rewardToken.address, 1);
-
-  return { factory, farm, pair };
+  return { factory, pair };
 }
 
 async function addLiquidityAndExecute(
@@ -2673,7 +2691,7 @@ async function removeLiquidityAndExecute(
   depositQuantity: string,
   ownerWallet: string,
   exchange: ExchangeInstance,
-  pair: IIDEXPairInstance,
+  pair: IPancakePairInstance,
   token0: TestTokenInstance,
   token1: TestTokenInstance,
   includeFee = false,
@@ -2742,7 +2760,7 @@ async function removeLiquidityETHAndExecute(
   depositQuantity: string,
   ownerWallet: string,
   exchange: ExchangeInstance,
-  pair: IIDEXPairInstance,
+  pair: IPancakePairInstance,
   token: TestTokenInstance,
   includeFee = false,
   decimals = 18,
@@ -2859,7 +2877,7 @@ async function generateOnChainLiquidityAddition(
 
 async function generateOnChainLiquidityRemoval(
   exchange: ExchangeInstance,
-  pair: IIDEXPairInstance,
+  pair: IPancakePairInstance,
   depositQuantityInAssetUnits: string,
   ownerWallet: string,
   token0: TestTokenInstance,
@@ -2963,7 +2981,7 @@ async function generateOffChainLiquidityRemoval(
   depositQuantityInAssetUnits: string,
   ownerWallet: string,
   exchange: ExchangeInstance,
-  pair: IIDEXPairInstance,
+  pair: IPancakePairInstance,
   token0: TestTokenInstance,
   token1: TestTokenInstance,
   skipPairTokenDeposit = false,

@@ -55,28 +55,20 @@ library LiquidityPoolRegistry {
     address token1,
     uint8 quotePosition,
     uint256 desiredLiquidity,
+    address to,
     ICustodian custodian,
     IWETH9 WETH,
     AssetRegistry.Storage storage assetRegistry
   ) public returns (address liquidityProviderToken) {
-    // Obtain reserve amounts sent to the Exchange
-    uint256 reserve0 = IERC20(token0).balanceOf(address(this));
-    uint256 reserve1 = IERC20(token1).balanceOf(address(this));
-    // Transfer reserves to Custodian and unwrap WETH if needed
-    transferTokenReserveToCustodian(token0, reserve0, custodian, WETH);
-    transferTokenReserveToCustodian(token1, reserve1, custodian, WETH);
-
     {
       // Map Pair token reserve addresses to provided market base/quote addresses
       (
         address baseAssetAddress,
-        uint256 baseAssetQuantityInAssetUnits,
         address quoteAssetAddress,
+        uint256 baseAssetQuantityInAssetUnits,
         uint256 quoteAssetQuantityInAssetUnits
       ) =
-        quotePosition == 0
-          ? (token1, reserve1, token0, reserve0)
-          : (token0, reserve0, token1, reserve1);
+        transferInFundingAssets(token0, token1, quotePosition, custodian, WETH);
 
       {
         // Create an LP token contract tied to this market
@@ -139,7 +131,7 @@ library LiquidityPoolRegistry {
         desiredLiquidity,
         baseAssetQuantityInAssetUnits,
         quoteAssetQuantityInAssetUnits,
-        msg.sender
+        to
       );
     }
   }
@@ -646,5 +638,36 @@ library LiquidityPoolRegistry {
         quantityInAssetUnits
       );
     }
+  }
+
+  function transferInFundingAssets(
+    address token0,
+    address token1,
+    uint8 quotePosition,
+    ICustodian custodian,
+    IWETH9 WETH
+  )
+    private
+    returns (
+      address baseAssetAddress,
+      address quoteAssetAddress,
+      uint256 baseAssetQuantityInAssetUnits,
+      uint256 quoteAssetQuantityInAssetUnits
+    )
+  {
+    // Obtain reserve amounts sent to the Exchange
+    uint256 reserve0 = IERC20(token0).balanceOf(address(this));
+    uint256 reserve1 = IERC20(token1).balanceOf(address(this));
+    // Transfer reserves to Custodian and unwrap WETH if needed
+    transferTokenReserveToCustodian(token0, reserve0, custodian, WETH);
+    transferTokenReserveToCustodian(token1, reserve1, custodian, WETH);
+
+    address unwrappedToken0 = token0 == address(WETH) ? address(0x0) : token0;
+    address unwrappedToken1 = token1 == address(WETH) ? address(0x0) : token1;
+
+    return
+      quotePosition == 0
+        ? (unwrappedToken1, unwrappedToken0, reserve1, reserve0)
+        : (unwrappedToken0, unwrappedToken1, reserve0, reserve1);
   }
 }

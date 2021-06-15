@@ -37,8 +37,20 @@ contract LiquidityProviderToken is ERC20 {
     external
     onlyExchange
   {
-    require(Address.isContract(_baseAssetAddress), 'Invalid base asset');
-    require(Address.isContract(_quoteAssetAddress), 'Invalid quote asset');
+    require(
+      _baseAssetAddress != _quoteAssetAddress,
+      'Assets must be different'
+    );
+    require(
+      _baseAssetAddress == address(0x0) ||
+        Address.isContract(_baseAssetAddress),
+      'Invalid base asset'
+    );
+    require(
+      _quoteAssetAddress == address(0x0) ||
+        Address.isContract(_quoteAssetAddress),
+      'Invalid quote asset'
+    );
 
     baseAssetAddress = _baseAssetAddress;
     quoteAssetAddress = _quoteAssetAddress;

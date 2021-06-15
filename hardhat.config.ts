@@ -30,6 +30,7 @@ const config: HardhatUserConfig = {
             enabled: true,
             runs: 999999,
           },
+          evmVersion: 'istanbul',
         },
       },
     ],

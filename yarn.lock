@@ -1812,15 +1812,6 @@
     truffle "5.2.3"
     truffle-flattener "^1.4.4"
 
-"@idexio/idex-swap-core@0.0.3":
-  version "0.0.3"
-  resolved "https://registry.yarnpkg.com/@idexio/idex-swap-core/-/idex-swap-core-0.0.3.tgz#bcb883f8b2a9c359555f8236aab4cbb742a82f8a"
-  integrity sha512-tUpe61o6qO/DKZ0PUAhVLE7+rtyDSPq7460uzLBb1+8GhtjsUdpo4/mtmEy3oJlfIY0RAygzCC+wNtfZv/yLNg==
-  dependencies:
-    truffle "^5.1.41"
-    truffle-flattener "^1.5.0"
-    truffle-hdwallet-provider "^1.0.17"
-
 "@improbable-eng/grpc-web@^0.12.0":
   version "0.12.0"
   resolved "https://registry.yarnpkg.com/@improbable-eng/grpc-web/-/grpc-web-0.12.0.tgz#9b10a7edf2a1d7672f8997e34a60e7b70e49738f"
@@ -1931,6 +1922,15 @@
   version "4.1.0"
   resolved "https://registry.yarnpkg.com/@openzeppelin/contracts/-/contracts-4.1.0.tgz#baec89a7f5f73e3d8ea582a78f1980134b605375"
   integrity sha512-TihZitscnaHNcZgXGj9zDLDyCqjziytB4tMCwXq0XimfWkAjBYyk5/pOsDbbwcavhlc79HhpTEpQcrMnPVa1mw==
+
+"@pancakeswap-libs/pancake-swap-core@0.1.0":
+  version "0.1.0"
+  resolved "https://registry.yarnpkg.com/@pancakeswap-libs/pancake-swap-core/-/pancake-swap-core-0.1.0.tgz#6957f1fa02170531a2ffbf95f2c0e145e9d21bc2"
+  integrity sha512-2jYiD1Ec3xAbP4JTa/Ozylx0xI4VwC7diCm5ak4AtGrIRhfRLSanaZSQdVpLigUnIFszma/4nVWtt3cup4Poxw==
+  dependencies:
+    truffle "^5.1.41"
+    truffle-flattener "^1.4.4"
+    truffle-hdwallet-provider "^1.0.17"
 
 "@protobufjs/aspromise@^1.1.1", "@protobufjs/aspromise@^1.1.2":
   version "1.1.2"
@@ -14009,7 +14009,7 @@ trim-right@^1.0.1:
   resolved "https://registry.yarnpkg.com/true-case-path/-/true-case-path-2.2.1.tgz#c5bf04a5bbec3fd118be4084461b3a27c4d796bf"
   integrity sha512-0z3j8R7MCjy10kc/g+qg7Ln3alJTodw9aDuVWZa3uiWqfuBMKeAeP2ocWcxoyM3D73yz3Jt/Pu4qPr4wHSdB/Q==
 
-truffle-flattener@^1.4.4, truffle-flattener@^1.5.0:
+truffle-flattener@^1.4.4:
   version "1.5.0"
   resolved "https://registry.yarnpkg.com/truffle-flattener/-/truffle-flattener-1.5.0.tgz#c358fa3e5cb0a663429f7912a58c4f0879414e64"
   integrity sha512-vmzWG/L5OXoNruMV6u2l2IaheI091e+t+fFCOR9sl46EE3epkSRIwGCmIP/EYDtPsFBIG7e6exttC9/GlfmxEQ==
