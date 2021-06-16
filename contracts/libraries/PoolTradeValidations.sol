@@ -24,7 +24,7 @@ library PoolTradeValidations {
     );
     validateAssetPair(order, poolTrade, assetRegistry);
     validateLimitPrice(order, poolTrade);
-    validatePoolTradeFees(order.side, poolTrade);
+    validateFees(order.side, poolTrade);
   }
 
   function validateAssetPair(
@@ -93,10 +93,10 @@ library PoolTradeValidations {
     }
   }
 
-  function validatePoolTradeFees(
-    OrderSide orderSide,
-    PoolTrade memory poolTrade
-  ) internal pure {
+  function validateFees(OrderSide orderSide, PoolTrade memory poolTrade)
+    internal
+    pure
+  {
     require(
       Validations.getFeeBasisPoints(
         (poolTrade.grossBaseQuantityInPips - poolTrade.netBaseQuantityInPips),
@@ -112,26 +112,6 @@ library PoolTradeValidations {
       'Excessive quote fee'
     );
 
-    // The quantity received by the wallet is determined by the pool's constant product formula
-    // and enforced in `LiquidityPoolRegistry.updateReservesForPoolTrade`
-    if (orderSide == OrderSide.Buy) {
-      // Buy order sends quote as pool input, receives base as pool output
-      require(
-        poolTrade.netQuoteQuantityInPips +
-          poolTrade.takerPoolFeeQuantityInPips +
-          poolTrade.takerProtocolFeeQuantityInPips ==
-          poolTrade.grossQuoteQuantityInPips,
-        'Net plus fee not equal to gross'
-      );
-    } else {
-      // Sell order sends base as pool input, receives quote as pool output
-      require(
-        poolTrade.netBaseQuantityInPips +
-          poolTrade.takerPoolFeeQuantityInPips +
-          poolTrade.takerProtocolFeeQuantityInPips ==
-          poolTrade.grossBaseQuantityInPips,
-        'Net plus fee not equal to gross'
-      );
-    }
+    Validations.validatePoolTradeFees(orderSide, poolTrade);
   }
 }

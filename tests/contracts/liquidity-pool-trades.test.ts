@@ -616,7 +616,7 @@ contract(
           error = e;
         }
         expect(error).to.not.be.undefined;
-        expect(error.message).to.match(/net plus fee not equal to gross/i);
+        expect(error.message).to.match(/quote fees unbalanced/i);
       });
 
       it('should revert when net base plus taker fee not equal to gross', async () => {
@@ -658,7 +658,7 @@ contract(
           error = e;
         }
         expect(error).to.not.be.undefined;
-        expect(error.message).to.match(/net plus fee not equal to gross/i);
+        expect(error.message).to.match(/base fees unbalanced/i);
       });
 
       it('should revert when order signature invalid', async () => {
@@ -783,7 +783,6 @@ contract(
         poolTrade.grossQuoteQuantity = '1.00000000';
         poolTrade.netBaseQuantity = '907.4277159';
         poolTrade.takerPoolFeeQuantity = '0.00200000';
-        poolTrade.takerGasFeeQuantity = '0.01000000';
 
         // https://github.com/microsoft/TypeScript/issues/28486
         await (exchange.executeHybridTrade as any)(
@@ -794,6 +793,7 @@ contract(
             sellSignature,
             fill,
             poolTrade,
+            '0.01000000',
           ),
         );
 
@@ -881,6 +881,132 @@ contract(
             poolTrade,
           ),
         );
+      });
+
+      it('should revert for excessive maker fee', async () => {
+        const initialBaseReserve = '10000.00000000';
+        const initialQuoteReserve = '10.00000000';
+
+        const { exchange, token } = await deployContractsAndCreateHybridETHPool(
+          initialBaseReserve,
+          initialQuoteReserve,
+          ownerWallet,
+        );
+        await exchange.setDispatcher(ownerWallet);
+
+        const {
+          buyOrder,
+          buySignature,
+          sellOrder,
+          sellSignature,
+          fill,
+          poolTrade,
+        } = await generateHybridTrade(token, buyWallet, sellWallet, web3);
+        fill.netQuoteQuantity = '0.50000000';
+
+        let error;
+        try {
+          // https://github.com/microsoft/TypeScript/issues/28486
+          await (exchange.executeHybridTrade as any)(
+            ...getHybridTradeArguments(
+              buyOrder,
+              buySignature,
+              sellOrder,
+              sellSignature,
+              fill,
+              poolTrade,
+              '0.01000000',
+            ),
+          );
+        } catch (e) {
+          error = e;
+        }
+        expect(error).to.not.be.undefined;
+        expect(error.message).to.match(/excessive maker fee/i);
+      });
+
+      it('should revert for excessive taker fee', async () => {
+        const initialBaseReserve = '10000.00000000';
+        const initialQuoteReserve = '10.00000000';
+
+        const { exchange, token } = await deployContractsAndCreateHybridETHPool(
+          initialBaseReserve,
+          initialQuoteReserve,
+          ownerWallet,
+        );
+        await exchange.setDispatcher(ownerWallet);
+
+        const {
+          buyOrder,
+          buySignature,
+          sellOrder,
+          sellSignature,
+          fill,
+          poolTrade,
+        } = await generateHybridTrade(token, buyWallet, sellWallet, web3);
+        fill.netBaseQuantity = '0.50000000';
+
+        let error;
+        try {
+          // https://github.com/microsoft/TypeScript/issues/28486
+          await (exchange.executeHybridTrade as any)(
+            ...getHybridTradeArguments(
+              buyOrder,
+              buySignature,
+              sellOrder,
+              sellSignature,
+              fill,
+              poolTrade,
+              '0.01000000',
+            ),
+          );
+        } catch (e) {
+          error = e;
+        }
+        expect(error).to.not.be.undefined;
+        expect(error.message).to.match(/excessive taker fee/i);
+      });
+
+      it('should revert for non-zero pool gas fee', async () => {
+        const initialBaseReserve = '10000.00000000';
+        const initialQuoteReserve = '10.00000000';
+
+        const { exchange, token } = await deployContractsAndCreateHybridETHPool(
+          initialBaseReserve,
+          initialQuoteReserve,
+          ownerWallet,
+        );
+        await exchange.setDispatcher(ownerWallet);
+
+        const {
+          buyOrder,
+          buySignature,
+          sellOrder,
+          sellSignature,
+          fill,
+          poolTrade,
+        } = await generateHybridTrade(token, buyWallet, sellWallet, web3);
+        poolTrade.takerGasFeeQuantity = '0.01000000';
+
+        let error;
+        try {
+          // https://github.com/microsoft/TypeScript/issues/28486
+          await (exchange.executeHybridTrade as any)(
+            ...getHybridTradeArguments(
+              buyOrder,
+              buySignature,
+              sellOrder,
+              sellSignature,
+              fill,
+              poolTrade,
+              '0.01000000',
+            ),
+          );
+        } catch (e) {
+          error = e;
+        }
+        expect(error).to.not.be.undefined;
+        expect(error.message).to.match(/non-zero pool gas fee/i);
       });
 
       it('should revert when pool marginal buy price exceeded', async () => {

@@ -24,7 +24,7 @@ library OrderBookTradeValidations {
     validateLimitPrices(buy, sell, trade);
     (bytes32 buyHash, bytes32 sellHash) =
       validateOrderSignatures(buy, sell, trade);
-    validateOrderBookTradeFees(trade);
+    validateFees(trade);
 
     return (buyHash, sellHash);
   }
@@ -106,56 +106,6 @@ library OrderBookTradeValidations {
     }
   }
 
-  function validateOrderBookTradeFees(OrderBookTrade memory trade)
-    internal
-    pure
-  {
-    uint64 makerTotalQuantityInPips =
-      trade.makerFeeAssetAddress == trade.baseAssetAddress
-        ? trade.grossBaseQuantityInPips
-        : trade.grossQuoteQuantityInPips;
-    require(
-      Validations.getFeeBasisPoints(
-        trade.makerFeeQuantityInPips,
-        makerTotalQuantityInPips
-      ) <= Constants.maxTradeFeeBasisPoints,
-      'Excessive maker fee'
-    );
-
-    uint64 takerTotalQuantityInPips =
-      trade.takerFeeAssetAddress == trade.baseAssetAddress
-        ? trade.grossBaseQuantityInPips
-        : trade.grossQuoteQuantityInPips;
-    require(
-      Validations.getFeeBasisPoints(
-        trade.takerFeeQuantityInPips,
-        takerTotalQuantityInPips
-      ) <= Constants.maxTradeFeeBasisPoints,
-      'Excessive taker fee'
-    );
-
-    require(
-      trade.netBaseQuantityInPips +
-        (
-          trade.makerFeeAssetAddress == trade.baseAssetAddress
-            ? trade.makerFeeQuantityInPips
-            : trade.takerFeeQuantityInPips
-        ) ==
-        trade.grossBaseQuantityInPips,
-      'Net base plus fee is not equal to gross'
-    );
-    require(
-      trade.netQuoteQuantityInPips +
-        (
-          trade.makerFeeAssetAddress == trade.quoteAssetAddress
-            ? trade.makerFeeQuantityInPips
-            : trade.takerFeeQuantityInPips
-        ) ==
-        trade.grossQuoteQuantityInPips,
-      'Net quote plus fee is not equal to gross'
-    );
-  }
-
   function validateOrderSignatures(
     Order memory buy,
     Order memory sell,
@@ -197,5 +147,33 @@ library OrderBookTradeValidations {
     );
 
     return orderHash;
+  }
+
+  function validateFees(OrderBookTrade memory trade) private pure {
+    uint64 makerTotalQuantityInPips =
+      trade.makerFeeAssetAddress == trade.baseAssetAddress
+        ? trade.grossBaseQuantityInPips
+        : trade.grossQuoteQuantityInPips;
+    require(
+      Validations.getFeeBasisPoints(
+        trade.makerFeeQuantityInPips,
+        makerTotalQuantityInPips
+      ) <= Constants.maxTradeFeeBasisPoints,
+      'Excessive maker fee'
+    );
+
+    uint64 takerTotalQuantityInPips =
+      trade.takerFeeAssetAddress == trade.baseAssetAddress
+        ? trade.grossBaseQuantityInPips
+        : trade.grossQuoteQuantityInPips;
+    require(
+      Validations.getFeeBasisPoints(
+        trade.takerFeeQuantityInPips,
+        takerTotalQuantityInPips
+      ) <= Constants.maxTradeFeeBasisPoints,
+      'Excessive taker fee'
+    );
+
+    Validations.validateOrderBookTradeFees(trade);
   }
 }

@@ -271,12 +271,16 @@ export const getHybridTradeArguments = (
   sellWalletSignature: string,
   trade: Trade,
   poolTrade: PoolTrade,
+  takerGasFeeQuantity = '0.00000000',
 ): ExchangeInstance['executeHybridTrade']['arguments'] => {
   return [
     orderToArgumentStruct(buyOrder, buyWalletSignature),
     orderToArgumentStruct(sellOrder, sellWalletSignature),
-    tradeToArgumentStruct(trade, buyOrder),
-    poolTradeToArgumentStruct(poolTrade, buyOrder),
+    {
+      orderBookTrade: tradeToArgumentStruct(trade, buyOrder),
+      poolTrade: poolTradeToArgumentStruct(poolTrade, buyOrder),
+      takerGasFeeQuantityInPips: decimalToPips(takerGasFeeQuantity),
+    },
   ] as const;
 };
 

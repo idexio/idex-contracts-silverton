@@ -182,6 +182,10 @@ struct OrderBookTrade {
   OrderSide makerSide;
 }
 
+/**
+ * @notice Argument type for `Exchange.executePoolTrade` specifying execution parameters for an
+ * order againsst pool liquidity
+ */
 struct PoolTrade {
   // Base asset symbol
   string baseAssetSymbol;
@@ -205,6 +209,13 @@ struct PoolTrade {
   uint64 takerPoolFeeQuantityInPips;
   // Fee paid by liquidity taker to fee wallet from sent asset
   uint64 takerProtocolFeeQuantityInPips;
+  // Fee paid by liquidity taker to fee wallet from received asset
+  uint64 takerGasFeeQuantityInPips;
+}
+
+struct HybridTrade {
+  OrderBookTrade orderBookTrade;
+  PoolTrade poolTrade;
   // Fee paid by liquidity taker to fee wallet from received asset
   uint64 takerGasFeeQuantityInPips;
 }
