@@ -12,12 +12,15 @@ import {
   LiquidityAddition,
   LiquidityRemoval,
   signatureHashVersion,
+  assetUnitsToPips,
+  pipsToAssetUnits,
 } from '../../lib';
 import {
   CustodianInstance,
   ExchangeInstance,
   IPancakePairInstance,
   FactoryInstance,
+  LiquidityProviderTokenInstance,
   TestTokenInstance,
   WETHInstance,
   FarmInstance,
@@ -28,10 +31,12 @@ import {
   getSignature,
 } from './helpers';
 
+const minimumLiquidity = new BigNumber('1000');
+
 const token0Symbol = 'DIL';
 
-contract('Exchange (liquidity pools)', ([ownerWallet]) => {
-  describe.only('fundPool', () => {
+contract.only('Exchange (liquidity pools)', ([ownerWallet]) => {
+  describe('fundPool', () => {
     it('should work', async () => {
       const depositQuantity = '1.00000000';
       const {
@@ -45,18 +50,20 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
         ownerWallet,
       );
 
+      const expectedQuantity = new BigNumber(
+        decimalToAssetUnits(depositQuantity, 18),
+      )
+        .minus(minimumLiquidity)
+        .toString();
+
       const tokenEvents = await token.getPastEvents('Transfer', {
         fromBlock: 0,
       });
       expect(tokenEvents).to.be.an('array');
       expect(tokenEvents.length).to.equal(4);
-      expect(tokenEvents[2].returnValues.value).to.equal(
-        decimalToAssetUnits(depositQuantity, 18),
-      );
+      expect(tokenEvents[2].returnValues.value).to.equal(expectedQuantity);
       expect(tokenEvents[2].returnValues.to).to.equal(exchange.address);
-      expect(tokenEvents[3].returnValues.value).to.equal(
-        decimalToAssetUnits(depositQuantity, 18),
-      );
+      expect(tokenEvents[3].returnValues.value).to.equal(expectedQuantity);
       expect(tokenEvents[3].returnValues.to).to.equal(custodian.address);
 
       const wethEvents = await weth.getPastEvents('Transfer', {
@@ -64,9 +71,7 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
       });
       expect(wethEvents).to.be.an('array');
       expect(wethEvents.length).to.equal(2);
-      expect(wethEvents[1].returnValues.wad).to.equal(
-        decimalToAssetUnits(depositQuantity, 18),
-      );
+      expect(wethEvents[1].returnValues.wad).to.equal(expectedQuantity);
       expect(wethEvents[1].returnValues.dst).to.equal(exchange.address);
 
       const pool = await exchange.loadLiquidityPoolByAssetAddresses(
@@ -74,105 +79,11 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
         ethAddress,
       );
       expect(pool.baseAssetReserveInPips).to.equal(
-        decimalToPips(depositQuantity),
+        assetUnitsToPips(expectedQuantity, 18),
       );
       expect(pool.quoteAssetReserveInPips).to.equal(
-        decimalToPips(depositQuantity),
+        assetUnitsToPips(expectedQuantity, 18),
       );
-    });
-
-    /*
-    it('should fail when no liquidity has been minted', async () => {
-      const { custodian, exchange, weth } = await deployAndAssociateContracts();
-      const token = await deployAndRegisterToken(exchange, token0Symbol);
-      const { factory, pair } = await deployPancakeCoreAndCreateETHPool(
-        ownerWallet,
-        custodian,
-        token,
-        weth,
-        ownerWallet,
-      );
-      await exchange.setPairFactoryAddress(factory.address);
-
-      let error;
-      try {
-        await exchange.promotePool(token.address, ethAddress, pair.address);
-      } catch (e) {
-        error = e;
-      }
-      expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/no liquidity minted/i);
-    });
-
-    it('should fail when pair address does not match factory', async () => {
-      const { custodian, exchange, weth } = await deployAndAssociateContracts();
-      const token = await deployAndRegisterToken(exchange, token0Symbol);
-      const { factory } = await deployPancakeCoreAndCreateETHPool(
-        ownerWallet,
-        custodian,
-        token,
-        weth,
-        ownerWallet,
-      );
-      await exchange.setPairFactoryAddress(factory.address);
-
-      let error;
-      try {
-        await exchange.promotePool(token.address, ethAddress, weth.address);
-      } catch (e) {
-        error = e;
-      }
-      expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/pair does not match factory/i);
-    });
-
-    it('should fail on duplicate market', async () => {
-      const depositQuantity = '1.00000000';
-      const {
-        exchange,
-        pair,
-        token,
-      } = await deployContractsAndCreateHybridETHPool(
-        depositQuantity,
-        depositQuantity,
-        ownerWallet,
-      );
-
-      let error;
-      try {
-        await exchange.promotePool(token.address, ethAddress, pair.address);
-      } catch (e) {
-        error = e;
-      }
-      expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/pool already exists/i);
-    });
-    */
-  });
-
-  /*
-  describe('demotePool', () => {
-    it('should work', async () => {
-      const depositQuantity = '1.00000000';
-      const { exchange, token } = await deployContractsAndCreateHybridETHPool(
-        depositQuantity,
-        depositQuantity,
-        ownerWallet,
-      );
-
-      await exchange.demotePool(token.address, ethAddress);
-
-      let error;
-      try {
-        await exchange.loadLiquidityPoolByAssetAddresses(
-          token.address,
-          ethAddress,
-        );
-      } catch (e) {
-        error = e;
-      }
-      expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/no pool found/i);
     });
   });
 
@@ -181,7 +92,7 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
       const depositQuantity = '1.00000000';
       const {
         exchange,
-        pair,
+        lpToken,
         token0,
         token1,
       } = await deployContractsAndCreateHybridPool(
@@ -191,7 +102,7 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
       );
       await exchange.setDispatcher(ownerWallet);
 
-      await addLiquidityAndExecute(
+      const { execution } = await addLiquidityAndExecute(
         depositQuantity,
         ownerWallet,
         exchange,
@@ -199,28 +110,29 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
         token1,
       );
 
-      const transferEvents = await pair.getPastEvents('Transfer', {
+      const transferEvents = await lpToken.getPastEvents('Transfer', {
         fromBlock: 0,
       });
       expect(transferEvents).to.be.an('array');
-      expect(transferEvents.length).to.equal(3);
-      expect(transferEvents[2].returnValues.value).to.equal(
-        decimalToAssetUnits(depositQuantity, 18),
+      expect(transferEvents.length).to.equal(2);
+      expect(transferEvents[1].returnValues.value).to.equal(
+        execution.liquidity,
       );
 
-      const mintEvents = await pair.getPastEvents('Mint', {
+      const mintEvents = await lpToken.getPastEvents('Mint', {
         fromBlock: 0,
       });
       expect(mintEvents).to.be.an('array');
       expect(mintEvents.length).to.equal(2);
-      expect(mintEvents[1].returnValues.amount0).to.equal(
+      expect(mintEvents[1].returnValues.baseAssetAddress).to.equal(
         decimalToAssetUnits(depositQuantity, 18),
       );
-      expect(mintEvents[1].returnValues.amount1).to.equal(
+      expect(mintEvents[1].returnValues.quoteAssetAddress).to.equal(
         decimalToAssetUnits(depositQuantity, 18),
       );
     });
 
+    /*
     it('should work with fees', async () => {
       const depositQuantity = '1.00000000';
       const {
@@ -2369,131 +2281,9 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
       expect(error).to.not.be.undefined;
       expect(error.message).to.match(/invalid token address/i);
     });
-  });
   */
+  });
 });
-
-/*
-export async function deployContractsAndCreateHybridPool(
-  initialBaseReserve: string,
-  initialQuoteReserve: string,
-  ownerWallet: string,
-  feeWallet = ownerWallet,
-): Promise<{
-  custodian: CustodianInstance;
-  exchange: ExchangeInstance;
-  pair: IPancakePairInstance;
-  token0: TestTokenInstance;
-  token1: TestTokenInstance;
-}> {
-  const { custodian, exchange } = await deployAndAssociateContracts();
-  const token0 = await deployAndRegisterToken(exchange, token0Symbol);
-  const token1 = await deployAndRegisterToken(exchange, token0Symbol);
-  const { factory, pair } = await deployPancakeCoreAndCreatePool(
-    ownerWallet,
-    custodian,
-    token0,
-    token1,
-    feeWallet,
-  );
-  await exchange.setPairFactoryAddress(factory.address);
-
-  const pairSymbol = await pair.symbol();
-  await exchange.registerToken(pair.address, pairSymbol, 18);
-  await exchange.confirmTokenRegistration(pair.address, pairSymbol, 18);
-
-  await token0.transfer(
-    pair.address,
-    decimalToAssetUnits(initialQuoteReserve, 18),
-    {
-      from: ownerWallet,
-    },
-  );
-  await token1.transfer(
-    pair.address,
-    decimalToAssetUnits(initialBaseReserve, 18),
-    {
-      from: ownerWallet,
-    },
-  );
-  await pair.mint(ownerWallet);
-
-  await exchange.promotePool(token0.address, token1.address, pair.address);
-
-  return { custodian, exchange, pair, token0, token1 };
-}
-*/
-
-export async function deployContractsAndCreateHybridETHPool(
-  initialBaseReserve: string,
-  initialQuoteReserve: string,
-  ownerWallet: string,
-  feeWallet = ownerWallet,
-): Promise<{
-  custodian: CustodianInstance;
-  exchange: ExchangeInstance;
-  pair: IPancakePairInstance;
-  token: TestTokenInstance;
-  weth: WETHInstance;
-}> {
-  const {
-    custodian,
-    exchange,
-    farm,
-    weth,
-  } = await deployAndAssociateContracts();
-  const token = await deployAndRegisterToken(exchange, token0Symbol);
-  const { factory, pair } = await deployPancakeCoreAndCreateETHPool(
-    ownerWallet,
-    token,
-    weth,
-    feeWallet,
-  );
-
-  /*
-  const pairSymbol = await pair.symbol();
-  await exchange.registerToken(pair.address, pairSymbol, 18);
-  await exchange.confirmTokenRegistration(pair.address, pairSymbol, 18);
-  */
-
-  await weth.deposit({
-    value: decimalToAssetUnits(initialQuoteReserve, 18),
-    from: ownerWallet,
-  });
-  await weth.transfer(
-    pair.address,
-    decimalToAssetUnits(initialQuoteReserve, 18),
-    {
-      from: ownerWallet,
-    },
-  );
-  await token.transfer(
-    pair.address,
-    decimalToAssetUnits(initialBaseReserve, 18),
-    {
-      from: ownerWallet,
-    },
-  );
-  await pair.mint(ownerWallet);
-  const lpBalance = await pair.balanceOf(ownerWallet);
-
-  await farm.add(100, pair.address, true);
-  await pair.approve(farm.address, lpBalance);
-  await farm.deposit(0, lpBalance);
-
-  const Migrator = artifacts.require('Migrator');
-  const migrator = await Migrator.new(
-    farm.address,
-    factory.address,
-    custodian.address,
-    0,
-  );
-  await exchange.setMigrator(migrator.address);
-  await farm.setMigrator(migrator.address);
-  await farm.migrate(0, weth.address === (await pair.token0()) ? 0 : 1);
-
-  return { custodian, exchange, pair, token, weth };
-}
 
 export async function deployPancakeCoreAndCreatePool(
   ownerWallet: string,
@@ -2533,6 +2323,160 @@ export async function deployPancakeCoreAndCreateETHPool(
   const pair = await IPancakePair.at(pairAddress);
 
   return { factory, pair };
+}
+
+/*
+function getBaseReserve(
+  desiredBaseReserve: string,
+  desiredQuoteReserve: string,
+): string {
+  const desiredLiquidity = new BigNumber(
+    decimalToAssetUnits(desiredBaseReserve, 18),
+  )
+    .multipliedBy(new BigNumber(decimalToAssetUnits(desiredQuoteReserve, 18)))
+    .squareRoot();
+
+  return desiredLiquidity
+    .plus(minimumLiquidity)
+    .pow(2)
+    .dividedBy(decimalToAssetUnits(desiredQuoteReserve, 18))
+    .toFixed(0);
+}
+*/
+
+export async function deployContractsAndCreateHybridPool(
+  initialBaseReserve: string,
+  initialQuoteReserve: string,
+  ownerWallet: string,
+  feeWallet = ownerWallet,
+): Promise<{
+  custodian: CustodianInstance;
+  exchange: ExchangeInstance;
+  lpToken: LiquidityProviderTokenInstance;
+  pair: IPancakePairInstance;
+  token0: TestTokenInstance;
+  token1: TestTokenInstance;
+}> {
+  const { custodian, exchange, farm } = await deployAndAssociateContracts();
+  const token0 = await deployAndRegisterToken(exchange, token0Symbol);
+  const token1 = await deployAndRegisterToken(exchange, token0Symbol);
+  const { factory, pair } = await deployPancakeCoreAndCreatePool(
+    ownerWallet,
+    token0,
+    token1,
+    feeWallet,
+  );
+
+  await token0.transfer(
+    pair.address,
+    decimalToAssetUnits(initialQuoteReserve, 18),
+    {
+      from: ownerWallet,
+    },
+  );
+  await token1.transfer(
+    pair.address,
+    decimalToAssetUnits(initialBaseReserve, 18),
+    {
+      from: ownerWallet,
+    },
+  );
+  await pair.mint(ownerWallet);
+  const lpBalance = await pair.balanceOf(ownerWallet);
+
+  await farm.add(100, pair.address, true);
+  await pair.approve(farm.address, lpBalance);
+  await farm.deposit(0, lpBalance);
+
+  const Migrator = artifacts.require('Migrator');
+  const migrator = await Migrator.new(
+    farm.address,
+    factory.address,
+    custodian.address,
+    0,
+  );
+  await exchange.setMigrator(migrator.address);
+  await farm.setMigrator(migrator.address);
+  await farm.migrate(0, 1); // token1 is quote
+
+  const LiquidityProviderToken = artifacts.require('LiquidityProviderToken');
+  const lpToken = await LiquidityProviderToken.at((await farm.poolInfo(0))[0]);
+  const pairSymbol = await pair.symbol();
+  await exchange.registerToken(lpToken.address, pairSymbol, 18);
+  await exchange.confirmTokenRegistration(lpToken.address, pairSymbol, 18);
+
+  return { custodian, exchange, lpToken, pair, token0, token1 };
+}
+
+export async function deployContractsAndCreateHybridETHPool(
+  initialBaseReserve: string,
+  initialQuoteReserve: string,
+  ownerWallet: string,
+  feeWallet = ownerWallet,
+): Promise<{
+  custodian: CustodianInstance;
+  exchange: ExchangeInstance;
+  farm: FarmInstance;
+  pair: IPancakePairInstance;
+  token: TestTokenInstance;
+  weth: WETHInstance;
+}> {
+  const {
+    custodian,
+    exchange,
+    farm,
+    weth,
+  } = await deployAndAssociateContracts();
+  const token = await deployAndRegisterToken(exchange, token0Symbol);
+  const { factory, pair } = await deployPancakeCoreAndCreateETHPool(
+    ownerWallet,
+    token,
+    weth,
+    feeWallet,
+  );
+
+  await weth.deposit({
+    value: decimalToAssetUnits(initialQuoteReserve, 18),
+    from: ownerWallet,
+  });
+  await weth.transfer(
+    pair.address,
+    decimalToAssetUnits(initialQuoteReserve, 18),
+    {
+      from: ownerWallet,
+    },
+  );
+  await token.transfer(
+    pair.address,
+    decimalToAssetUnits(initialBaseReserve, 18),
+    {
+      from: ownerWallet,
+    },
+  );
+  await pair.mint(ownerWallet);
+  const lpBalance = await pair.balanceOf(ownerWallet);
+
+  await farm.add(100, pair.address, true);
+  await pair.approve(farm.address, lpBalance);
+  await farm.deposit(0, lpBalance);
+
+  const Migrator = artifacts.require('Migrator');
+  const migrator = await Migrator.new(
+    farm.address,
+    factory.address,
+    custodian.address,
+    0,
+  );
+  await exchange.setMigrator(migrator.address);
+  await farm.setMigrator(migrator.address);
+  await farm.migrate(0, weth.address === (await pair.token0()) ? 0 : 1);
+
+  const lpToken = (await farm.poolInfo(0))[0];
+  const pairSymbol = await pair.symbol();
+  await exchange.registerToken(lpToken, pairSymbol, 18);
+  await exchange.confirmTokenRegistration(lpToken, pairSymbol, 18);
+
+  return { custodian, exchange, farm, pair, token, weth };
 }
 
 async function addLiquidityAndExecute(
@@ -2576,12 +2520,39 @@ async function addLiquidityAndExecute(
     deadline,
   );
 
+  const LiquidityProviderToken = artifacts.require('LiquidityProviderToken');
+  const pool = await exchange.loadLiquidityPoolByAssetAddresses(
+    token0.address,
+    token1.address,
+  );
+
   const feeAmount = includeFee
     ? new BigNumber(amountA).multipliedBy(new BigNumber('0.02')).toFixed(0)
     : '0';
+
+  const lpToken = await LiquidityProviderToken.at(pool.liquidityProviderToken);
+  const totalSupply = new BigNumber((await lpToken.totalSupply()).toString());
   const liquidity =
     liquidityOverride ||
-    new BigNumber(amountB).minus(new BigNumber(feeAmount)).toFixed(0);
+    BigNumber.min(
+      new BigNumber(amountA)
+        .dividedBy(
+          new BigNumber(
+            pipsToAssetUnits(pool.baseAssetReserveInPips.toString(), 18),
+          ),
+        )
+        .multipliedBy(totalSupply),
+      new BigNumber(amountB)
+        .dividedBy(
+          new BigNumber(
+            pipsToAssetUnits(pool.quoteAssetReserveInPips.toString(), 18),
+          ),
+        )
+        .multipliedBy(totalSupply),
+    )
+      .minus(new BigNumber(feeAmount))
+      .toFixed(0, BigNumber.ROUND_FLOOR);
+
   const execution = {
     liquidity,
     amountA,
