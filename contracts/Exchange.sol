@@ -799,7 +799,7 @@ contract Exchange is IExchange, Owned {
 
   // Liquidity pools //
 
-  function fundPool(
+  function migrateLiquidityPool(
     address token0,
     address token1,
     uint8 quotePosition,
@@ -807,7 +807,7 @@ contract Exchange is IExchange, Owned {
     address to
   ) external onlyMigrator returns (address liquidityProviderToken) {
     return
-      _liquidityPoolRegistry.fundPool(
+      _liquidityPoolRegistry.migrateLiquidityPool(
         token0,
         token1,
         quotePosition,
@@ -815,6 +815,18 @@ contract Exchange is IExchange, Owned {
         to,
         _custodian,
         _WETH,
+        _assetRegistry
+      );
+  }
+
+  function createLiquidityPool(
+    address baseAssetAddress,
+    address quoteAssetAddress
+  ) external onlyAdmin returns (address liquidityProviderToken) {
+    return
+      _liquidityPoolRegistry.createLiquidityPool(
+        baseAssetAddress,
+        quoteAssetAddress,
         _assetRegistry
       );
   }

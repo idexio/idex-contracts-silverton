@@ -78,22 +78,30 @@ library Validations {
         execution.amountA - execution.feeAmountA
       );
 
-    uint256 totalLiquidityInAssetUnits =
-      pool.liquidityProviderToken.totalSupply();
+    uint256 totalLiquidity = pool.liquidityProviderToken.totalSupply();
+    uint256 expectedLiquidity;
+    if (totalLiquidity == 0) {
+      expectedLiquidity =
+        sqrt(
+          netBaseAssetQuantityInAssetUnits * netQuoteAssetQuantityInAssetUnits
+        ) -
+        Constants.minimumLiquidity;
+    } else {
+      expectedLiquidity = min(
+        (netBaseAssetQuantityInAssetUnits * (totalLiquidity)) /
+          AssetUnitConversions.pipsToAssetUnits(
+            pool.baseAssetReserveInPips,
+            pool.baseAssetDecimals
+          ),
+        (netQuoteAssetQuantityInAssetUnits * (totalLiquidity)) /
+          AssetUnitConversions.pipsToAssetUnits(
+            pool.quoteAssetReserveInPips,
+            pool.quoteAssetDecimals
+          )
+      );
+    }
     require(
-      execution.liquidity ==
-        min(
-          (netBaseAssetQuantityInAssetUnits * (totalLiquidityInAssetUnits)) /
-            AssetUnitConversions.pipsToAssetUnits(
-              pool.baseAssetReserveInPips,
-              pool.baseAssetDecimals
-            ),
-          (netQuoteAssetQuantityInAssetUnits * (totalLiquidityInAssetUnits)) /
-            AssetUnitConversions.pipsToAssetUnits(
-              pool.quoteAssetReserveInPips,
-              pool.quoteAssetDecimals
-            )
-        ),
+      execution.liquidity == expectedLiquidity,
       'Invalid liquidity minted'
     );
   }
@@ -344,5 +352,18 @@ library Validations {
 
   function min(uint256 x, uint256 y) private pure returns (uint256 z) {
     z = x < y ? x : y;
+  }
+
+  function sqrt(uint256 y) private pure returns (uint256 z) {
+    if (y > 3) {
+      z = y;
+      uint256 x = y / 2 + 1;
+      while (x < z) {
+        z = x;
+        x = (y / x + x) / 2;
+      }
+    } else if (y != 0) {
+      z = 1;
+    }
   }
 }

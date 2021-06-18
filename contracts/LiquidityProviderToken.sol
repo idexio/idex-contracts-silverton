@@ -14,8 +14,8 @@ contract LiquidityProviderToken is ERC20 {
 
   event Mint(
     address indexed sender,
-    uint256 baseAssetAddress,
-    uint256 quoteAssetAddress
+    uint256 baseAssetQuantityInAssetUnits,
+    uint256 quoteAssetQuantityInAssetUnits
   );
   event Burn(
     address indexed sender,
@@ -80,10 +80,13 @@ contract LiquidityProviderToken is ERC20 {
     address to
   ) external onlyExchange {
     _mint(to, liquidity);
-    emit Mint(
-      wallet,
-      baseAssetQuantityInAssetUnits,
-      quoteAssetQuantityInAssetUnits
-    );
+
+    if (to != address(0x0)) {
+      emit Mint(
+        wallet,
+        baseAssetQuantityInAssetUnits,
+        quoteAssetQuantityInAssetUnits
+      );
+    }
   }
 }

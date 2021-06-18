@@ -49,7 +49,7 @@ library LiquidityPoolRegistry {
 
   // Lifecycle //
 
-  function fundPool(
+  function migrateLiquidityPool(
     Storage storage self,
     address token0,
     address token1,
@@ -133,6 +133,61 @@ library LiquidityPoolRegistry {
         quoteAssetQuantityInAssetUnits,
         to
       );
+    }
+  }
+
+  function createLiquidityPool(
+    Storage storage self,
+    address baseAssetAddress,
+    address quoteAssetAddress,
+    AssetRegistry.Storage storage assetRegistry
+  ) public returns (address liquidityProviderToken) {
+    {
+      {
+        // Create an LP token contract tied to this market
+        bytes memory bytecode = type(LiquidityProviderToken).creationCode;
+        bytes32 salt =
+          keccak256(abi.encodePacked(baseAssetAddress, quoteAssetAddress));
+        assembly {
+          liquidityProviderToken := create2(
+            0,
+            add(bytecode, 32),
+            mload(bytecode),
+            salt
+          )
+        }
+        ILiquidityProviderToken(liquidityProviderToken).initialize(
+          baseAssetAddress,
+          quoteAssetAddress
+        );
+      }
+
+      {
+        // Create internally tracked pool
+        LiquidityPool storage pool =
+          self.poolsByAddresses[baseAssetAddress][quoteAssetAddress];
+        require(!pool.exists, 'Pool already exists');
+        pool.exists = true;
+        pool.liquidityProviderToken = ILiquidityProviderToken(
+          liquidityProviderToken
+        );
+
+        // Store asset decimals to avoid redundant asset registry lookups
+        Asset memory asset;
+        asset = assetRegistry.loadAssetByAddress(baseAssetAddress);
+        pool.baseAssetDecimals = asset.decimals;
+        asset = assetRegistry.loadAssetByAddress(quoteAssetAddress);
+        pool.quoteAssetDecimals = asset.decimals;
+      }
+
+      // Store LP token address in both pair directions to allow association with unordered asset
+      // pairs during on-chain initiated liquidity additions and removals
+      self.liquidityProviderTokensByAddress[baseAssetAddress][
+        quoteAssetAddress
+      ] = ILiquidityProviderToken(liquidityProviderToken);
+      self.liquidityProviderTokensByAddress[quoteAssetAddress][
+        baseAssetAddress
+      ] = ILiquidityProviderToken(liquidityProviderToken);
     }
   }
 
@@ -286,6 +341,18 @@ library LiquidityPoolRegistry {
         quoteAssetDecimals
       );
       pool.quoteAssetReserveInPips += quantityInPips;
+    }
+
+    // Mint minimum liquidity to zero address to mitigate chances of extreme pricing for a single
+    // unit of liquidity
+    if (liquidityProviderToken.totalSupply() == 0) {
+      liquidityProviderToken.mint(
+        addition.wallet,
+        Constants.minimumLiquidity,
+        0,
+        0,
+        address(0x0)
+      );
     }
 
     // Mint LP tokens to destination wallet
@@ -604,39 +671,6 @@ library LiquidityPoolRegistry {
       );
     } else {
       AssetTransfers.transferTo(payable(address(custodian)), token, reserve);
-    }
-  }
-
-  function transferPoolReserveToPair(
-    address assetAddress,
-    uint64 quantityInPips,
-    uint8 decimals,
-    ILiquidityProviderToken liquidityProviderToken,
-    ICustodian custodian,
-    IWETH9 WETH
-  ) private {
-    uint256 quantityInAssetUnits =
-      AssetUnitConversions.pipsToAssetUnits(quantityInPips, decimals);
-
-    // Wrap native asset
-    if (assetAddress == address(0x0)) {
-      custodian.withdraw(
-        payable(address(this)),
-        assetAddress,
-        quantityInAssetUnits
-      );
-      WETH.deposit{ value: quantityInAssetUnits }();
-      AssetTransfers.transferTo(
-        payable(address(liquidityProviderToken)),
-        address(WETH),
-        quantityInAssetUnits
-      );
-    } else {
-      custodian.withdraw(
-        payable(address(liquidityProviderToken)),
-        assetAddress,
-        quantityInAssetUnits
-      );
     }
   }
 
