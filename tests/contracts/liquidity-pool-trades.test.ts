@@ -128,9 +128,10 @@ contract(
           token.address,
           ethAddress,
           sellWallet,
-          '1111.11111112',
+          '1111.11111235',
           '0.00081000',
         );
+
         sellOrder.side = OrderSide.Sell;
         poolTrade.netQuoteQuantity = '1.00000000';
         poolTrade.grossQuoteQuantity = '1.00000000';
@@ -839,10 +840,10 @@ contract(
           token.address,
           ethAddress,
           buyWallet,
-          '2222.22222224',
+          '2222.22222470',
           '0.00081000',
         );
-        buyOrder.quantity = '1111.11111112';
+        buyOrder.quantity = '1111.11111235';
         const buySignature = await getSignature(
           web3,
           getOrderHash(buyOrder),
@@ -850,19 +851,19 @@ contract(
         );
         poolTrade.netQuoteQuantity = '1.000000000';
         poolTrade.grossQuoteQuantity = '1.000000000';
-        poolTrade.netBaseQuantity = '1111.11111112';
-        poolTrade.grossBaseQuantity = '1111.11111112';
+        poolTrade.netBaseQuantity = '1111.11111235';
+        poolTrade.grossBaseQuantity = '1111.11111235';
 
         const { sellOrder, fill } = await generateOrdersAndFill(
           token.address,
           ethAddress,
           buyWallet,
           sellWallet,
-          '1111.11111112',
+          '1111.11111235',
           '0.00081000',
           ethMarketSymbol,
         );
-        sellOrder.quantity = '2222.22222224';
+        sellOrder.quantity = '2222.22222470';
         const sellSignature = await getSignature(
           web3,
           getOrderHash(sellOrder),
@@ -1037,7 +1038,7 @@ contract(
           token.address,
           ethAddress,
           buyWallet,
-          '2222.22222224',
+          '2222.22222470',
           '0.00081000',
         );
         buyOrder.price = '0.00082000';
@@ -1048,19 +1049,19 @@ contract(
         );
         poolTrade.netQuoteQuantity = '1.000000000';
         poolTrade.grossQuoteQuantity = '1.000000000';
-        poolTrade.netBaseQuantity = '1111.11111112';
-        poolTrade.grossBaseQuantity = '1111.11111112';
+        poolTrade.netBaseQuantity = '1111.11111235';
+        poolTrade.grossBaseQuantity = '1111.11111235';
 
         const { sellOrder, fill } = await generateOrdersAndFill(
           token.address,
           ethAddress,
           buyWallet,
           sellWallet,
-          '1111.11111112',
+          '1111.11111235',
           '0.00081000',
           ethMarketSymbol,
         );
-        sellOrder.quantity = '2222.22222224';
+        sellOrder.quantity = '2222.22222470';
         const sellSignature = await getSignature(
           web3,
           getOrderHash(sellOrder),

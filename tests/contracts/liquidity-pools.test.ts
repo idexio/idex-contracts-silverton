@@ -149,12 +149,12 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
       });
       expect(mintEvents).to.be.an('array');
       expect(mintEvents.length).to.equal(2);
-      expect(mintEvents[1].returnValues.baseAssetAddress).to.equal(
+      expect(mintEvents[1].returnValues.baseAssetQuantityInAssetUnits).to.equal(
         decimalToAssetUnits(depositQuantity, 18),
       );
-      expect(mintEvents[1].returnValues.quoteAssetAddress).to.equal(
-        decimalToAssetUnits(depositQuantity, 18),
-      );
+      expect(
+        mintEvents[1].returnValues.quoteAssetQuantityInAssetUnits,
+      ).to.equal(decimalToAssetUnits(depositQuantity, 18));
     });
 
     it('should work with fees', async () => {
@@ -1432,7 +1432,7 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
     });
   });
 
-  describe.only('executeRemoveLiquidity', () => {
+  describe('executeRemoveLiquidity', () => {
     it('should work when initiated off-chain', async () => {
       const depositQuantity = '1.00000000';
       const depositQuantityInAssetUnits = decimalToAssetUnits(
@@ -1773,13 +1773,12 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
       expect(error.message).to.match(/insufficient liquidity burned/i);
     });
 
-    it.only('should revert when pool has insufficient liquidity', async () => {
+    it('should revert when pool has insufficient liquidity', async () => {
       const baseQuantity = '0.00000002';
       const quoteQuantity = '1000000.00000000';
 
       const {
         exchange,
-        farm,
         lpToken,
         token0,
         token1,
@@ -1789,15 +1788,6 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
         ownerWallet,
       );
       await exchange.setDispatcher(ownerWallet);
-
-      await farm.emergencyWithdraw(0);
-      const totalLiquidity = (await lpToken.balanceOf(ownerWallet)).toString();
-      console.log(
-        await exchange.loadLiquidityPoolByAssetAddresses(
-          token0.address,
-          token1.address,
-        ),
-      );
 
       await addLiquidityAndExecute(
         quoteQuantity,
@@ -1809,7 +1799,6 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
         18,
         decimalToAssetUnits(quoteQuantity, 18),
         decimalToAssetUnits(baseQuantity, 18),
-        totalLiquidity,
       );
 
       const { removal, execution } = await generateOffChainLiquidityRemoval(
@@ -2217,18 +2206,13 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
       expect(error.message).to.match(/signature hash version invalid/i);
     });
   });
-  /*
 
   describe('removeLiquidityExit', () => {
     it('should work', async () => {
       const depositQuantity = '1.00000000';
-      const depositQuantityInAssetUnits = decimalToAssetUnits(
-        depositQuantity,
-        18,
-      );
       const {
         exchange,
-        pair,
+        lpToken,
         token,
       } = await deployContractsAndCreateHybridETHPool(
         depositQuantity,
@@ -2236,36 +2220,52 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
         ownerWallet,
       );
       await exchange.setDispatcher(ownerWallet);
-      await addLiquidityETHAndExecute(
+      const { execution } = await addLiquidityETHAndExecute(
         depositQuantity,
         ownerWallet,
         exchange,
         token,
       );
 
-      await pair.approve(exchange.address, depositQuantityInAssetUnits, {
+      await lpToken.approve(exchange.address, execution.liquidity, {
         from: ownerWallet,
       });
       await exchange.depositTokenByAddress(
-        pair.address,
-        depositQuantityInAssetUnits,
+        lpToken.address,
+        execution.liquidity,
       );
 
       await exchange.exitWallet();
 
+      const [
+        expectedBaseAssetQuantityInAssetUnits,
+        expectedQuoteAssetQuantityInAssetUnits,
+      ] = await getReserveAssetQuantitiesOut(
+        exchange,
+        token.address,
+        ethAddress,
+        execution.liquidity,
+      );
+
       await exchange.removeLiquidityExit(token.address, ethAddress);
 
-      const burnEvents = await pair.getPastEvents('Burn', {
+      const burnEvents = await lpToken.getPastEvents('Burn', {
         fromBlock: 0,
       });
       expect(burnEvents).to.be.an('array');
       expect(burnEvents.length).to.equal(1);
-      expect(burnEvents[0].returnValues.amount0).to.equal(
-        decimalToAssetUnits(depositQuantity, 18),
-      );
-      expect(burnEvents[0].returnValues.amount1).to.equal(
-        decimalToAssetUnits(depositQuantity, 18),
-      );
+      expect(
+        assetUnitsToPips(
+          burnEvents[0].returnValues.baseAssetQuantityInAssetUnits,
+          18,
+        ),
+      ).to.equal(assetUnitsToPips(expectedBaseAssetQuantityInAssetUnits, 18));
+      expect(
+        assetUnitsToPips(
+          burnEvents[0].returnValues.quoteAssetQuantityInAssetUnits,
+          18,
+        ),
+      ).to.equal(assetUnitsToPips(expectedQuoteAssetQuantityInAssetUnits, 18));
     });
 
     it('should revert when wallet exit not finalized', async () => {
@@ -2339,7 +2339,6 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
       expect(error.message).to.match(/invalid token address/i);
     });
   });
-  */
 });
 
 export async function deployPancakeCoreAndCreatePool(
@@ -2443,7 +2442,7 @@ export async function deployContractsAndCreateHybridPool(
   await exchange.registerToken(lpToken.address, pairSymbol, 18);
   await exchange.confirmTokenRegistration(lpToken.address, pairSymbol, 18);
 
-  return { custodian, exchange, farm, lpToken, pair, token0, token1 };
+  return { custodian, exchange, lpToken, pair, token0, token1 };
 }
 
 export async function deployContractsAndCreateHybridETHPool(
@@ -2968,6 +2967,13 @@ async function generateOnChainLiquidityRemoval(
   removal: ExchangeInstance['executeRemoveLiquidity']['arguments'][0];
   execution: ExchangeInstance['executeRemoveLiquidity']['arguments'][1];
 }> {
+  const [amountA, amountB] = await getReserveAssetQuantitiesOut(
+    exchange,
+    token0.address,
+    token1.address,
+    depositQuantityInAssetUnits,
+  );
+
   const deadline = Date.now() + 10000;
 
   await lpToken.approve(exchange.address, depositQuantityInAssetUnits, {
@@ -2977,8 +2983,8 @@ async function generateOnChainLiquidityRemoval(
     token0.address,
     token1.address,
     depositQuantityInAssetUnits,
-    depositQuantityInAssetUnits,
-    depositQuantityInAssetUnits,
+    amountA,
+    amountB,
     ownerWallet,
     deadline,
   );
@@ -2991,8 +2997,8 @@ async function generateOnChainLiquidityRemoval(
     assetA: token0.address,
     assetB: token1.address,
     liquidity: depositQuantityInAssetUnits,
-    amountAMin: depositQuantityInAssetUnits,
-    amountBMin: depositQuantityInAssetUnits,
+    amountAMin: amountA,
+    amountBMin: amountB,
     to: ownerWallet,
     deadline,
     signature: '0x',
@@ -3000,8 +3006,8 @@ async function generateOnChainLiquidityRemoval(
 
   const execution = {
     liquidity: depositQuantityInAssetUnits,
-    amountA: depositQuantityInAssetUnits,
-    amountB: depositQuantityInAssetUnits,
+    amountA,
+    amountB,
     feeAmountA: 0,
     feeAmountB: 0,
     baseAssetAddress: token0.address,

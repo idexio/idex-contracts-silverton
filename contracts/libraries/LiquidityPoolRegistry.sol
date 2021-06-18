@@ -108,11 +108,17 @@ library LiquidityPoolRegistry {
           baseAssetQuantityInAssetUnits,
           asset.decimals
         );
+        require(pool.baseAssetReserveInPips > 0, 'Insufficient base quantity');
+
         asset = assetRegistry.loadAssetByAddress(quoteAssetAddress);
         pool.quoteAssetDecimals = asset.decimals;
         pool.quoteAssetReserveInPips = AssetUnitConversions.assetUnitsToPips(
           quoteAssetQuantityInAssetUnits,
           asset.decimals
+        );
+        require(
+          pool.quoteAssetReserveInPips > 0,
+          'Insufficient quote quantity'
         );
       }
 

@@ -6,16 +6,9 @@ import { initRpcApi, loadProvider } from './utils';
 
 import ExchangeContract from './ExchangeContract';
 import FactoryContract from './FactoryContract';
-import PairContract from './PairContract';
 import WETHContract from './WETHContract';
 
-export {
-  initRpcApi,
-  ExchangeContract,
-  FactoryContract,
-  PairContract,
-  WETHContract,
-};
+export { initRpcApi, ExchangeContract, FactoryContract, WETHContract };
 
 export type LibraryName =
   | 'AssetRegistryAdmin'

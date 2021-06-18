@@ -1,3 +1,4 @@
+import { BigNumber } from 'ethers';
 import {
   deployAndAssociateContracts,
   deployAndRegisterToken,
@@ -5,7 +6,6 @@ import {
   ethSymbol,
 } from './helpers';
 import { assetUnitsToPips, ethAddress } from '../../lib';
-import { BigNumber } from 'ethers';
 
 contract('Exchange (deposits)', (accounts) => {
   const BalanceMigrationSourceMock = artifacts.require(
@@ -22,6 +22,7 @@ contract('Exchange (deposits)', (accounts) => {
   it('should revert when receiving ETH directly', async () => {
     const exchange = await Exchange.new(
       (await BalanceMigrationSourceMock.new()).address,
+      (await WETH.new()).address,
       (await WETH.new()).address,
     );
 
@@ -97,6 +98,7 @@ contract('Exchange (deposits)', (accounts) => {
       const exchange = await Exchange.new(
         (await BalanceMigrationSourceMock.new()).address,
         (await WETH.new()).address,
+        (await WETH.new()).address,
       );
 
       await exchange.setDepositIndex(1);
@@ -115,6 +117,7 @@ contract('Exchange (deposits)', (accounts) => {
     it('revert when called with zero', async () => {
       const exchange = await Exchange.new(
         (await BalanceMigrationSourceMock.new()).address,
+        (await WETH.new()).address,
         (await WETH.new()).address,
       );
 
@@ -196,6 +199,7 @@ contract('Exchange (deposits)', (accounts) => {
     it('should revert when depositIndex is unset', async () => {
       const exchange = await Exchange.new(
         (await BalanceMigrationSourceMock.new()).address,
+        (await WETH.new()).address,
         (await WETH.new()).address,
       );
 

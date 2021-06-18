@@ -28,6 +28,7 @@ contract('Custodian', (accounts) => {
     exchange = await Exchange.new(
       (await BalanceMigrationSourceMock.new()).address,
       (await WETH.new()).address,
+      (await WETH.new()).address,
     );
     governance = await Governance.new(10);
   });
@@ -127,6 +128,7 @@ contract('Custodian', (accounts) => {
     it('should work when sent from governance address', async () => {
       const newExchange = await Exchange.new(
         (await BalanceMigrationSourceMock.new()).address,
+        (await WETH.new()).address,
         (await WETH.new()).address,
       );
 
