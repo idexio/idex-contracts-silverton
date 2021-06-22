@@ -460,15 +460,6 @@ contract Exchange is IExchange, Owned {
   }
 
   /**
-   * @notice Load the address of the `IDEXMigrator` contract associated with the Exchange
-   *
-   * @return The address of the `IDEXMigrator` contract
-   */
-  function loadMigratorContractAddress() external view returns (address) {
-    return _migrator;
-  }
-
-  /**
    * @notice Load the address of the Fee wallet
    *
    * @return The address of the Fee wallet

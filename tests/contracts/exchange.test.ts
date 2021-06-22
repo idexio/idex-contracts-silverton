@@ -40,7 +40,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
       try {
         await Exchange.new(
           (await BalanceMigrationSourceMock.new()).address,
-          ethAddress,
+          (await WETH.new()).address,
           ethAddress,
         );
       } catch (e) {
@@ -135,6 +135,25 @@ contract('Exchange (tunable parameters)', (accounts) => {
 
       expect(error).to.not.be.undefined;
       expect(error.message).to.match(/invalid wallet address/i);
+    });
+  });
+
+  describe('loadLiquidityPoolByAssetAddresses', () => {
+    it('should revert when no pool exists', async () => {
+      const { exchange } = await deployAndAssociateContracts();
+
+      let error;
+      try {
+        await exchange.loadLiquidityPoolByAssetAddresses(
+          ethAddress,
+          ethAddress,
+        );
+      } catch (e) {
+        error = e;
+      }
+
+      expect(error).to.not.be.undefined;
+      expect(error.message).to.match(/no pool for address pair/i);
     });
   });
 

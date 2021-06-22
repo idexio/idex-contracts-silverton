@@ -304,7 +304,7 @@ library Validations {
   }
 
   /**
-   * @dev Calculate reserve asset quantities to remove from a pool for a liquidity exit
+   * @dev Calculate reserve asset quantities to remove from a pool for a given liquidity amount
    */
   function getOutputAssetQuantitiesInAssetUnits(
     LiquidityPool memory pool,
@@ -334,12 +334,6 @@ library Validations {
           pool.quoteAssetDecimals
         )) /
       totalLiquidityInAssetUnits;
-
-    require(
-      outputBaseAssetQuantityInAssetUnits > 0 &&
-        outputQuoteAssetQuantityInAssetUnits > 0,
-      'Insufficient liquidity'
-    );
   }
 
   function isLimitOrderType(OrderType orderType) internal pure returns (bool) {
