@@ -252,7 +252,8 @@ contract Exchange is IExchange, Owned {
     IWETH9 WETH
   ) Owned() {
     require(
-      Address.isContract(address(balanceMigrationSource)),
+      address(balanceMigrationSource) == address(0x0) ||
+        Address.isContract(address(balanceMigrationSource)),
       'Invalid migration source'
     );
     _balanceTracking.migrationSource = balanceMigrationSource;

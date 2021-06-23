@@ -65,7 +65,9 @@ contract LiquidityProviderToken is Context {
   constructor() {
     _name = 'IDEX LPs';
     _symbol = 'IDEX-LP';
+
     custodian = IExchange(msg.sender).loadCustodian();
+    require(address(custodian) != address(0x0), 'Invalid Custodian address');
   }
 
   function initialize(address _baseAssetAddress, address _quoteAssetAddress)
@@ -351,8 +353,6 @@ contract LiquidityProviderToken is Context {
    * - `account` must have at least `amount` tokens.
    */
   function _burn(address account, uint256 amount) internal {
-    require(account != address(0), 'ERC20: burn from the zero address');
-
     uint256 accountBalance = _balances[account];
     require(accountBalance >= amount, 'ERC20: burn amount exceeds balance');
     unchecked {
@@ -381,7 +381,6 @@ contract LiquidityProviderToken is Context {
     address spender,
     uint256 amount
   ) internal {
-    require(owner != address(0), 'ERC20: approve from the zero address');
     require(spender != address(0), 'ERC20: approve to the zero address');
 
     _allowances[owner][spender] = amount;

@@ -23,7 +23,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
       let error;
       try {
         await Exchange.new(
-          ethAddress,
+          accounts[1],
           (await WETH.new()).address,
           (await WETH.new()).address,
         );

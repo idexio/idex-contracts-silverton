@@ -1341,6 +1341,7 @@ const generateOrderAndPoolTrade = async (
     takerPoolFeeQuantity: '0.00000000',
     takerProtocolFeeQuantity: '0.00000000',
     takerGasFeeQuantity: '0.00000000',
+    takerPriceCorrectionFeeQuantity: '0.00000000',
   };
 
   return { buyOrder, poolTrade };

@@ -661,6 +661,8 @@ library LiquidityPoolRegistry {
       pool.quoteAssetReserveInPips -= poolTrade.poolDebitQuantityInPips(
         orderSide
       );
+      pool.quoteAssetReserveInPips += poolTrade
+        .takerPriceCorrectionFeeQuantityInPips;
 
       updatedProduct =
         uint128(

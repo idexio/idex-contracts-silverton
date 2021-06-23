@@ -35,7 +35,7 @@ const minimumLiquidity = new BigNumber('1000');
 export const token0Symbol = 'DIL';
 export const token1Symbol = 'JUR';
 
-contract.only('Exchange (liquidity pools)', ([ownerWallet]) => {
+contract('Exchange (liquidity pools)', ([ownerWallet]) => {
   describe('migrateLiquidityPool', () => {
     it('should work', async () => {
       const depositQuantity = '1.00000000';
@@ -1239,7 +1239,7 @@ contract.only('Exchange (liquidity pools)', ([ownerWallet]) => {
       );
       expect(
         burnEvents[0].returnValues.quoteAssetQuantityInAssetUnits,
-      ).to.equal(execution.amountB);
+      ).to.equal(assetUnitsWithoutFractionalPips(execution.amountB));
     });
 
     it('should credit balances when to is Custodian', async () => {
@@ -1438,7 +1438,7 @@ contract.only('Exchange (liquidity pools)', ([ownerWallet]) => {
       );
       expect(
         burnEvents[0].returnValues.quoteAssetQuantityInAssetUnits,
-      ).to.equal(execution.amountB);
+      ).to.equal(assetUnitsWithoutFractionalPips(execution.amountB));
     });
 
     it('should work with fees', async () => {
@@ -1479,7 +1479,7 @@ contract.only('Exchange (liquidity pools)', ([ownerWallet]) => {
       );
       expect(
         burnEvents[0].returnValues.quoteAssetQuantityInAssetUnits,
-      ).to.equal(execution.amountB);
+      ).to.equal(assetUnitsWithoutFractionalPips(execution.amountB));
     });
 
     it('should revert when already initiated', async () => {
@@ -1640,7 +1640,7 @@ contract.only('Exchange (liquidity pools)', ([ownerWallet]) => {
       );
       expect(
         burnEvents[0].returnValues.quoteAssetQuantityInAssetUnits,
-      ).to.equal(execution.amountB);
+      ).to.equal(assetUnitsWithoutFractionalPips(execution.amountB));
     });
 
     it('should revert duplicate initiated off-chain', async () => {
@@ -2468,7 +2468,9 @@ contract.only('Exchange (liquidity pools)', ([ownerWallet]) => {
       );
       expect(
         burnEvents[0].returnValues.quoteAssetQuantityInAssetUnits,
-      ).to.equal(expectedQuoteAssetQuantityInAssetUnits);
+      ).to.equal(
+        assetUnitsWithoutFractionalPips(expectedQuoteAssetQuantityInAssetUnits),
+      );
     });
 
     it('should revert when wallet exit not finalized', async () => {

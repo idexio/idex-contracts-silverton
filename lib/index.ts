@@ -103,6 +103,7 @@ export interface PoolTrade {
   takerPoolFeeQuantity: string;
   takerProtocolFeeQuantity: string;
   takerGasFeeQuantity: string;
+  takerPriceCorrectionFeeQuantity: string;
 }
 export interface Trade {
   baseAssetAddress: string;
@@ -368,6 +369,9 @@ const poolTradeToArgumentStruct = (p: PoolTrade, order: Order) => {
     takerPoolFeeQuantityInPips: decimalToPips(p.takerPoolFeeQuantity),
     takerProtocolFeeQuantityInPips: decimalToPips(p.takerProtocolFeeQuantity),
     takerGasFeeQuantityInPips: decimalToPips(p.takerGasFeeQuantity),
+    takerPriceCorrectionFeeQuantityInPips: decimalToPips(
+      p.takerPriceCorrectionFeeQuantity,
+    ),
   };
 };
 

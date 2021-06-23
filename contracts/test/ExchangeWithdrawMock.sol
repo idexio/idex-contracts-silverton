@@ -22,7 +22,7 @@ interface ICustodianMock {
   ) external;
 }
 
-contract ExchangeMock {
+contract ExchangeWithdrawMock {
   ICustodianMock _custodian;
 
   receive() external payable {

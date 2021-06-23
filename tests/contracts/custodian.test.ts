@@ -4,7 +4,7 @@ import { ethAddress } from '../../lib';
 import {
   CustodianInstance,
   ExchangeInstance,
-  ExchangeMockInstance,
+  ExchangeWithdrawMockInstance,
   GovernanceInstance,
   GovernanceMockInstance,
 } from '../../types/truffle-contracts';
@@ -18,7 +18,7 @@ contract('Custodian', (accounts) => {
   const Exchange = artifacts.require('Exchange');
   const Governance = artifacts.require('Governance');
   const GovernanceMock = artifacts.require('GovernanceMock');
-  const ExchangeMock = artifacts.require('ExchangeMock');
+  const ExchangeWithdrawMock = artifacts.require('ExchangeWithdrawMock');
   const Token = artifacts.require('TestToken');
   const WETH = artifacts.require('WETH');
 
@@ -85,9 +85,9 @@ contract('Custodian', (accounts) => {
 
   describe('receive', () => {
     let custodian: CustodianInstance;
-    let exchangeMock: ExchangeMockInstance;
+    let exchangeMock: ExchangeWithdrawMockInstance;
     beforeEach(async () => {
-      exchangeMock = await ExchangeMock.new();
+      exchangeMock = await ExchangeWithdrawMock.new();
       custodian = await Custodian.new(exchangeMock.address, governance.address);
       await exchangeMock.setCustodian(custodian.address);
     });
@@ -236,9 +236,9 @@ contract('Custodian', (accounts) => {
 
   describe('withdraw', () => {
     let custodian: CustodianInstance;
-    let exchangeMock: ExchangeMockInstance;
+    let exchangeMock: ExchangeWithdrawMockInstance;
     beforeEach(async () => {
-      exchangeMock = await ExchangeMock.new();
+      exchangeMock = await ExchangeWithdrawMock.new();
       custodian = await Custodian.new(exchangeMock.address, governance.address);
       await exchangeMock.setCustodian(custodian.address);
     });

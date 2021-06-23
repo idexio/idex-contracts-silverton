@@ -449,7 +449,7 @@ library BalanceTracking {
     Balance storage balance =
       self.balancesByWalletAssetPair[wallet][assetAddress];
 
-    if (!balance.isMigrated) {
+    if (!balance.isMigrated && address(self.migrationSource) != address(0x0)) {
       balance.balanceInPips = self.migrationSource.loadBalanceInPipsByAddress(
         wallet,
         assetAddress
