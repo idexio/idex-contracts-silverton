@@ -15,13 +15,18 @@ contract('Exchange (tunable parameters)', (accounts) => {
       await Exchange.new(
         (await BalanceMigrationSourceMock.new()).address,
         (await WETH.new()).address,
+        (await WETH.new()).address,
       );
     });
 
     it('should revert for invalid balance migration source', async () => {
       let error;
       try {
-        await Exchange.new(ethAddress, (await WETH.new()).address);
+        await Exchange.new(
+          accounts[1],
+          (await WETH.new()).address,
+          (await WETH.new()).address,
+        );
       } catch (e) {
         error = e;
       }
@@ -35,6 +40,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
       try {
         await Exchange.new(
           (await BalanceMigrationSourceMock.new()).address,
+          (await WETH.new()).address,
           ethAddress,
         );
       } catch (e) {
@@ -49,6 +55,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
   it('should revert when receiving ETH directly', async () => {
     const exchange = await Exchange.new(
       (await BalanceMigrationSourceMock.new()).address,
+      (await WETH.new()).address,
       (await WETH.new()).address,
     );
 
@@ -131,15 +138,22 @@ contract('Exchange (tunable parameters)', (accounts) => {
     });
   });
 
-  describe('loadPairFactoryContractAddress', () => {
-    it('should work', async () => {
+  describe('loadLiquidityPoolByAssetAddresses', () => {
+    it('should revert when no pool exists', async () => {
       const { exchange } = await deployAndAssociateContracts();
 
-      const { address } = await WETH.new();
-      await exchange.setPairFactoryAddress(address);
+      let error;
+      try {
+        await exchange.loadLiquidityPoolByAssetAddresses(
+          ethAddress,
+          ethAddress,
+        );
+      } catch (e) {
+        error = e;
+      }
 
-      const result = await exchange.loadPairFactoryContractAddress();
-      expect(result).to.equal(address);
+      expect(error).to.not.be.undefined;
+      expect(error.message).to.match(/no pool for address pair/i);
     });
   });
 
@@ -148,6 +162,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
       const { address } = await WETH.new();
       const exchange = await Exchange.new(
         (await BalanceMigrationSourceMock.new()).address,
+        address,
         address,
       );
 
@@ -187,6 +202,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
       const exchange = await Exchange.new(
         (await BalanceMigrationSourceMock.new()).address,
         (await WETH.new()).address,
+        (await WETH.new()).address,
       );
 
       await exchange.setAdmin(accounts[1]);
@@ -195,6 +211,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
     it('should revert for empty address', async () => {
       const exchange = await Exchange.new(
         (await BalanceMigrationSourceMock.new()).address,
+        (await WETH.new()).address,
         (await WETH.new()).address,
       );
 
@@ -227,6 +244,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
       const exchange = await Exchange.new(
         (await BalanceMigrationSourceMock.new()).address,
         (await WETH.new()).address,
+        (await WETH.new()).address,
       );
 
       let error;
@@ -238,67 +256,6 @@ contract('Exchange (tunable parameters)', (accounts) => {
 
       expect(error).to.not.be.undefined;
       expect(error.message).to.match(/caller must be owner/i);
-    });
-  });
-
-  describe('setPairFactoryAddress', async () => {
-    it('should work for valid address', async () => {
-      const exchange = await Exchange.new(
-        (await BalanceMigrationSourceMock.new()).address,
-        (await WETH.new()).address,
-      );
-
-      await exchange.setPairFactoryAddress((await WETH.new()).address);
-    });
-
-    it('should revert for empty address', async () => {
-      const exchange = await Exchange.new(
-        (await BalanceMigrationSourceMock.new()).address,
-        (await WETH.new()).address,
-      );
-
-      let error;
-      try {
-        await exchange.setPairFactoryAddress(ethAddress);
-      } catch (e) {
-        error = e;
-      }
-
-      expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/invalid address/i);
-    });
-
-    it('should revert when called more than once', async () => {
-      const { exchange } = await deployAndAssociateContracts();
-      await exchange.setPairFactoryAddress((await WETH.new()).address);
-
-      let error;
-      try {
-        await exchange.setPairFactoryAddress((await WETH.new()).address);
-      } catch (e) {
-        error = e;
-      }
-      expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/factory can only be set once/i);
-    });
-
-    it('should revert when not called by admin', async () => {
-      const exchange = await Exchange.new(
-        (await BalanceMigrationSourceMock.new()).address,
-        (await WETH.new()).address,
-      );
-
-      let error;
-      try {
-        await exchange.setPairFactoryAddress(accounts[1], {
-          from: accounts[1],
-        });
-      } catch (e) {
-        error = e;
-      }
-
-      expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/caller must be admin/i);
     });
   });
 
@@ -318,6 +275,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
     it('should revert for empty address', async () => {
       const exchange = await Exchange.new(
         (await BalanceMigrationSourceMock.new()).address,
+        (await WETH.new()).address,
         (await WETH.new()).address,
       );
 
@@ -392,6 +350,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
       const exchange = await Exchange.new(
         (await BalanceMigrationSourceMock.new()).address,
         (await WETH.new()).address,
+        (await WETH.new()).address,
       );
 
       let error;
@@ -446,7 +405,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
         fromBlock: 0,
       });
       expect(events).to.be.an('array');
-      expect(events.length).to.equal(1);
+      expect(events.length).to.equal(2);
 
       expect(await exchange.loadFeeWallet()).to.equal(accounts[1]);
     });
@@ -454,6 +413,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
     it('should revert for empty address', async () => {
       const exchange = await Exchange.new(
         (await BalanceMigrationSourceMock.new()).address,
+        (await WETH.new()).address,
         (await WETH.new()).address,
       );
 

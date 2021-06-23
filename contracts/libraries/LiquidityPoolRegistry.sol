@@ -2,13 +2,6 @@
 
 pragma solidity 0.8.4;
 
-import {
-  IIDEXFactory
-} from '@idexio/idex-swap-core/contracts/interfaces/IIDEXFactory.sol';
-import {
-  IIDEXPair
-} from '@idexio/idex-swap-core/contracts/interfaces/IIDEXPair.sol';
-
 import { AssetRegistry } from './AssetRegistry.sol';
 import { AssetTransfers } from './AssetTransfers.sol';
 import { AssetUnitConversions } from './AssetUnitConversions.sol';
@@ -16,10 +9,16 @@ import { BalanceTracking } from './BalanceTracking.sol';
 import { Constants } from './Constants.sol';
 import { Depositing } from './Depositing.sol';
 import { Hashing } from './Hashing.sol';
+import { LiquidityProviderToken } from '../LiquidityProviderToken.sol';
 import { PoolTradeHelpers } from './PoolTradeHelpers.sol';
 import { Validations } from './Validations.sol';
 import { Withdrawing } from './Withdrawing.sol';
-import { ICustodian, IWETH9 } from './Interfaces.sol';
+import {
+  ICustodian,
+  IERC20,
+  ILiquidityProviderToken,
+  IWETH9
+} from './Interfaces.sol';
 import {
   LiquidityChangeOrigination,
   LiquidityChangeState,
@@ -41,6 +40,7 @@ library LiquidityPoolRegistry {
   using PoolTradeHelpers for PoolTrade;
 
   struct Storage {
+    mapping(address => mapping(address => ILiquidityProviderToken)) liquidityProviderTokensByAddress;
     mapping(address => mapping(address => LiquidityPool)) poolsByAddresses;
     mapping(bytes32 => LiquidityChangeState) changes;
   }
@@ -49,116 +49,154 @@ library LiquidityPoolRegistry {
 
   // Lifecycle //
 
-  function promotePool(
+  function migrateLiquidityPool(
     Storage storage self,
-    address baseAssetAddress,
-    address quoteAssetAddress,
-    IIDEXPair pairTokenAddress,
+    address token0,
+    address token1,
+    uint8 quotePosition,
+    uint256 desiredLiquidity,
+    address to,
     ICustodian custodian,
-    IIDEXFactory pairFactoryAddress,
     IWETH9 WETH,
     AssetRegistry.Storage storage assetRegistry
-  ) public {
-    {
-      // To prevent user error, additionaly verify that the provided Pair token address matches
-      // that returned by the Factory contract
-      IIDEXPair factoryPairTokenAddress =
-        IIDEXPair(
-          pairFactoryAddress.getPair(
-            baseAssetAddress == address(0x0) ? address(WETH) : baseAssetAddress,
-            quoteAssetAddress == address(0x0)
-              ? address(WETH)
-              : quoteAssetAddress
-          )
-        );
-      require(
-        factoryPairTokenAddress == pairTokenAddress,
-        'Pair does not match factory'
-      );
-      require(pairTokenAddress.totalSupply() > 0, 'No liquidity minted');
-    }
-
-    // Create internally tracked pool
-    LiquidityPool storage pool =
-      self.poolsByAddresses[baseAssetAddress][quoteAssetAddress];
-    require(!pool.exists, 'Pool already exists');
-    pool.pairTokenAddress = pairTokenAddress;
-    pool.exists = true;
-
-    // Sync to ensure entire token balance of pair gets sent
-    pairTokenAddress.sync();
-    // Promote pool to hybrid and transfer token reserves to Exchange
-    (address token0, address token1, uint112 reserve0, uint112 reserve1) =
-      pairTokenAddress.promote();
-    // Transfer reserves to Custodian and unwrap WETH if needed
-    transferTokenReserveToCustodian(token0, reserve0, custodian, WETH);
-    transferTokenReserveToCustodian(token1, reserve1, custodian, WETH);
-    // Reset pair reserves to zero
-    pairTokenAddress.hybridUpdate(0, 0, reserve0, reserve1);
-
+  ) public returns (address liquidityProviderToken) {
     {
       // Map Pair token reserve addresses to provided market base/quote addresses
       (
+        address baseAssetAddress,
+        address quoteAssetAddress,
         uint256 baseAssetQuantityInAssetUnits,
         uint256 quoteAssetQuantityInAssetUnits
       ) =
-        pairTokenAddress.token0() == baseAssetAddress
-          ? (reserve0, reserve1)
-          : (reserve1, reserve0);
+        transferInFundingAssets(token0, token1, quotePosition, custodian, WETH);
 
-      // Convert transferred reserve amounts to pips and store
-      Asset memory asset;
-      asset = assetRegistry.loadAssetByAddress(baseAssetAddress);
-      // Store asset decimals to avoid redundant asset registry lookups
-      pool.baseAssetDecimals = asset.decimals;
-      pool.baseAssetReserveInPips = AssetUnitConversions.assetUnitsToPips(
+      {
+        // Create an LP token contract tied to this market
+        bytes memory bytecode = type(LiquidityProviderToken).creationCode;
+        bytes32 salt =
+          keccak256(abi.encodePacked(baseAssetAddress, quoteAssetAddress));
+        assembly {
+          liquidityProviderToken := create2(
+            0,
+            add(bytecode, 32),
+            mload(bytecode),
+            salt
+          )
+        }
+        ILiquidityProviderToken(liquidityProviderToken).initialize(
+          baseAssetAddress,
+          quoteAssetAddress
+        );
+      }
+
+      {
+        // Create internally tracked pool
+        LiquidityPool storage pool =
+          self.poolsByAddresses[baseAssetAddress][quoteAssetAddress];
+        // The above CREATE2 will fail if called with a duplicate base-quote pair, so no need to
+        // verify here that the pool does not already exists
+        pool.exists = true;
+        pool.liquidityProviderToken = ILiquidityProviderToken(
+          liquidityProviderToken
+        );
+
+        // Convert transferred reserve amounts to pips and store
+        Asset memory asset;
+        asset = assetRegistry.loadAssetByAddress(baseAssetAddress);
+        // Store asset decimals to avoid redundant asset registry lookups
+        pool.baseAssetDecimals = asset.decimals;
+        pool.baseAssetReserveInPips = AssetUnitConversions.assetUnitsToPips(
+          baseAssetQuantityInAssetUnits,
+          asset.decimals
+        );
+        require(pool.baseAssetReserveInPips > 0, 'Insufficient base quantity');
+
+        asset = assetRegistry.loadAssetByAddress(quoteAssetAddress);
+        pool.quoteAssetDecimals = asset.decimals;
+        pool.quoteAssetReserveInPips = AssetUnitConversions.assetUnitsToPips(
+          quoteAssetQuantityInAssetUnits,
+          asset.decimals
+        );
+        require(
+          pool.quoteAssetReserveInPips > 0,
+          'Insufficient quote quantity'
+        );
+      }
+
+      // Store LP token address in both pair directions to allow association with unordered asset
+      // pairs during on-chain initiated liquidity additions and removals
+      self.liquidityProviderTokensByAddress[baseAssetAddress][
+        quoteAssetAddress
+      ] = ILiquidityProviderToken(liquidityProviderToken);
+      self.liquidityProviderTokensByAddress[quoteAssetAddress][
+        baseAssetAddress
+      ] = ILiquidityProviderToken(liquidityProviderToken);
+
+      // Mint desired liquidity to Farm to complete migration
+      ILiquidityProviderToken(liquidityProviderToken).mint(
+        address(this),
+        desiredLiquidity,
         baseAssetQuantityInAssetUnits,
-        asset.decimals
-      );
-      asset = assetRegistry.loadAssetByAddress(quoteAssetAddress);
-      pool.quoteAssetDecimals = asset.decimals;
-      pool.quoteAssetReserveInPips = AssetUnitConversions.assetUnitsToPips(
         quoteAssetQuantityInAssetUnits,
-        asset.decimals
+        to
       );
     }
   }
 
-  function demotePool(
+  function createLiquidityPool(
     Storage storage self,
     address baseAssetAddress,
     address quoteAssetAddress,
-    ICustodian custodian,
-    IWETH9 WETH
-  ) public {
-    LiquidityPool storage pool =
-      loadLiquidityPoolByAssetAddresses(
-        self,
-        baseAssetAddress,
+    AssetRegistry.Storage storage assetRegistry
+  ) public returns (address liquidityProviderToken) {
+    {
+      {
+        // Create an LP token contract tied to this market
+        bytes memory bytecode = type(LiquidityProviderToken).creationCode;
+        bytes32 salt =
+          keccak256(abi.encodePacked(baseAssetAddress, quoteAssetAddress));
+        assembly {
+          liquidityProviderToken := create2(
+            0,
+            add(bytecode, 32),
+            mload(bytecode),
+            salt
+          )
+        }
+        ILiquidityProviderToken(liquidityProviderToken).initialize(
+          baseAssetAddress,
+          quoteAssetAddress
+        );
+      }
+
+      {
+        // Create internally tracked pool
+        LiquidityPool storage pool =
+          self.poolsByAddresses[baseAssetAddress][quoteAssetAddress];
+        // The above CREATE2 will fail if called with a duplicate base-quote pair, so no need to
+        // verify here that the pool does not already exists
+        pool.exists = true;
+        pool.liquidityProviderToken = ILiquidityProviderToken(
+          liquidityProviderToken
+        );
+
+        // Store asset decimals to avoid redundant asset registry lookups
+        Asset memory asset;
+        asset = assetRegistry.loadAssetByAddress(baseAssetAddress);
+        pool.baseAssetDecimals = asset.decimals;
+        asset = assetRegistry.loadAssetByAddress(quoteAssetAddress);
+        pool.quoteAssetDecimals = asset.decimals;
+      }
+
+      // Store LP token address in both pair directions to allow association with unordered asset
+      // pairs during on-chain initiated liquidity additions and removals
+      self.liquidityProviderTokensByAddress[baseAssetAddress][
         quoteAssetAddress
-      );
-
-    transferPoolReserveToPair(
-      baseAssetAddress,
-      pool.baseAssetReserveInPips,
-      pool.baseAssetDecimals,
-      pool.pairTokenAddress,
-      custodian,
-      WETH
-    );
-    transferPoolReserveToPair(
-      quoteAssetAddress,
-      pool.quoteAssetReserveInPips,
-      pool.quoteAssetDecimals,
-      pool.pairTokenAddress,
-      custodian,
-      WETH
-    );
-
-    pool.pairTokenAddress.demote();
-    pool.pairTokenAddress.sync();
-
-    delete self.poolsByAddresses[baseAssetAddress][quoteAssetAddress];
+      ] = ILiquidityProviderToken(liquidityProviderToken);
+      self.liquidityProviderTokensByAddress[quoteAssetAddress][
+        baseAssetAddress
+      ] = ILiquidityProviderToken(liquidityProviderToken);
+    }
   }
 
   // Add liquidity //
@@ -230,7 +268,7 @@ library LiquidityPoolRegistry {
     BalanceTracking.Storage storage balanceTracking
   ) external {
     (
-      IIDEXPair pairTokenAddress,
+      ILiquidityProviderToken liquidityProviderToken,
       uint8 baseAssetDecimals,
       uint8 quoteAssetDecimals
     ) = validateAndUpdateForLiquidityAddition(self, addition, execution);
@@ -243,7 +281,7 @@ library LiquidityPoolRegistry {
       quoteAssetDecimals,
       feeWallet,
       custodianAddress,
-      pairTokenAddress
+      liquidityProviderToken
     );
   }
 
@@ -254,7 +292,7 @@ library LiquidityPoolRegistry {
   )
     private
     returns (
-      IIDEXPair pairTokenAddress,
+      ILiquidityProviderToken liquidityProviderToken,
       uint8 baseAssetDecimals,
       uint8 quoteAssetDecimals
     )
@@ -287,16 +325,19 @@ library LiquidityPoolRegistry {
         execution.baseAssetAddress,
         execution.quoteAssetAddress
       );
-    pairTokenAddress = pool.pairTokenAddress;
+    liquidityProviderToken = pool.liquidityProviderToken;
     baseAssetDecimals = pool.baseAssetDecimals;
     quoteAssetDecimals = pool.quoteAssetDecimals;
 
-    (
-      uint256 netBaseAssetQuantityInAssetUnits,
-      uint256 netQuoteAssetQuantityInAssetUnits
-    ) = Validations.validateLiquidityAddition(addition, execution, pool);
+    uint256 baseQuantityInAssetUnitsWithoutFractionalPips;
+    uint256 quoteQuantityInAssetUnitsWithoutFractionalPips;
 
     {
+      (
+        uint256 netBaseAssetQuantityInAssetUnits,
+        uint256 netQuoteAssetQuantityInAssetUnits
+      ) = Validations.validateLiquidityAddition(addition, execution, pool);
+
       // Credit pool base asset reserves with gross deposit minus fees
       uint64 quantityInPips =
         AssetUnitConversions.assetUnitsToPips(
@@ -304,6 +345,8 @@ library LiquidityPoolRegistry {
           baseAssetDecimals
         );
       pool.baseAssetReserveInPips += quantityInPips;
+      baseQuantityInAssetUnitsWithoutFractionalPips = AssetUnitConversions
+        .pipsToAssetUnits(quantityInPips, baseAssetDecimals);
 
       // Credit pool quote asset reserves with gross deposit minus fees
       quantityInPips = AssetUnitConversions.assetUnitsToPips(
@@ -311,20 +354,41 @@ library LiquidityPoolRegistry {
         quoteAssetDecimals
       );
       pool.quoteAssetReserveInPips += quantityInPips;
+      quoteQuantityInAssetUnitsWithoutFractionalPips = AssetUnitConversions
+        .pipsToAssetUnits(quantityInPips, quoteAssetDecimals);
     }
 
-    // Mint Pair tokens to destination wallet
-    (uint256 amount0, uint256 amount1) =
-      execution.baseAssetAddress == pairTokenAddress.token0()
-        ? (netBaseAssetQuantityInAssetUnits, netQuoteAssetQuantityInAssetUnits)
-        : (netQuoteAssetQuantityInAssetUnits, netBaseAssetQuantityInAssetUnits);
-    pairTokenAddress.hybridMint(
-      addition.wallet,
-      execution.liquidity,
-      amount0,
-      amount1,
-      addition.to
-    );
+    // Mint minimum liquidity to zero address to mitigate chances of extreme pricing for a single
+    // unit of liquidity
+    if (liquidityProviderToken.totalSupply() == 0) {
+      liquidityProviderToken.mint(
+        addition.wallet,
+        Constants.minimumLiquidity,
+        0,
+        0,
+        address(0x0)
+      );
+    }
+
+    {
+      uint256 liquidityWithoutFractionalPips =
+        AssetUnitConversions.pipsToAssetUnits(
+          AssetUnitConversions.assetUnitsToPips(
+            execution.liquidity,
+            Constants.liquidityProviderTokenDecimals
+          ),
+          Constants.liquidityProviderTokenDecimals
+        );
+
+      // Mint LP tokens to destination wallet
+      liquidityProviderToken.mint(
+        addition.wallet,
+        liquidityWithoutFractionalPips,
+        baseQuantityInAssetUnitsWithoutFractionalPips,
+        quoteQuantityInAssetUnitsWithoutFractionalPips,
+        addition.to
+      );
+    }
   }
 
   // Remove liquidity //
@@ -333,8 +397,6 @@ library LiquidityPoolRegistry {
     Storage storage self,
     LiquidityRemoval memory removal,
     ICustodian custodian,
-    IIDEXFactory pairFactoryContractAddress,
-    address WETH,
     AssetRegistry.Storage storage assetRegistry,
     BalanceTracking.Storage storage balanceTracking
   ) public {
@@ -347,15 +409,22 @@ library LiquidityPoolRegistry {
     );
     self.changes[hash] = LiquidityChangeState.Initiated;
 
-    // Transfer Pair tokens to Custodian and credit balances
+    // Resolve LP token address
+    address liquidityProviderToken =
+      address(
+        loadLiquidityProviderTokenByAssetAddresses(
+          self,
+          removal.assetA,
+          removal.assetB
+        )
+      );
+
+    // Transfer LP tokens to Custodian and credit balances
     Depositing.depositLiquidityTokens(
       removal.wallet,
-      removal.assetA,
-      removal.assetB,
+      liquidityProviderToken,
       removal.liquidity,
       custodian,
-      pairFactoryContractAddress,
-      address(WETH),
       assetRegistry,
       balanceTracking
     );
@@ -370,7 +439,7 @@ library LiquidityPoolRegistry {
     AssetRegistry.Storage storage assetRegistry,
     BalanceTracking.Storage storage balanceTracking
   ) public {
-    IIDEXPair pairTokenAddress =
+    ILiquidityProviderToken liquidityProviderToken =
       validateAndUpdateForLiquidityRemoval(self, removal, execution);
 
     Withdrawing.withdrawLiquidity(
@@ -378,7 +447,7 @@ library LiquidityPoolRegistry {
       execution,
       custodian,
       feeWallet,
-      pairTokenAddress,
+      liquidityProviderToken,
       assetRegistry,
       balanceTracking
     );
@@ -388,7 +457,7 @@ library LiquidityPoolRegistry {
     Storage storage self,
     LiquidityRemoval memory removal,
     LiquidityChangeExecution memory execution
-  ) private returns (IIDEXPair pairTokenAddress) {
+  ) private returns (ILiquidityProviderToken liquidityProviderToken) {
     {
       bytes32 hash = Hashing.getLiquidityRemovalHash(removal);
       LiquidityChangeState state = self.changes[hash];
@@ -417,43 +486,51 @@ library LiquidityPoolRegistry {
         execution.baseAssetAddress,
         execution.quoteAssetAddress
       );
-    pairTokenAddress = pool.pairTokenAddress;
+    liquidityProviderToken = pool.liquidityProviderToken;
 
-    (
-      uint256 grossBaseAssetQuantityInAssetUnits,
-      uint256 grossQuoteAssetQuantityInAssetUnits
-    ) = Validations.validateLiquidityRemoval(removal, execution, pool);
+    uint256 baseQuantityInAssetUnitsWithoutFractionalPips;
+    uint256 quoteQuantityInAssetUnitsWithoutFractionalPips;
 
-    // Debit pool base asset reserves with gross withdrawal
-    uint64 quantityInPips =
-      AssetUnitConversions.assetUnitsToPips(
-        grossBaseAssetQuantityInAssetUnits,
-        pool.baseAssetDecimals
-      );
-    pool.baseAssetReserveInPips -= quantityInPips;
+    {
+      (
+        uint256 grossBaseAssetQuantityInAssetUnits,
+        uint256 grossQuoteAssetQuantityInAssetUnits
+      ) = Validations.validateLiquidityRemoval(removal, execution, pool);
 
-    // Debit pool quote asset reserves with gross withdrawal
-    quantityInPips = AssetUnitConversions.assetUnitsToPips(
-      grossQuoteAssetQuantityInAssetUnits,
-      pool.quoteAssetDecimals
-    );
-    pool.quoteAssetReserveInPips -= quantityInPips;
-
-    (uint256 amount0, uint256 amount1) =
-      execution.baseAssetAddress == pairTokenAddress.token0()
-        ? (
+      // Debit pool base asset reserves with gross withdrawal
+      uint64 quantityInPips =
+        AssetUnitConversions.assetUnitsToPips(
           grossBaseAssetQuantityInAssetUnits,
-          grossQuoteAssetQuantityInAssetUnits
-        )
-        : (
-          grossQuoteAssetQuantityInAssetUnits,
-          grossBaseAssetQuantityInAssetUnits
+          pool.baseAssetDecimals
         );
-    pairTokenAddress.hybridBurn(
+      pool.baseAssetReserveInPips -= quantityInPips;
+      baseQuantityInAssetUnitsWithoutFractionalPips = AssetUnitConversions
+        .pipsToAssetUnits(quantityInPips, pool.baseAssetDecimals);
+
+      // Debit pool quote asset reserves with gross withdrawal
+      quantityInPips = AssetUnitConversions.assetUnitsToPips(
+        grossQuoteAssetQuantityInAssetUnits,
+        pool.quoteAssetDecimals
+      );
+      pool.quoteAssetReserveInPips -= quantityInPips;
+      quoteQuantityInAssetUnitsWithoutFractionalPips = AssetUnitConversions
+        .pipsToAssetUnits(quantityInPips, pool.quoteAssetDecimals);
+    }
+
+    uint256 liquidityWithoutFractionalPips =
+      AssetUnitConversions.pipsToAssetUnits(
+        AssetUnitConversions.assetUnitsToPips(
+          execution.liquidity,
+          Constants.liquidityProviderTokenDecimals
+        ),
+        Constants.liquidityProviderTokenDecimals
+      );
+
+    liquidityProviderToken.burn(
       removal.wallet,
-      execution.liquidity,
-      amount0,
-      amount1,
+      liquidityWithoutFractionalPips,
+      baseQuantityInAssetUnitsWithoutFractionalPips,
+      quoteQuantityInAssetUnitsWithoutFractionalPips,
       removal.to
     );
   }
@@ -466,13 +543,7 @@ library LiquidityPoolRegistry {
     address quoteAssetAddress,
     ICustodian custodian,
     BalanceTracking.Storage storage balanceTracking
-  )
-    external
-    returns (
-      uint256 outputBaseAssetQuantityInAssetUnits,
-      uint256 outputQuoteAssetQuantityInAssetUnits
-    )
-  {
+  ) public {
     LiquidityPool storage pool =
       loadLiquidityPoolByAssetAddresses(
         self,
@@ -481,56 +552,57 @@ library LiquidityPoolRegistry {
       );
 
     uint64 liquidityToBurnInPips =
-      balanceTracking.updateForExit(msg.sender, address(pool.pairTokenAddress));
+      balanceTracking.updateForExit(
+        msg.sender,
+        address(pool.liquidityProviderToken)
+      );
     uint256 liquidityToBurnInAssetUnits =
       AssetUnitConversions.pipsToAssetUnits(
         liquidityToBurnInPips,
-        Constants.pairTokenDecimals
+        Constants.liquidityProviderTokenDecimals
       );
 
-    // Calculate output asset quantities
-    (
-      outputBaseAssetQuantityInAssetUnits,
-      outputQuoteAssetQuantityInAssetUnits
-    ) = Validations.getOutputAssetQuantitiesInAssetUnits(
-      pool,
-      liquidityToBurnInAssetUnits
-    );
+    uint256 baseQuantityInAssetUnitsWithoutFractionalPips;
+    uint256 quoteQuantityInAssetUnitsWithoutFractionalPips;
 
     {
-      // Convert to pips
-      uint64 outputBaseAssetQuantityInPips =
+      // Calculate output asset quantities
+      (
+        uint256 outputBaseAssetQuantityInAssetUnits,
+        uint256 outputQuoteAssetQuantityInAssetUnits
+      ) =
+        Validations.getOutputAssetQuantitiesInAssetUnits(
+          pool,
+          liquidityToBurnInAssetUnits
+        );
+
+      // Convert to pips and withdraw base
+      uint64 quantityInPips =
         AssetUnitConversions.assetUnitsToPips(
           outputBaseAssetQuantityInAssetUnits,
           pool.baseAssetDecimals
         );
-      uint64 outputQuoteAssetQuantityInPips =
-        AssetUnitConversions.assetUnitsToPips(
-          outputQuoteAssetQuantityInAssetUnits,
-          pool.quoteAssetDecimals
-        );
+      pool.baseAssetReserveInPips -= quantityInPips;
+      baseQuantityInAssetUnitsWithoutFractionalPips = AssetUnitConversions
+        .pipsToAssetUnits(quantityInPips, pool.baseAssetDecimals);
+
+      // Convert to pips and withdraw quote
+      quantityInPips = AssetUnitConversions.assetUnitsToPips(
+        outputQuoteAssetQuantityInAssetUnits,
+        pool.quoteAssetDecimals
+      );
       // Remove entire amounts from pool (no fees)
-      pool.baseAssetReserveInPips -= outputBaseAssetQuantityInPips;
-      pool.quoteAssetReserveInPips -= outputQuoteAssetQuantityInPips;
+      pool.quoteAssetReserveInPips -= quantityInPips;
+      quoteQuantityInAssetUnitsWithoutFractionalPips = AssetUnitConversions
+        .pipsToAssetUnits(quantityInPips, pool.quoteAssetDecimals);
     }
 
-    (uint256 amount0, uint256 amount1) =
-      baseAssetAddress == pool.pairTokenAddress.token0()
-        ? (
-          outputBaseAssetQuantityInAssetUnits,
-          outputQuoteAssetQuantityInAssetUnits
-        )
-        : (
-          outputQuoteAssetQuantityInAssetUnits,
-          outputBaseAssetQuantityInAssetUnits
-        );
-
     // Burn deposited Pair tokens
-    pool.pairTokenAddress.hybridBurn(
+    pool.liquidityProviderToken.burn(
       msg.sender,
       liquidityToBurnInAssetUnits,
-      amount0,
-      amount1,
+      baseQuantityInAssetUnitsWithoutFractionalPips,
+      quoteQuantityInAssetUnitsWithoutFractionalPips,
       msg.sender
     );
 
@@ -538,12 +610,12 @@ library LiquidityPoolRegistry {
     custodian.withdraw(
       payable(msg.sender),
       baseAssetAddress,
-      outputBaseAssetQuantityInAssetUnits
+      baseQuantityInAssetUnitsWithoutFractionalPips
     );
     custodian.withdraw(
       payable(msg.sender),
       quoteAssetAddress,
-      outputQuoteAssetQuantityInAssetUnits
+      quoteQuantityInAssetUnitsWithoutFractionalPips
     );
   }
 
@@ -589,6 +661,9 @@ library LiquidityPoolRegistry {
       pool.quoteAssetReserveInPips -= poolTrade.poolDebitQuantityInPips(
         orderSide
       );
+      // Add the taker sell's price correction fee back to the pool from quote asset output
+      pool.quoteAssetReserveInPips += poolTrade
+        .takerPriceCorrectionFeeQuantityInPips;
 
       updatedProduct =
         uint128(
@@ -613,12 +688,26 @@ library LiquidityPoolRegistry {
     address quoteAssetAddress
   ) internal view returns (LiquidityPool storage pool) {
     pool = self.poolsByAddresses[baseAssetAddress][quoteAssetAddress];
-    require(pool.exists, 'No pool found for address pair');
+    require(pool.exists, 'No pool for address pair');
+  }
+
+  function loadLiquidityProviderTokenByAssetAddresses(
+    Storage storage self,
+    address assetA,
+    address assetB
+  ) internal view returns (ILiquidityProviderToken liquidityProviderToken) {
+    liquidityProviderToken = self.liquidityProviderTokensByAddress[assetA][
+      assetB
+    ];
+    require(
+      address(liquidityProviderToken) != address(0x0),
+      'No LP token for address pair'
+    );
   }
 
   function transferTokenReserveToCustodian(
     address token,
-    uint112 reserve,
+    uint256 reserve,
     ICustodian custodian,
     IWETH9 WETH
   ) private {
@@ -635,36 +724,34 @@ library LiquidityPoolRegistry {
     }
   }
 
-  function transferPoolReserveToPair(
-    address assetAddress,
-    uint64 quantityInPips,
-    uint8 decimals,
-    IIDEXPair pairTokenAddress,
+  function transferInFundingAssets(
+    address token0,
+    address token1,
+    uint8 quotePosition,
     ICustodian custodian,
     IWETH9 WETH
-  ) private {
-    uint256 quantityInAssetUnits =
-      AssetUnitConversions.pipsToAssetUnits(quantityInPips, decimals);
+  )
+    private
+    returns (
+      address baseAssetAddress,
+      address quoteAssetAddress,
+      uint256 baseAssetQuantityInAssetUnits,
+      uint256 quoteAssetQuantityInAssetUnits
+    )
+  {
+    // Obtain reserve amounts sent to the Exchange
+    uint256 reserve0 = IERC20(token0).balanceOf(address(this));
+    uint256 reserve1 = IERC20(token1).balanceOf(address(this));
+    // Transfer reserves to Custodian and unwrap WETH if needed
+    transferTokenReserveToCustodian(token0, reserve0, custodian, WETH);
+    transferTokenReserveToCustodian(token1, reserve1, custodian, WETH);
 
-    // Wrap native asset
-    if (assetAddress == address(0x0)) {
-      custodian.withdraw(
-        payable(address(this)),
-        assetAddress,
-        quantityInAssetUnits
-      );
-      WETH.deposit{ value: quantityInAssetUnits }();
-      AssetTransfers.transferTo(
-        payable(address(pairTokenAddress)),
-        address(WETH),
-        quantityInAssetUnits
-      );
-    } else {
-      custodian.withdraw(
-        payable(address(pairTokenAddress)),
-        assetAddress,
-        quantityInAssetUnits
-      );
-    }
+    address unwrappedToken0 = token0 == address(WETH) ? address(0x0) : token0;
+    address unwrappedToken1 = token1 == address(WETH) ? address(0x0) : token1;
+
+    return
+      quotePosition == 0
+        ? (unwrappedToken1, unwrappedToken0, reserve1, reserve0)
+        : (unwrappedToken0, unwrappedToken1, reserve0, reserve1);
   }
 }

@@ -15,6 +15,7 @@ import {
   getWithdrawalHash,
 } from '../../lib';
 import {
+  deployAndAssociateContracts,
   deployAndRegisterToken,
   ethSymbol,
   getSignature,
@@ -25,16 +26,9 @@ import {
 
 // TODO Non-zero gas fees
 contract('Exchange (withdrawals)', (accounts) => {
-  const BalanceMigrationSourceMock = artifacts.require(
-    'BalanceMigrationSourceMock',
-  );
-  const Custodian = artifacts.require('Custodian');
-  const Exchange = artifacts.require('Exchange');
-  const Governance = artifacts.require('Governance');
   const NonCompliantToken = artifacts.require('NonCompliantToken');
   const SkimmingToken = artifacts.require('SkimmingTestToken');
   const Token = artifacts.require('TestToken');
-  const WETH = artifacts.require('WETH');
 
   const tokenSymbol = 'TKN';
 
@@ -476,27 +470,6 @@ contract('Exchange (withdrawals)', (accounts) => {
       expect(error.message).to.match(/already withdrawn/i);
     });
   });
-
-  const deployAndAssociateContracts = async (
-    blockDelay = 0,
-  ): Promise<{
-    custodian: CustodianInstance;
-    exchange: ExchangeInstance;
-    governance: GovernanceInstance;
-  }> => {
-    const [exchange, governance] = await Promise.all([
-      Exchange.new(
-        (await BalanceMigrationSourceMock.new()).address,
-        (await WETH.new()).address,
-      ),
-      Governance.new(blockDelay),
-    ]);
-    const custodian = await Custodian.new(exchange.address, governance.address);
-    await exchange.setCustodian(custodian.address);
-    await exchange.setDepositIndex(1);
-
-    return { custodian, exchange, governance };
-  };
 
   const assertWithdrawnEvent = async (
     exchange: ExchangeInstance,

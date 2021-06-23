@@ -15,8 +15,9 @@ library Constants {
   // 20%
   uint64 public constant maxWithdrawalFeeBasisPoints = 20 * 100;
 
-  // https://github.com/idexio/idex-swap-core/blob/master/contracts/IDEXERC20.sol#L11
-  uint8 public constant pairTokenDecimals = 18;
+  uint64 public constant minimumLiquidity = 10**3;
+
+  uint8 public constant liquidityProviderTokenDecimals = 18;
 
   uint8 public constant signatureHashVersion = 2;
 }

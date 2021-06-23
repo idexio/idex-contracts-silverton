@@ -2,6 +2,7 @@ import type {
   BalanceMigrationSourceMockInstance,
   CustodianInstance,
   ExchangeInstance,
+  FarmInstance,
   GovernanceInstance,
   TestTokenInstance,
   WETHInstance,
@@ -29,6 +30,7 @@ export const deployAndAssociateContracts = async (
   balanceMigrationSource: BalanceMigrationSourceMockInstance;
   custodian: CustodianInstance;
   exchange: ExchangeInstance;
+  farm: FarmInstance;
   governance: GovernanceInstance;
   weth: WETHInstance;
 }> => {
@@ -42,12 +44,17 @@ export const deployAndAssociateContracts = async (
   const WETH = artifacts.require('WETH');
   const weth = await WETH.new();
 
+  const Farm = artifacts.require('Farm');
+  const Token = artifacts.require('TestToken');
+  const rewardToken = await Token.new();
+  const farm = await Farm.new(rewardToken.address, 1);
+
   const balanceMigrationSource = await (balanceMigrationSourceAddress
     ? BalanceMigrationSourceMock.at(balanceMigrationSourceAddress)
     : BalanceMigrationSourceMock.new());
 
   const [exchange, governance] = await Promise.all([
-    Exchange.new(balanceMigrationSource.address, weth.address),
+    Exchange.new(balanceMigrationSource.address, weth.address, weth.address), // Fee wallet is just WETH
     Governance.new(blockDelay),
   ]);
   const custodian = await Custodian.new(exchange.address, governance.address);
@@ -55,7 +62,14 @@ export const deployAndAssociateContracts = async (
   await governance.setCustodian(custodian.address);
   await exchange.setDepositIndex(1);
 
-  return { balanceMigrationSource, custodian, exchange, governance, weth };
+  return {
+    balanceMigrationSource,
+    custodian,
+    exchange,
+    farm,
+    governance,
+    weth,
+  };
 };
 
 export const deployAndRegisterToken = async (

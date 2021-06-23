@@ -2,10 +2,6 @@
 
 pragma solidity 0.8.4;
 
-import {
-  IIDEXPair
-} from '@idexio/idex-swap-core/contracts/interfaces/IIDEXPair.sol';
-
 import { Order, OrderBookTrade, Withdrawal } from './Structs.sol';
 
 /**
@@ -166,6 +162,40 @@ interface IExchange {
     external
     view
     returns (uint64);
+
+  /**
+   * @notice Load the address of the Custodian contract
+   *
+   * @return The address of the Custodian contract
+   */
+  function loadCustodian() external view returns (ICustodian);
+}
+
+interface ILiquidityProviderToken is IERC20 {
+  function custodian() external returns (ICustodian);
+
+  function baseAssetAddress() external returns (address);
+
+  function quoteAssetAddress() external returns (address);
+
+  function initialize(address _baseAssetAddress, address _quoteAssetAddress)
+    external;
+
+  function burn(
+    address wallet,
+    uint256 liquidity,
+    uint256 baseAssetQuantityInAssetUnits,
+    uint256 quoteAssetQuantityInAssetUnits,
+    address to
+  ) external;
+
+  function mint(
+    address wallet,
+    uint256 liquidity,
+    uint256 baseAssetQuantityInAssetUnits,
+    uint256 quoteAssetQuantityInAssetUnits,
+    address to
+  ) external;
 }
 
 interface IWETH9 is IERC20 {

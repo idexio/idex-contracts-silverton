@@ -57,7 +57,8 @@
   "devDependencies": {
     "@commitlint/cli": "^11.0.0",
     "@commitlint/config-conventional": "^11.0.0",
-    "@idexio/idex-swap-core": "0.0.2",
+    "@idexio/idex-farm": "0.0.1",
+    "@pancakeswap-libs/pancake-swap-core": "0.1.0",
     "@openzeppelin/contracts": "4.1.0",
     "@typechain/ethers-v5": "^6.0.0",
     "@typechain/truffle-v5": "^4.0.1",

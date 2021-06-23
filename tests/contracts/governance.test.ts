@@ -101,6 +101,7 @@ contract('Governance', (accounts) => {
       const newExchange = await Exchange.new(
         (await BalanceMigrationSourceMock.new()).address,
         (await WETH.new()).address,
+        (await WETH.new()).address,
       );
 
       await governance.initiateExchangeUpgrade(newExchange.address);
@@ -166,6 +167,7 @@ contract('Governance', (accounts) => {
       const newExchange = await Exchange.new(
         (await BalanceMigrationSourceMock.new()).address,
         (await WETH.new()).address,
+        (await WETH.new()).address,
       );
       await governance.initiateExchangeUpgrade(newExchange.address);
 
@@ -188,6 +190,7 @@ contract('Governance', (accounts) => {
       } = await deployAndAssociateContracts();
       const newExchange = await Exchange.new(
         (await BalanceMigrationSourceMock.new()).address,
+        (await WETH.new()).address,
         (await WETH.new()).address,
       );
 
@@ -223,6 +226,7 @@ contract('Governance', (accounts) => {
       const newExchange = await Exchange.new(
         (await BalanceMigrationSourceMock.new()).address,
         (await WETH.new()).address,
+        (await WETH.new()).address,
       );
 
       await governance.initiateExchangeUpgrade(newExchange.address);
@@ -257,6 +261,7 @@ contract('Governance', (accounts) => {
       const newExchange = await Exchange.new(
         (await BalanceMigrationSourceMock.new()).address,
         (await WETH.new()).address,
+        (await WETH.new()).address,
       );
       await governance.initiateExchangeUpgrade(newExchange.address);
 
@@ -275,6 +280,7 @@ contract('Governance', (accounts) => {
       const { governance } = await deployAndAssociateContracts(blockDelay);
       const newExchange = await Exchange.new(
         (await BalanceMigrationSourceMock.new()).address,
+        (await WETH.new()).address,
         (await WETH.new()).address,
       );
       await governance.initiateExchangeUpgrade(newExchange.address);
