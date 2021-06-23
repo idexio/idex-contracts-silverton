@@ -5,7 +5,7 @@
     "type": "git",
     "url": "git+https://github.com/idexio/idex-contracts-silverton.git"
   },
-  "version": "0.0.4",
+  "version": "0.0.5",
   "description": "Collects source code, tests, and documentation for the IDEX Silverton release Ethereum contracts",
   "homepage": "https://github.com/idexio/idex-contracts-silverton",
   "main": "build/lib/index.js",
@@ -22,7 +22,7 @@
     "build/contracts/LiquidityPoolRegistry.json",
     "build/contracts/TestFactory.json",
     "build/contracts/Trading.json",
-    "build/contracts/WBNB.json",
+    "build/contracts/WETH.json",
     "build/contracts/Withdrawing.json",
     "build/lib",
     "build/types"

@@ -231,6 +231,38 @@ contract(
       });
     });
 
+    describe('transferFrom', () => {
+      it('should revert when sending more than allowance', async () => {
+        const token = await Token.new();
+        const lpToken = await LiquidityProviderToken.at(
+          (
+            await exchangeMock.createLiquidityProviderToken(
+              token.address,
+              ethAddress,
+            )
+          ).logs[0].args.lpToken,
+        );
+
+        await exchangeMock.mint(
+          lpToken.address,
+          ownerWallet,
+          '1000',
+          '1000',
+          '1000',
+          ownerWallet,
+        );
+
+        let error;
+        try {
+          await lpToken.transferFrom(ownerWallet, anotherWallet, '1000');
+        } catch (e) {
+          error = e;
+        }
+        expect(error).to.not.be.undefined;
+        expect(error.message).to.match(/transfer amount exceeds allowance/i);
+      });
+    });
+
     describe('approve', () => {
       it('should work', async () => {
         const token = await Token.new();
