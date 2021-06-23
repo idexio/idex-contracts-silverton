@@ -661,6 +661,7 @@ library LiquidityPoolRegistry {
       pool.quoteAssetReserveInPips -= poolTrade.poolDebitQuantityInPips(
         orderSide
       );
+      // Add the taker sell's price correction fee back to the pool from quote asset output
       pool.quoteAssetReserveInPips += poolTrade
         .takerPriceCorrectionFeeQuantityInPips;
 

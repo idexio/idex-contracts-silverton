@@ -208,7 +208,7 @@ struct PoolTrade {
   uint64 takerProtocolFeeQuantityInPips;
   // Fee paid by liquidity taker to fee wallet from received asset
   uint64 takerGasFeeQuantityInPips;
-  // Fee paid by liquidity taker buy to pool in quote asset in addition to gross
+  // Fee paid by liquidity taker sell to pool taken from pool's quote asset output
   uint64 takerPriceCorrectionFeeQuantityInPips;
 }
 
