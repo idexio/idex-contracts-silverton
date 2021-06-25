@@ -1804,13 +1804,14 @@
     normalize-path "^2.0.1"
     through2 "^2.0.3"
 
-"@idexio/idex-farm@0.0.1":
-  version "0.0.1"
-  resolved "https://registry.yarnpkg.com/@idexio/idex-farm/-/idex-farm-0.0.1.tgz#96e176369f0cd78df44f1c22e1e2f7e62b84b30c"
-  integrity sha512-dP9awp70qVdSLYJQs+MwiUyMTkPXOZd/HwzPdp02oEMxMO11F2wQ23FKgx3UvfA3evrZiwXOrzM+r1y2yyeyWQ==
+"@idexio/idex-farm@0.0.2":
+  version "0.0.2"
+  resolved "https://registry.yarnpkg.com/@idexio/idex-farm/-/idex-farm-0.0.2.tgz#fbb32dd888a751ab0a9e0d59f397e7066f8e38c8"
+  integrity sha512-AFUl1Z/sDOPZjq68Z6Y0D5ZYH7kINZAD/fKEzTewdGcSyFqgl0nNW3qTJ6A1fwMrXFiv0Zrei7b3nfkDPJZHpg==
   dependencies:
+    "@openzeppelin/contracts" "3.2.0"
     truffle "5.2.3"
-    truffle-flattener "^1.4.4"
+    truffle-flattener "^1.5.0"
 
 "@improbable-eng/grpc-web@^0.12.0":
   version "0.12.0"
@@ -1917,6 +1918,11 @@
   dependencies:
     "@nodelib/fs.scandir" "2.1.4"
     fastq "^1.6.0"
+
+"@openzeppelin/contracts@3.2.0":
+  version "3.2.0"
+  resolved "https://registry.yarnpkg.com/@openzeppelin/contracts/-/contracts-3.2.0.tgz#3e6b3a7662d8ed64271ade96ef42655db983fd9d"
+  integrity sha512-bUOmkSoPkjnUyMiKo6RYnb0VHBk5D9KKDAgNLzF41aqAM3TeE0yGdFF5dVRcV60pZdJLlyFT/jjXIZCWyyEzAQ==
 
 "@openzeppelin/contracts@4.1.0":
   version "4.1.0"
@@ -14009,7 +14015,7 @@ trim-right@^1.0.1:
   resolved "https://registry.yarnpkg.com/true-case-path/-/true-case-path-2.2.1.tgz#c5bf04a5bbec3fd118be4084461b3a27c4d796bf"
   integrity sha512-0z3j8R7MCjy10kc/g+qg7Ln3alJTodw9aDuVWZa3uiWqfuBMKeAeP2ocWcxoyM3D73yz3Jt/Pu4qPr4wHSdB/Q==
 
-truffle-flattener@^1.4.4:
+truffle-flattener@^1.4.4, truffle-flattener@^1.5.0:
   version "1.5.0"
   resolved "https://registry.yarnpkg.com/truffle-flattener/-/truffle-flattener-1.5.0.tgz#c358fa3e5cb0a663429f7912a58c4f0879414e64"
   integrity sha512-vmzWG/L5OXoNruMV6u2l2IaheI091e+t+fFCOR9sl46EE3epkSRIwGCmIP/EYDtPsFBIG7e6exttC9/GlfmxEQ==

@@ -5,10 +5,23 @@ import { ethers } from 'ethers';
 import { initRpcApi, loadProvider } from './utils';
 
 import ExchangeContract from './ExchangeContract';
+import IERC20Contract from './IERC20Contract';
 import FactoryContract from './FactoryContract';
+import FarmContract from './FarmContract';
+import MigratorContract from './MigratorContract';
+import PairContract from './PairContract';
 import WETHContract from './WETHContract';
 
-export { initRpcApi, ExchangeContract, FactoryContract, WETHContract };
+export {
+  initRpcApi,
+  ExchangeContract,
+  IERC20Contract,
+  FactoryContract,
+  FarmContract,
+  MigratorContract,
+  PairContract,
+  WETHContract,
+};
 
 export type LibraryName =
   | 'AssetRegistryAdmin'

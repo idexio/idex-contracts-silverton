@@ -5,7 +5,7 @@
     "type": "git",
     "url": "git+https://github.com/idexio/idex-contracts-silverton.git"
   },
-  "version": "0.0.5",
+  "version": "0.0.6",
   "description": "Collects source code, tests, and documentation for the IDEX Silverton release Ethereum contracts",
   "homepage": "https://github.com/idexio/idex-contracts-silverton",
   "main": "build/lib/index.js",
@@ -57,7 +57,7 @@
   "devDependencies": {
     "@commitlint/cli": "^11.0.0",
     "@commitlint/config-conventional": "^11.0.0",
-    "@idexio/idex-farm": "0.0.1",
+    "@idexio/idex-farm": "0.0.2",
     "@pancakeswap-libs/pancake-swap-core": "0.1.0",
     "@openzeppelin/contracts": "4.1.0",
     "@typechain/ethers-v5": "^6.0.0",
