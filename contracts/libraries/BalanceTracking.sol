@@ -222,220 +222,137 @@ library BalanceTracking {
     Storage storage self,
     LiquidityAddition memory addition,
     LiquidityChangeExecution memory execution,
-    uint8 baseAssetDecimals,
-    uint8 quoteAssetDecimals,
     address feeWallet,
     address custodianAddress,
     ILiquidityProviderToken liquidityProviderToken
-  ) internal returns (uint256 outputLiquidityInAssetUnits) {
-    (
-      uint256 grossBaseAssetQuantityInAssetUnits,
-      uint256 feeBaseAssetQuantityInAssetUnits,
-      uint256 grossQuoteAssetQuantityInAssetUnits,
-      uint256 feeQuoteAssetQuantityInAssetUnits
-    ) =
-      execution.baseAssetAddress == addition.assetA
-        ? (
-          execution.amountA,
-          execution.feeAmountA,
-          execution.amountB,
-          execution.feeAmountB
-        )
-        : (
-          execution.amountB,
-          execution.feeAmountB,
-          execution.amountA,
-          execution.feeAmountA
-        );
-
+  ) internal returns (uint64 outputLiquidityInPips) {
     // Base gross debit
-    uint64 quantityInPips =
-      AssetUnitConversions.assetUnitsToPips(
-        grossBaseAssetQuantityInAssetUnits,
-        baseAssetDecimals
-      );
     Balance storage balance =
       loadBalanceAndMigrateIfNeeded(
         self,
         addition.wallet,
         execution.baseAssetAddress
       );
-    balance.balanceInPips -= quantityInPips;
+    balance.balanceInPips -= execution.grossBaseQuantityInPips;
 
     // Base fee credit
-    quantityInPips = AssetUnitConversions.assetUnitsToPips(
-      feeBaseAssetQuantityInAssetUnits,
-      baseAssetDecimals
-    );
     balance = loadBalanceAndMigrateIfNeeded(
       self,
       feeWallet,
       execution.baseAssetAddress
     );
-    balance.balanceInPips += quantityInPips;
+    balance.balanceInPips +=
+      execution.grossBaseQuantityInPips -
+      execution.netBaseQuantityInPips;
 
     // Quote gross debit
-    quantityInPips = AssetUnitConversions.assetUnitsToPips(
-      grossQuoteAssetQuantityInAssetUnits,
-      quoteAssetDecimals
-    );
+
     balance = loadBalanceAndMigrateIfNeeded(
       self,
       addition.wallet,
       execution.quoteAssetAddress
     );
-    balance.balanceInPips -= quantityInPips;
+    balance.balanceInPips -= execution.grossQuoteQuantityInPips;
 
     // Quote fee credit
-    quantityInPips = AssetUnitConversions.assetUnitsToPips(
-      feeQuoteAssetQuantityInAssetUnits,
-      quoteAssetDecimals
-    );
     balance = loadBalanceAndMigrateIfNeeded(
       self,
       feeWallet,
       execution.quoteAssetAddress
     );
-    balance.balanceInPips += quantityInPips;
+    balance.balanceInPips +=
+      execution.grossQuoteQuantityInPips -
+      execution.netQuoteQuantityInPips;
 
     // Only add output assets to wallet's balances in the Exchange if Custodian is target
     if (addition.to == custodianAddress) {
-      // Base net credit
-      quantityInPips = AssetUnitConversions.assetUnitsToPips(
-        execution.liquidity,
-        Constants.liquidityProviderTokenDecimals
-      );
       balance = loadBalanceAndMigrateIfNeeded(
         self,
         addition.wallet,
         address(liquidityProviderToken)
       );
-      balance.balanceInPips += quantityInPips;
+      balance.balanceInPips += execution.liquidityInPips;
     } else {
-      outputLiquidityInAssetUnits = execution.liquidity;
+      outputLiquidityInPips = execution.liquidityInPips;
     }
   }
 
-  /**
-   * @dev Uses disjoint scopes for base asset, quote asset, and Pair token updates to avoid stack
-   * too deep error
-   */
   function updateForRemoveLiquidity(
     Storage storage self,
     LiquidityRemoval memory removal,
     LiquidityChangeExecution memory execution,
     address feeWallet,
     address custodianAddress,
-    ILiquidityProviderToken liquidityProviderToken,
-    AssetRegistry.Storage storage assetRegistry
+    ILiquidityProviderToken liquidityProviderToken
   )
     internal
     returns (
-      uint256 outputBaseAssetQuantityInAssetUnits,
-      uint256 outputQuoteAssetQuantityInAssetUnits
+      uint64 outputBaseAssetQuantityInPips,
+      uint64 outputQuoteAssetQuantityInPips
     )
   {
     Balance storage balance;
-    uint64 quantityInPips;
 
     // Base asset updates
     {
-      (
-        uint256 netBaseAssetQuantityInAssetUnits,
-        uint256 feeBaseAssetQuantityInAssetUnits
-      ) =
-        execution.baseAssetAddress == removal.assetA
-          ? (execution.amountA - execution.feeAmountA, execution.feeAmountA)
-          : (execution.amountB - execution.feeAmountB, execution.feeAmountB);
-
-      Asset memory asset =
-        assetRegistry.loadAssetByAddress(execution.baseAssetAddress);
-
       // Only add output assets to wallet's balances in the Exchange if Custodian is target
       if (removal.to == custodianAddress) {
         // Base net credit
-        quantityInPips = AssetUnitConversions.assetUnitsToPips(
-          netBaseAssetQuantityInAssetUnits,
-          asset.decimals
-        );
         balance = loadBalanceAndMigrateIfNeeded(
           self,
           removal.wallet,
           execution.baseAssetAddress
         );
-        balance.balanceInPips += quantityInPips;
+        balance.balanceInPips += execution.netBaseQuantityInPips;
       } else {
-        outputBaseAssetQuantityInAssetUnits = netBaseAssetQuantityInAssetUnits;
+        outputBaseAssetQuantityInPips = execution.netBaseQuantityInPips;
       }
 
       // Base fee credit
-      quantityInPips = AssetUnitConversions.assetUnitsToPips(
-        feeBaseAssetQuantityInAssetUnits,
-        asset.decimals
-      );
       balance = loadBalanceAndMigrateIfNeeded(
         self,
         feeWallet,
         execution.baseAssetAddress
       );
-      balance.balanceInPips += quantityInPips;
+      balance.balanceInPips +=
+        execution.grossBaseQuantityInPips -
+        execution.netBaseQuantityInPips;
     }
 
     // Quote asset updates
     {
-      (
-        uint256 netQuoteAssetQuantityInAssetUnits,
-        uint256 feeQuoteAssetQuantityInAssetUnits
-      ) =
-        execution.baseAssetAddress == removal.assetA
-          ? (execution.amountB - execution.feeAmountB, execution.feeAmountB)
-          : (execution.amountA - execution.feeAmountA, execution.feeAmountA);
-
-      Asset memory asset =
-        assetRegistry.loadAssetByAddress(execution.quoteAssetAddress);
-
       // Only add output assets to wallet's balances in the Exchange if Custodian is target
       if (removal.to == custodianAddress) {
         // Quote net credit
-        quantityInPips = AssetUnitConversions.assetUnitsToPips(
-          netQuoteAssetQuantityInAssetUnits,
-          asset.decimals
-        );
         balance = loadBalanceAndMigrateIfNeeded(
           self,
           removal.wallet,
           execution.quoteAssetAddress
         );
-        balance.balanceInPips += quantityInPips;
+        balance.balanceInPips += execution.netQuoteQuantityInPips;
       } else {
-        outputQuoteAssetQuantityInAssetUnits = netQuoteAssetQuantityInAssetUnits;
+        outputQuoteAssetQuantityInPips = execution.netQuoteQuantityInPips;
       }
 
       // Quote fee credit
-      quantityInPips = AssetUnitConversions.assetUnitsToPips(
-        feeQuoteAssetQuantityInAssetUnits,
-        asset.decimals
-      );
       balance = loadBalanceAndMigrateIfNeeded(
         self,
         feeWallet,
         execution.quoteAssetAddress
       );
-      balance.balanceInPips += quantityInPips;
+      balance.balanceInPips +=
+        execution.grossQuoteQuantityInPips -
+        execution.netQuoteQuantityInPips;
     }
 
     // Pair token burn
     {
-      quantityInPips = AssetUnitConversions.assetUnitsToPips(
-        execution.liquidity,
-        Constants.liquidityProviderTokenDecimals
-      );
       balance = loadBalanceAndMigrateIfNeeded(
         self,
         removal.wallet,
         address(liquidityProviderToken)
       );
-      balance.balanceInPips -= quantityInPips;
+      balance.balanceInPips -= execution.liquidityInPips;
     }
   }
 

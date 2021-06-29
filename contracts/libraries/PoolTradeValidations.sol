@@ -112,6 +112,11 @@ library PoolTradeValidations {
       'Excessive quote fee'
     );
 
+    require(
+      poolTrade.takerPriceCorrectionFeeQuantityInPips == 0,
+      'Price correction not allowed'
+    );
+
     Validations.validatePoolTradeFees(orderSide, poolTrade);
   }
 }

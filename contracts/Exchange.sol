@@ -1080,7 +1080,6 @@ contract Exchange is IExchange, Owned {
       execution,
       ICustodian(_custodian),
       _feeWallet,
-      _assetRegistry,
       _balanceTracking
     );
   }

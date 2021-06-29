@@ -35,7 +35,7 @@ const minimumLiquidity = new BigNumber('1000');
 export const token0Symbol = 'DIL';
 export const token1Symbol = 'JUR';
 
-contract('Exchange (liquidity pools)', ([ownerWallet]) => {
+contract.only('Exchange (liquidity pools)', ([ownerWallet]) => {
   describe('migrateLiquidityPool', () => {
     it('should work', async () => {
       const depositQuantity = '1.00000000';
@@ -1155,7 +1155,7 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
   });
 
   describe('removeLiquidity', () => {
-    it('should work with no fees', async () => {
+    it.only('should work with no fees', async () => {
       const depositQuantity = '1.00000000';
       const {
         exchange,
@@ -2780,9 +2780,9 @@ async function addLiquidityAndExecute(
     ));
 
   const execution = {
-    liquidity,
-    amountA,
-    amountB,
+    liquidity: assetUnitsWithoutFractionalPips(liquidity),
+    amountA: assetUnitsWithoutFractionalPips(amountA),
+    amountB: assetUnitsWithoutFractionalPips(amountB),
     feeAmountA: feeAmount,
     feeAmountB: feeAmount,
     baseAssetAddress: token0.address,
@@ -2857,7 +2857,7 @@ async function addLiquidityETHAndExecute(
     feeAmount,
   );
   const execution = {
-    liquidity,
+    liquidity: assetUnitsWithoutFractionalPips(liquidity),
     amountA: depositQuantityInAssetUnits,
     amountB: depositQuantityInAssetUnits,
     feeAmountA: feeAmount,
@@ -3044,8 +3044,8 @@ async function removeLiquidityAndExecute(
 
   const execution = {
     liquidity: depositQuantityInAssetUnits,
-    amountA,
-    amountB,
+    amountA: assetUnitsWithoutFractionalPips(amountA),
+    amountB: assetUnitsWithoutFractionalPips(amountB),
     feeAmountA: feeAmount,
     feeAmountB: feeAmount,
     baseAssetAddress: token0.address,
@@ -3117,8 +3117,8 @@ async function removeLiquidityETHAndExecute(
 
   const execution = {
     liquidity: depositQuantityInAssetUnits,
-    amountA,
-    amountB,
+    amountA: assetUnitsWithoutFractionalPips(amountA),
+    amountB: assetUnitsWithoutFractionalPips(amountB),
     feeAmountA: feeAmount,
     feeAmountB: feeAmount,
     baseAssetAddress: token.address,
@@ -3250,8 +3250,8 @@ async function generateOnChainLiquidityRemoval(
 
   const execution = {
     liquidity: depositQuantityInAssetUnits,
-    amountA,
-    amountB,
+    amountA: assetUnitsWithoutFractionalPips(amountA),
+    amountB: assetUnitsWithoutFractionalPips(amountB),
     feeAmountA: 0,
     feeAmountB: 0,
     baseAssetAddress: token0.address,
@@ -3297,12 +3297,14 @@ async function generateOffChainLiquidityAddition(
   };
 
   const execution = {
-    liquidity: await getLiquidityMinted(
-      exchange,
-      token0.address,
-      token1.address,
-      depositQuantityInAssetUnits,
-      depositQuantityInAssetUnits,
+    liquidity: assetUnitsWithoutFractionalPips(
+      await getLiquidityMinted(
+        exchange,
+        token0.address,
+        token1.address,
+        depositQuantityInAssetUnits,
+        depositQuantityInAssetUnits,
+      ),
     ),
     amountA: depositQuantityInAssetUnits,
     amountB: depositQuantityInAssetUnits,
@@ -3359,8 +3361,8 @@ async function generateOffChainLiquidityRemoval(
 
   const execution = {
     liquidity: depositQuantityInAssetUnits,
-    amountA,
-    amountB,
+    amountA: assetUnitsWithoutFractionalPips(amountA),
+    amountB: assetUnitsWithoutFractionalPips(amountB),
     feeAmountA: 0,
     feeAmountB: 0,
     baseAssetAddress: token0.address,

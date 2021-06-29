@@ -97,7 +97,6 @@ library Withdrawing {
     ICustodian custodian,
     address feeWallet,
     ILiquidityProviderToken liquidityProviderToken,
-    AssetRegistry.Storage storage assetRegistry,
     BalanceTracking.Storage storage balanceTracking
   ) internal {
     (
@@ -109,8 +108,7 @@ library Withdrawing {
         execution,
         feeWallet,
         address(custodian),
-        liquidityProviderToken,
-        assetRegistry
+        liquidityProviderToken
       );
 
     if (outputBaseAssetQuantityInAssetUnits > 0) {

@@ -267,18 +267,13 @@ library LiquidityPoolRegistry {
     address custodianAddress,
     BalanceTracking.Storage storage balanceTracking
   ) external {
-    (
-      ILiquidityProviderToken liquidityProviderToken,
-      uint8 baseAssetDecimals,
-      uint8 quoteAssetDecimals
-    ) = validateAndUpdateForLiquidityAddition(self, addition, execution);
+    ILiquidityProviderToken liquidityProviderToken =
+      validateAndUpdateForLiquidityAddition(self, addition, execution);
 
     // Debit wallet Pair token balance and credit fee wallet reserve asset balances
     balanceTracking.updateForAddLiquidity(
       addition,
       execution,
-      baseAssetDecimals,
-      quoteAssetDecimals,
       feeWallet,
       custodianAddress,
       liquidityProviderToken
@@ -289,14 +284,7 @@ library LiquidityPoolRegistry {
     Storage storage self,
     LiquidityAddition memory addition,
     LiquidityChangeExecution memory execution
-  )
-    private
-    returns (
-      ILiquidityProviderToken liquidityProviderToken,
-      uint8 baseAssetDecimals,
-      uint8 quoteAssetDecimals
-    )
-  {
+  ) private returns (ILiquidityProviderToken liquidityProviderToken) {
     {
       bytes32 hash = Hashing.getLiquidityAdditionHash(addition);
       LiquidityChangeState state = self.changes[hash];
@@ -326,37 +314,12 @@ library LiquidityPoolRegistry {
         execution.quoteAssetAddress
       );
     liquidityProviderToken = pool.liquidityProviderToken;
-    baseAssetDecimals = pool.baseAssetDecimals;
-    quoteAssetDecimals = pool.quoteAssetDecimals;
 
-    uint256 baseQuantityInAssetUnitsWithoutFractionalPips;
-    uint256 quoteQuantityInAssetUnitsWithoutFractionalPips;
+    Validations.validateLiquidityAddition(addition, execution, pool);
 
-    {
-      (
-        uint256 netBaseAssetQuantityInAssetUnits,
-        uint256 netQuoteAssetQuantityInAssetUnits
-      ) = Validations.validateLiquidityAddition(addition, execution, pool);
-
-      // Credit pool base asset reserves with gross deposit minus fees
-      uint64 quantityInPips =
-        AssetUnitConversions.assetUnitsToPips(
-          netBaseAssetQuantityInAssetUnits,
-          baseAssetDecimals
-        );
-      pool.baseAssetReserveInPips += quantityInPips;
-      baseQuantityInAssetUnitsWithoutFractionalPips = AssetUnitConversions
-        .pipsToAssetUnits(quantityInPips, baseAssetDecimals);
-
-      // Credit pool quote asset reserves with gross deposit minus fees
-      quantityInPips = AssetUnitConversions.assetUnitsToPips(
-        netQuoteAssetQuantityInAssetUnits,
-        quoteAssetDecimals
-      );
-      pool.quoteAssetReserveInPips += quantityInPips;
-      quoteQuantityInAssetUnitsWithoutFractionalPips = AssetUnitConversions
-        .pipsToAssetUnits(quantityInPips, quoteAssetDecimals);
-    }
+    // Credit pool reserves
+    pool.baseAssetReserveInPips += execution.netBaseQuantityInPips;
+    pool.quoteAssetReserveInPips += execution.netQuoteQuantityInPips;
 
     // Mint minimum liquidity to zero address to mitigate chances of extreme pricing for a single
     // unit of liquidity
@@ -370,25 +333,23 @@ library LiquidityPoolRegistry {
       );
     }
 
-    {
-      uint256 liquidityWithoutFractionalPips =
-        AssetUnitConversions.pipsToAssetUnits(
-          AssetUnitConversions.assetUnitsToPips(
-            execution.liquidity,
-            Constants.liquidityProviderTokenDecimals
-          ),
-          Constants.liquidityProviderTokenDecimals
-        );
-
-      // Mint LP tokens to destination wallet
-      liquidityProviderToken.mint(
-        addition.wallet,
-        liquidityWithoutFractionalPips,
-        baseQuantityInAssetUnitsWithoutFractionalPips,
-        quoteQuantityInAssetUnitsWithoutFractionalPips,
-        addition.to
-      );
-    }
+    // Mint LP tokens to destination wallet
+    liquidityProviderToken.mint(
+      addition.wallet,
+      AssetUnitConversions.pipsToAssetUnits(
+        execution.liquidityInPips,
+        Constants.liquidityProviderTokenDecimals
+      ),
+      AssetUnitConversions.pipsToAssetUnits(
+        execution.netBaseQuantityInPips,
+        pool.baseAssetDecimals
+      ),
+      AssetUnitConversions.pipsToAssetUnits(
+        execution.netQuoteQuantityInPips,
+        pool.quoteAssetDecimals
+      ),
+      addition.to
+    );
   }
 
   // Remove liquidity //
@@ -436,7 +397,6 @@ library LiquidityPoolRegistry {
     LiquidityChangeExecution memory execution,
     ICustodian custodian,
     address feeWallet,
-    AssetRegistry.Storage storage assetRegistry,
     BalanceTracking.Storage storage balanceTracking
   ) public {
     ILiquidityProviderToken liquidityProviderToken =
@@ -448,7 +408,6 @@ library LiquidityPoolRegistry {
       custodian,
       feeWallet,
       liquidityProviderToken,
-      assetRegistry,
       balanceTracking
     );
   }
@@ -488,49 +447,26 @@ library LiquidityPoolRegistry {
       );
     liquidityProviderToken = pool.liquidityProviderToken;
 
-    uint256 baseQuantityInAssetUnitsWithoutFractionalPips;
-    uint256 quoteQuantityInAssetUnitsWithoutFractionalPips;
+    Validations.validateLiquidityRemoval(removal, execution, pool);
 
-    {
-      (
-        uint256 grossBaseAssetQuantityInAssetUnits,
-        uint256 grossQuoteAssetQuantityInAssetUnits
-      ) = Validations.validateLiquidityRemoval(removal, execution, pool);
-
-      // Debit pool base asset reserves with gross withdrawal
-      uint64 quantityInPips =
-        AssetUnitConversions.assetUnitsToPips(
-          grossBaseAssetQuantityInAssetUnits,
-          pool.baseAssetDecimals
-        );
-      pool.baseAssetReserveInPips -= quantityInPips;
-      baseQuantityInAssetUnitsWithoutFractionalPips = AssetUnitConversions
-        .pipsToAssetUnits(quantityInPips, pool.baseAssetDecimals);
-
-      // Debit pool quote asset reserves with gross withdrawal
-      quantityInPips = AssetUnitConversions.assetUnitsToPips(
-        grossQuoteAssetQuantityInAssetUnits,
-        pool.quoteAssetDecimals
-      );
-      pool.quoteAssetReserveInPips -= quantityInPips;
-      quoteQuantityInAssetUnitsWithoutFractionalPips = AssetUnitConversions
-        .pipsToAssetUnits(quantityInPips, pool.quoteAssetDecimals);
-    }
-
-    uint256 liquidityWithoutFractionalPips =
-      AssetUnitConversions.pipsToAssetUnits(
-        AssetUnitConversions.assetUnitsToPips(
-          execution.liquidity,
-          Constants.liquidityProviderTokenDecimals
-        ),
-        Constants.liquidityProviderTokenDecimals
-      );
+    // Debit pool reserves
+    pool.baseAssetReserveInPips -= execution.grossBaseQuantityInPips;
+    pool.quoteAssetReserveInPips -= execution.grossQuoteQuantityInPips;
 
     liquidityProviderToken.burn(
       removal.wallet,
-      liquidityWithoutFractionalPips,
-      baseQuantityInAssetUnitsWithoutFractionalPips,
-      quoteQuantityInAssetUnitsWithoutFractionalPips,
+      AssetUnitConversions.pipsToAssetUnits(
+        execution.liquidityInPips,
+        Constants.liquidityProviderTokenDecimals
+      ),
+      AssetUnitConversions.pipsToAssetUnits(
+        execution.grossBaseQuantityInPips,
+        pool.baseAssetDecimals
+      ),
+      AssetUnitConversions.pipsToAssetUnits(
+        execution.grossQuoteQuantityInPips,
+        pool.quoteAssetDecimals
+      ),
       removal.to
     );
   }
@@ -556,53 +492,36 @@ library LiquidityPoolRegistry {
         msg.sender,
         address(pool.liquidityProviderToken)
       );
-    uint256 liquidityToBurnInAssetUnits =
+
+    // Calculate output asset quantities
+    (
+      uint64 outputBaseAssetQuantityInPips,
+      uint64 outputQuoteAssetQuantityInPips
+    ) = Validations.getOutputAssetQuantitiesInPips(pool, liquidityToBurnInPips);
+    uint256 outputBaseAssetQuantityInAssetUnits =
       AssetUnitConversions.pipsToAssetUnits(
-        liquidityToBurnInPips,
-        Constants.liquidityProviderTokenDecimals
+        outputBaseAssetQuantityInPips,
+        pool.baseAssetDecimals
       );
-
-    uint256 baseQuantityInAssetUnitsWithoutFractionalPips;
-    uint256 quoteQuantityInAssetUnitsWithoutFractionalPips;
-
-    {
-      // Calculate output asset quantities
-      (
-        uint256 outputBaseAssetQuantityInAssetUnits,
-        uint256 outputQuoteAssetQuantityInAssetUnits
-      ) =
-        Validations.getOutputAssetQuantitiesInAssetUnits(
-          pool,
-          liquidityToBurnInAssetUnits
-        );
-
-      // Convert to pips and withdraw base
-      uint64 quantityInPips =
-        AssetUnitConversions.assetUnitsToPips(
-          outputBaseAssetQuantityInAssetUnits,
-          pool.baseAssetDecimals
-        );
-      pool.baseAssetReserveInPips -= quantityInPips;
-      baseQuantityInAssetUnitsWithoutFractionalPips = AssetUnitConversions
-        .pipsToAssetUnits(quantityInPips, pool.baseAssetDecimals);
-
-      // Convert to pips and withdraw quote
-      quantityInPips = AssetUnitConversions.assetUnitsToPips(
-        outputQuoteAssetQuantityInAssetUnits,
+    uint256 outputQuoteAssetQuantityInAssetUnits =
+      AssetUnitConversions.pipsToAssetUnits(
+        outputQuoteAssetQuantityInPips,
         pool.quoteAssetDecimals
       );
-      // Remove entire amounts from pool (no fees)
-      pool.quoteAssetReserveInPips -= quantityInPips;
-      quoteQuantityInAssetUnitsWithoutFractionalPips = AssetUnitConversions
-        .pipsToAssetUnits(quantityInPips, pool.quoteAssetDecimals);
-    }
+
+    // Debit pool reserves
+    pool.baseAssetReserveInPips -= outputBaseAssetQuantityInPips;
+    pool.quoteAssetReserveInPips -= outputQuoteAssetQuantityInPips;
 
     // Burn deposited Pair tokens
     pool.liquidityProviderToken.burn(
       msg.sender,
-      liquidityToBurnInAssetUnits,
-      baseQuantityInAssetUnitsWithoutFractionalPips,
-      quoteQuantityInAssetUnitsWithoutFractionalPips,
+      AssetUnitConversions.pipsToAssetUnits(
+        liquidityToBurnInPips,
+        Constants.liquidityProviderTokenDecimals
+      ),
+      outputBaseAssetQuantityInAssetUnits,
+      outputQuoteAssetQuantityInAssetUnits,
       msg.sender
     );
 
@@ -610,12 +529,12 @@ library LiquidityPoolRegistry {
     custodian.withdraw(
       payable(msg.sender),
       baseAssetAddress,
-      baseQuantityInAssetUnitsWithoutFractionalPips
+      outputBaseAssetQuantityInAssetUnits
     );
     custodian.withdraw(
       payable(msg.sender),
       quoteAssetAddress,
-      quoteQuantityInAssetUnitsWithoutFractionalPips
+      outputQuoteAssetQuantityInAssetUnits
     );
   }
 

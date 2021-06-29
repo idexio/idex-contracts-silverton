@@ -78,17 +78,17 @@ struct LiquidityRemoval {
  * @notice Argument type to `Exchange.executeAddLiquidity` and `Exchange.executeRemoveLiquidity`
  */
 struct LiquidityChangeExecution {
-  uint256 liquidity;
-  // The gross amount of `assetA` in asset units added or removed from the pool
-  uint256 amountA;
-  // The gross amount of `assetB` in asset units added or removed from the pool
-  uint256 amountB;
-  // The amount deducted from `amountA` in asset units sent to the fee wallet
-  uint256 feeAmountA;
-  // The amount deducted from `amountB` in asset units sent to the fee wallet
-  uint256 feeAmountB;
   address baseAssetAddress;
   address quoteAssetAddress;
+  uint64 liquidityInPips;
+  // Gross amount including fees of base asset executed
+  uint64 grossBaseQuantityInPips;
+  // Gross amount including fees of quote asset executed
+  uint64 grossQuoteQuantityInPips;
+  // Net amount of base asset sent to pool for additions or received by wallet for removals
+  uint64 netBaseQuantityInPips;
+  // Net amount of quote asset sent to pool for additions or received by wallet for removals
+  uint64 netQuoteQuantityInPips;
 }
 
 /**
