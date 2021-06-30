@@ -59,9 +59,12 @@ library Validations {
           )
         );
     require(
-      execution.grossBaseQuantityInPips >= minBase &&
-        execution.grossBaseQuantityInPips <= maxBase,
-      'Invalid base quantity'
+      execution.grossBaseQuantityInPips >= minBase,
+      'Min base quantity not met'
+    );
+    require(
+      execution.grossBaseQuantityInPips <= maxBase,
+      'Desired base quantity exceeded'
     );
 
     (uint64 minQuote, uint64 maxQuote) =
@@ -87,9 +90,12 @@ library Validations {
           )
         );
     require(
-      execution.grossQuoteQuantityInPips >= minQuote &&
-        execution.grossQuoteQuantityInPips <= maxQuote,
-      'Invalid quote quantity'
+      execution.grossQuoteQuantityInPips >= minQuote,
+      'Min quote quantity not met'
+    );
+    require(
+      execution.grossQuoteQuantityInPips <= maxQuote,
+      'Desired quote quantity exceeded'
     );
 
     require(
@@ -108,7 +114,8 @@ library Validations {
     );
 
     require(
-      execution.liquidityInPips ==
+      execution.liquidityInPips > 0 &&
+        execution.liquidityInPips ==
         getOutputLiquidityInPips(
           pool,
           execution.netBaseQuantityInPips,
@@ -160,7 +167,7 @@ library Validations {
             : removal.amountBMin,
           pool.baseAssetDecimals
         ),
-      'Invalid base quantity'
+      'Min base quantity not met'
     );
     require(
       execution.grossQuoteQuantityInPips >=
@@ -170,7 +177,7 @@ library Validations {
             : removal.amountAMin,
           pool.quoteAssetDecimals
         ),
-      'Invalid quote quantity'
+      'Min quote quantity not met'
     );
 
     require(
@@ -189,11 +196,11 @@ library Validations {
 
     require(
       execution.grossBaseQuantityInPips == expectedBaseAssetQuantityInPips,
-      'Invalid base amount'
+      'Invalid base quantity'
     );
     require(
       execution.grossQuoteQuantityInPips == expectedQuoteAssetQuantityInPips,
-      'Invalid quote amount'
+      'Invalid quote quantity'
     );
   }
 
@@ -353,12 +360,16 @@ library Validations {
         Constants.liquidityProviderTokenDecimals
       );
 
-    outputBaseAssetQuantityInPips =
-      (liquidityToBurnInPips * pool.baseAssetReserveInPips) /
-      totalLiquidityInPips;
-    outputQuoteAssetQuantityInPips =
-      (liquidityToBurnInPips * pool.quoteAssetReserveInPips) /
-      totalLiquidityInPips;
+    outputBaseAssetQuantityInPips = getOutputQuantityInPips(
+      liquidityToBurnInPips,
+      pool.baseAssetReserveInPips,
+      totalLiquidityInPips
+    );
+    outputQuoteAssetQuantityInPips = getOutputQuantityInPips(
+      liquidityToBurnInPips,
+      pool.quoteAssetReserveInPips,
+      totalLiquidityInPips
+    );
   }
 
   function getOutputLiquidityInPips(
@@ -366,24 +377,42 @@ library Validations {
     uint64 baseQuantityInPips,
     uint64 quoteQuantityInPips
   ) internal view returns (uint64 outputLiquidityInPips) {
+    if (pool.liquidityProviderToken.totalSupply() == 0) {
+      return sqrt(baseQuantityInPips * quoteQuantityInPips);
+    }
+
     uint64 totalLiquidityInPips =
       AssetUnitConversions.assetUnitsToPips(
         pool.liquidityProviderToken.totalSupply(),
         Constants.liquidityProviderTokenDecimals
       );
 
-    if (totalLiquidityInPips == 0) {
-      outputLiquidityInPips =
-        sqrt(baseQuantityInPips * quoteQuantityInPips) -
-        Constants.minimumLiquidity;
-    } else {
-      outputLiquidityInPips = min(
-        (baseQuantityInPips * (totalLiquidityInPips)) /
+    return
+      min(
+        getOutputQuantityInPips(
+          baseQuantityInPips,
           pool.baseAssetReserveInPips,
-        (quoteQuantityInPips * (totalLiquidityInPips)) /
-          pool.quoteAssetReserveInPips
+          totalLiquidityInPips
+        ),
+        getOutputQuantityInPips(
+          quoteQuantityInPips,
+          pool.quoteAssetReserveInPips,
+          totalLiquidityInPips
+        )
       );
-    }
+  }
+
+  function getOutputQuantityInPips(
+    uint64 inputQuantityInPips,
+    uint64 reserveQuantityInPips,
+    uint64 totalLiquidityInPips
+  ) private pure returns (uint64) {
+    uint256 outputLiquidityInPips =
+      (uint256(inputQuantityInPips) * totalLiquidityInPips) /
+        reserveQuantityInPips;
+    require(outputLiquidityInPips < 2**64, 'Pip quantity overflows uint64');
+
+    return uint64(outputLiquidityInPips);
   }
 
   function isLimitOrderType(OrderType orderType) internal pure returns (bool) {

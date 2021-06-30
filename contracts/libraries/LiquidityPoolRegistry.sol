@@ -132,6 +132,14 @@ library LiquidityPoolRegistry {
         baseAssetAddress
       ] = ILiquidityProviderToken(liquidityProviderToken);
 
+      require(
+        AssetUnitConversions.assetUnitsToPips(
+          desiredLiquidity,
+          Constants.liquidityProviderTokenDecimals
+        ) > 0,
+        'Insufficient liquidity'
+      );
+
       // Mint desired liquidity to Farm to complete migration
       ILiquidityProviderToken(liquidityProviderToken).mint(
         address(this),
@@ -320,18 +328,6 @@ library LiquidityPoolRegistry {
     // Credit pool reserves
     pool.baseAssetReserveInPips += execution.netBaseQuantityInPips;
     pool.quoteAssetReserveInPips += execution.netQuoteQuantityInPips;
-
-    // Mint minimum liquidity to zero address to mitigate chances of extreme pricing for a single
-    // unit of liquidity
-    if (liquidityProviderToken.totalSupply() == 0) {
-      liquidityProviderToken.mint(
-        addition.wallet,
-        Constants.minimumLiquidity,
-        0,
-        0,
-        address(0x0)
-      );
-    }
 
     // Mint LP tokens to destination wallet
     liquidityProviderToken.mint(

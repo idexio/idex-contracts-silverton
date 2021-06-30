@@ -4,6 +4,7 @@ import { v1 as uuidv1 } from 'uuid';
 import {
   ethAddress,
   decimalToAssetUnits,
+  decimalToPips,
   getAddLiquidityArguments,
   getLiquidityAdditionHash,
   getLiquidityRemovalHash,
@@ -35,7 +36,7 @@ const minimumLiquidity = new BigNumber('1000');
 export const token0Symbol = 'DIL';
 export const token1Symbol = 'JUR';
 
-contract.only('Exchange (liquidity pools)', ([ownerWallet]) => {
+contract('Exchange (liquidity pools)', ([ownerWallet]) => {
   describe('migrateLiquidityPool', () => {
     it('should work', async () => {
       const depositQuantity = '1.00000000';
@@ -244,7 +245,7 @@ contract.only('Exchange (liquidity pools)', ([ownerWallet]) => {
       expect(transferEvents).to.be.an('array');
       expect(transferEvents.length).to.equal(2);
       expect(transferEvents[1].returnValues.value).to.equal(
-        assetUnitsWithoutFractionalPips(execution.liquidity),
+        pipsToAssetUnits(execution.liquidityInPips, 18),
       );
 
       const mintEvents = await lpToken.getPastEvents('Mint', {
@@ -289,7 +290,7 @@ contract.only('Exchange (liquidity pools)', ([ownerWallet]) => {
       expect(transferEvents).to.be.an('array');
       expect(transferEvents.length).to.equal(2);
       expect(transferEvents[1].returnValues.value).to.equal(
-        assetUnitsWithoutFractionalPips(execution.liquidity),
+        pipsToAssetUnits(execution.liquidityInPips, 18),
       );
 
       const mintEvents = await lpToken.getPastEvents('Mint', {
@@ -298,17 +299,11 @@ contract.only('Exchange (liquidity pools)', ([ownerWallet]) => {
       expect(mintEvents).to.be.an('array');
       expect(mintEvents.length).to.equal(2);
       expect(mintEvents[1].returnValues.baseAssetQuantityInAssetUnits).to.equal(
-        new BigNumber(execution.amountA)
-          .minus(new BigNumber(execution.feeAmountA))
-          .toString(),
+        pipsToAssetUnits(execution.netBaseQuantityInPips, 18),
       );
       expect(
         mintEvents[1].returnValues.quoteAssetQuantityInAssetUnits,
-      ).to.equal(
-        new BigNumber(execution.amountB)
-          .minus(new BigNumber(execution.feeAmountB))
-          .toString(),
-      );
+      ).to.equal(pipsToAssetUnits(execution.netQuoteQuantityInPips, 18));
     });
 
     it('should work for pool with zero reserves', async () => {
@@ -338,12 +333,9 @@ contract.only('Exchange (liquidity pools)', ([ownerWallet]) => {
         fromBlock: 0,
       });
       expect(transferEvents).to.be.an('array');
-      expect(transferEvents.length).to.equal(2);
+      expect(transferEvents.length).to.equal(1);
       expect(transferEvents[0].returnValues.value).to.equal(
-        minimumLiquidity.toString(),
-      );
-      expect(transferEvents[1].returnValues.value).to.equal(
-        assetUnitsWithoutFractionalPips(execution.liquidity),
+        pipsToAssetUnits(execution.liquidityInPips, 18),
       );
 
       const mintEvents = await lpToken.getPastEvents('Mint', {
@@ -352,11 +344,11 @@ contract.only('Exchange (liquidity pools)', ([ownerWallet]) => {
       expect(mintEvents).to.be.an('array');
       expect(mintEvents.length).to.equal(1);
       expect(mintEvents[0].returnValues.baseAssetQuantityInAssetUnits).to.equal(
-        execution.amountA,
+        pipsToAssetUnits(execution.grossBaseQuantityInPips, 18),
       );
       expect(
         mintEvents[0].returnValues.quoteAssetQuantityInAssetUnits,
-      ).to.equal(execution.amountB);
+      ).to.equal(pipsToAssetUnits(execution.grossQuoteQuantityInPips, 18));
     });
 
     it('should revert when already initiated', async () => {
@@ -487,7 +479,7 @@ contract.only('Exchange (liquidity pools)', ([ownerWallet]) => {
       expect(transferEvents).to.be.an('array');
       expect(transferEvents.length).to.equal(2);
       expect(transferEvents[1].returnValues.value).to.equal(
-        assetUnitsWithoutFractionalPips(execution.liquidity),
+        pipsToAssetUnits(execution.liquidityInPips, 18),
       );
 
       const mintEvents = await lpToken.getPastEvents('Mint', {
@@ -530,7 +522,7 @@ contract.only('Exchange (liquidity pools)', ([ownerWallet]) => {
       expect(transferEvents).to.be.an('array');
       expect(transferEvents.length).to.equal(2);
       expect(transferEvents[1].returnValues.value).to.equal(
-        assetUnitsWithoutFractionalPips(execution.liquidity),
+        pipsToAssetUnits(execution.liquidityInPips, 18),
       );
 
       const mintEvents = await lpToken.getPastEvents('Mint', {
@@ -539,17 +531,11 @@ contract.only('Exchange (liquidity pools)', ([ownerWallet]) => {
       expect(mintEvents).to.be.an('array');
       expect(mintEvents.length).to.equal(2);
       expect(mintEvents[1].returnValues.baseAssetQuantityInAssetUnits).to.equal(
-        new BigNumber(execution.amountA)
-          .minus(new BigNumber(execution.feeAmountA))
-          .toString(),
+        pipsToAssetUnits(execution.netBaseQuantityInPips, 18),
       );
       expect(
         mintEvents[1].returnValues.quoteAssetQuantityInAssetUnits,
-      ).to.equal(
-        new BigNumber(execution.amountB)
-          .minus(new BigNumber(execution.feeAmountB))
-          .toString(),
-      );
+      ).to.equal(pipsToAssetUnits(execution.netQuoteQuantityInPips, 18));
     });
 
     it('should credit balances when to is Custodian', async () => {
@@ -719,7 +705,7 @@ contract.only('Exchange (liquidity pools)', ([ownerWallet]) => {
       expect(transferEvents).to.be.an('array');
       expect(transferEvents.length).to.equal(2);
       expect(transferEvents[1].returnValues.value).to.equal(
-        assetUnitsWithoutFractionalPips(execution.liquidity),
+        pipsToAssetUnits(execution.liquidityInPips, 18),
       );
 
       const mintEvents = await lpToken.getPastEvents('Mint', {
@@ -838,6 +824,10 @@ contract.only('Exchange (liquidity pools)', ([ownerWallet]) => {
         depositQuantity,
         18,
       );
+      const depositQuantityInPips = assetUnitsToPips(
+        depositQuantityInAssetUnits,
+        18,
+      );
 
       const {
         exchange,
@@ -866,13 +856,13 @@ contract.only('Exchange (liquidity pools)', ([ownerWallet]) => {
         signature: '0x',
       };
       const execution = {
-        liquidity: depositQuantityInAssetUnits,
-        amountA: depositQuantityInAssetUnits,
-        amountB: depositQuantityInAssetUnits,
-        feeAmountA: 0,
-        feeAmountB: 0,
         baseAssetAddress: token0.address,
         quoteAssetAddress: token1.address,
+        liquidityInPips: depositQuantityInPips,
+        grossBaseQuantityInPips: depositQuantityInPips,
+        grossQuoteQuantityInPips: depositQuantityInPips,
+        netBaseQuantityInPips: depositQuantityInPips,
+        netQuoteQuantityInPips: depositQuantityInPips,
       };
 
       let error;
@@ -931,7 +921,7 @@ contract.only('Exchange (liquidity pools)', ([ownerWallet]) => {
       expect(error.message).to.match(/asset address mismatch/i);
     });
 
-    it('should revert when assetA minimum not met', async () => {
+    it('should revert when minimum base', async () => {
       const depositQuantity = '1.00000000';
       const depositQuantityInAssetUnits = decimalToAssetUnits(
         depositQuantity,
@@ -956,7 +946,8 @@ contract.only('Exchange (liquidity pools)', ([ownerWallet]) => {
         token0,
         token1,
       );
-      execution.amountA = decimalToAssetUnits('0.90000000', 18);
+      execution.grossBaseQuantityInPips = decimalToPips('0.90000000');
+      execution.netBaseQuantityInPips = execution.grossBaseQuantityInPips;
 
       let error;
       try {
@@ -965,10 +956,10 @@ contract.only('Exchange (liquidity pools)', ([ownerWallet]) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/invalid amountA/i);
+      expect(error.message).to.match(/min base quantity not met/i);
     });
 
-    it('should revert when assetB minimum not met', async () => {
+    it('should revert when minimum quote not met', async () => {
       const depositQuantity = '1.00000000';
       const depositQuantityInAssetUnits = decimalToAssetUnits(
         depositQuantity,
@@ -993,7 +984,8 @@ contract.only('Exchange (liquidity pools)', ([ownerWallet]) => {
         token0,
         token1,
       );
-      execution.amountB = decimalToAssetUnits('0.90000000', 18);
+      execution.grossQuoteQuantityInPips = decimalToPips('0.90000000');
+      execution.netQuoteQuantityInPips = execution.grossQuoteQuantityInPips;
 
       let error;
       try {
@@ -1002,10 +994,10 @@ contract.only('Exchange (liquidity pools)', ([ownerWallet]) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/invalid amountB/i);
+      expect(error.message).to.match(/min quote quantity not met/i);
     });
 
-    it('should revert for excessive A fee', async () => {
+    it('should revert for excessive base fee', async () => {
       const depositQuantity = '1.00000000';
       const depositQuantityInAssetUnits = decimalToAssetUnits(
         depositQuantity,
@@ -1030,7 +1022,7 @@ contract.only('Exchange (liquidity pools)', ([ownerWallet]) => {
         token0,
         token1,
       );
-      execution.feeAmountA = decimalToAssetUnits('0.50000000', 18);
+      execution.netBaseQuantityInPips = decimalToPips('0.50000000');
 
       let error;
       try {
@@ -1039,10 +1031,10 @@ contract.only('Exchange (liquidity pools)', ([ownerWallet]) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/excessive A fee/i);
+      expect(error.message).to.match(/excessive base fee/i);
     });
 
-    it('should revert for excessive B fee', async () => {
+    it('should revert for excessive quote fee', async () => {
       const depositQuantity = '1.00000000';
       const depositQuantityInAssetUnits = decimalToAssetUnits(
         depositQuantity,
@@ -1067,7 +1059,7 @@ contract.only('Exchange (liquidity pools)', ([ownerWallet]) => {
         token0,
         token1,
       );
-      execution.feeAmountB = decimalToAssetUnits('0.50000000', 18);
+      execution.netQuoteQuantityInPips = decimalToPips('0.50000000');
 
       let error;
       try {
@@ -1076,7 +1068,7 @@ contract.only('Exchange (liquidity pools)', ([ownerWallet]) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/excessive B fee/i);
+      expect(error.message).to.match(/excessive quote fee/i);
     });
 
     it('should revert for invalid liquidity', async () => {
@@ -1104,7 +1096,7 @@ contract.only('Exchange (liquidity pools)', ([ownerWallet]) => {
         token0,
         token1,
       );
-      execution.liquidity = decimalToAssetUnits('1.50000000', 18);
+      execution.liquidityInPips = decimalToPips('1.50000000');
 
       let error;
       try {
@@ -1155,7 +1147,7 @@ contract.only('Exchange (liquidity pools)', ([ownerWallet]) => {
   });
 
   describe('removeLiquidity', () => {
-    it.only('should work with no fees', async () => {
+    it('should work with no fees', async () => {
       const depositQuantity = '1.00000000';
       const {
         exchange,
@@ -1191,11 +1183,11 @@ contract.only('Exchange (liquidity pools)', ([ownerWallet]) => {
       expect(burnEvents).to.be.an('array');
       expect(burnEvents.length).to.equal(1);
       expect(burnEvents[0].returnValues.baseAssetQuantityInAssetUnits).to.equal(
-        assetUnitsWithoutFractionalPips(execution.amountA),
+        pipsToAssetUnits(execution.grossBaseQuantityInPips, 18),
       );
       expect(
         burnEvents[0].returnValues.quoteAssetQuantityInAssetUnits,
-      ).to.equal(assetUnitsWithoutFractionalPips(execution.amountB));
+      ).to.equal(pipsToAssetUnits(execution.grossQuoteQuantityInPips, 18));
     });
 
     it('should work with fees', async () => {
@@ -1235,11 +1227,11 @@ contract.only('Exchange (liquidity pools)', ([ownerWallet]) => {
       expect(burnEvents).to.be.an('array');
       expect(burnEvents.length).to.equal(1);
       expect(burnEvents[0].returnValues.baseAssetQuantityInAssetUnits).to.equal(
-        assetUnitsWithoutFractionalPips(execution.amountA),
+        pipsToAssetUnits(execution.grossBaseQuantityInPips, 18),
       );
       expect(
         burnEvents[0].returnValues.quoteAssetQuantityInAssetUnits,
-      ).to.equal(assetUnitsWithoutFractionalPips(execution.amountB));
+      ).to.equal(pipsToAssetUnits(execution.grossQuoteQuantityInPips, 18));
     });
 
     it('should credit balances when to is Custodian', async () => {
@@ -1280,14 +1272,14 @@ contract.only('Exchange (liquidity pools)', ([ownerWallet]) => {
         token0.address,
       );
       expect(token0Balance.toString()).to.equal(
-        assetUnitsToPips(execution.amountA, 18),
+        execution.netBaseQuantityInPips,
       );
       const token1Balance = await exchange.loadBalanceInPipsByAddress(
         ownerWallet,
         token1.address,
       );
       expect(token1Balance.toString()).to.equal(
-        assetUnitsToPips(execution.amountB, 18),
+        execution.netQuoteQuantityInPips,
       );
     });
 
@@ -1434,11 +1426,11 @@ contract.only('Exchange (liquidity pools)', ([ownerWallet]) => {
       expect(burnEvents).to.be.an('array');
       expect(burnEvents.length).to.equal(1);
       expect(burnEvents[0].returnValues.baseAssetQuantityInAssetUnits).to.equal(
-        assetUnitsWithoutFractionalPips(execution.amountA),
+        pipsToAssetUnits(execution.grossBaseQuantityInPips, 18),
       );
       expect(
         burnEvents[0].returnValues.quoteAssetQuantityInAssetUnits,
-      ).to.equal(assetUnitsWithoutFractionalPips(execution.amountB));
+      ).to.equal(pipsToAssetUnits(execution.grossQuoteQuantityInPips, 18));
     });
 
     it('should work with fees', async () => {
@@ -1475,11 +1467,11 @@ contract.only('Exchange (liquidity pools)', ([ownerWallet]) => {
       expect(burnEvents).to.be.an('array');
       expect(burnEvents.length).to.equal(1);
       expect(burnEvents[0].returnValues.baseAssetQuantityInAssetUnits).to.equal(
-        assetUnitsWithoutFractionalPips(execution.amountA),
+        pipsToAssetUnits(execution.grossBaseQuantityInPips, 18),
       );
       expect(
         burnEvents[0].returnValues.quoteAssetQuantityInAssetUnits,
-      ).to.equal(assetUnitsWithoutFractionalPips(execution.amountB));
+      ).to.equal(pipsToAssetUnits(execution.grossQuoteQuantityInPips, 18));
     });
 
     it('should revert when already initiated', async () => {
@@ -1636,11 +1628,11 @@ contract.only('Exchange (liquidity pools)', ([ownerWallet]) => {
       expect(burnEvents).to.be.an('array');
       expect(burnEvents.length).to.equal(1);
       expect(burnEvents[0].returnValues.baseAssetQuantityInAssetUnits).to.equal(
-        assetUnitsWithoutFractionalPips(execution.amountA),
+        pipsToAssetUnits(execution.grossBaseQuantityInPips, 18),
       );
       expect(
         burnEvents[0].returnValues.quoteAssetQuantityInAssetUnits,
-      ).to.equal(assetUnitsWithoutFractionalPips(execution.amountB));
+      ).to.equal(pipsToAssetUnits(execution.grossQuoteQuantityInPips, 18));
     });
 
     it('should revert duplicate initiated off-chain', async () => {
@@ -1766,6 +1758,10 @@ contract.only('Exchange (liquidity pools)', ([ownerWallet]) => {
         depositQuantity,
         18,
       );
+      const depositQuantityInPips = assetUnitsToPips(
+        depositQuantityInAssetUnits,
+        18,
+      );
 
       const {
         exchange,
@@ -1800,13 +1796,13 @@ contract.only('Exchange (liquidity pools)', ([ownerWallet]) => {
         signature: '0x',
       };
       const execution = {
-        liquidity: depositQuantityInAssetUnits,
-        amountA: depositQuantityInAssetUnits,
-        amountB: depositQuantityInAssetUnits,
-        feeAmountA: 0,
-        feeAmountB: 0,
         baseAssetAddress: token0.address,
         quoteAssetAddress: token1.address,
+        liquidityInPips: depositQuantityInPips,
+        grossBaseQuantityInPips: depositQuantityInPips,
+        grossQuoteQuantityInPips: depositQuantityInPips,
+        netBaseQuantityInPips: depositQuantityInPips,
+        netQuoteQuantityInPips: depositQuantityInPips,
       };
 
       let error;
@@ -1912,7 +1908,7 @@ contract.only('Exchange (liquidity pools)', ([ownerWallet]) => {
         token0,
         token1,
       );
-      execution.amountA = '0';
+      execution.grossBaseQuantityInPips = '0';
 
       let error;
       try {
@@ -1981,7 +1977,7 @@ contract.only('Exchange (liquidity pools)', ([ownerWallet]) => {
       expect(error.message).to.match(/insufficient liquidity burned/i);
     });
 
-    it('should revert on invalid amountA', async () => {
+    it('should revert when minimum base not met', async () => {
       const depositQuantity = '1.00000000';
       const depositQuantityInAssetUnits = decimalToAssetUnits(
         depositQuantity,
@@ -2016,7 +2012,8 @@ contract.only('Exchange (liquidity pools)', ([ownerWallet]) => {
         token0,
         token1,
       );
-      execution.amountA = decimalToAssetUnits('0.50000000', 18);
+      execution.grossBaseQuantityInPips = decimalToPips('0.50000000');
+      execution.netBaseQuantityInPips = execution.grossBaseQuantityInPips;
 
       let error;
       try {
@@ -2025,10 +2022,10 @@ contract.only('Exchange (liquidity pools)', ([ownerWallet]) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/invalid amountA/i);
+      expect(error.message).to.match(/min base quantity not met/i);
     });
 
-    it('should revert on invalid amountB', async () => {
+    it('should revert when minimum quote not met', async () => {
       const depositQuantity = '1.00000000';
       const depositQuantityInAssetUnits = decimalToAssetUnits(
         depositQuantity,
@@ -2063,7 +2060,8 @@ contract.only('Exchange (liquidity pools)', ([ownerWallet]) => {
         token0,
         token1,
       );
-      execution.amountB = decimalToAssetUnits('0.50000000', 18);
+      execution.grossQuoteQuantityInPips = decimalToPips('0.50000000');
+      execution.netQuoteQuantityInPips = execution.grossQuoteQuantityInPips;
 
       let error;
       try {
@@ -2072,7 +2070,7 @@ contract.only('Exchange (liquidity pools)', ([ownerWallet]) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/invalid amountB/i);
+      expect(error.message).to.match(/min quote quantity not met/i);
     });
 
     it('should revert on invalid asset', async () => {
@@ -2081,6 +2079,10 @@ contract.only('Exchange (liquidity pools)', ([ownerWallet]) => {
         depositQuantity,
         18,
       );
+      const depositQuantityInPips = assetUnitsToPips(
+        depositQuantityInAssetUnits,
+        18,
+      );
 
       const {
         exchange,
@@ -2101,11 +2103,14 @@ contract.only('Exchange (liquidity pools)', ([ownerWallet]) => {
         token1,
       );
 
-      const [amountA, amountB] = await getReserveAssetQuantitiesOut(
+      const [
+        grossBaseQuantityInPips,
+        grossQuoteQuantityInPips,
+      ] = await getOutputAssetQuantitiesInPips(
         exchange,
         token0.address,
         token1.address,
-        depositQuantityInAssetUnits,
+        depositQuantityInPips,
       );
 
       const deadline = Date.now() + 10000;
@@ -2116,8 +2121,8 @@ contract.only('Exchange (liquidity pools)', ([ownerWallet]) => {
           token0.address,
           ethAddress,
           depositQuantityInAssetUnits,
-          amountA,
-          amountB,
+          pipsToAssetUnits(grossBaseQuantityInPips, 18),
+          pipsToAssetUnits(grossQuoteQuantityInPips, 18),
           ownerWallet,
           deadline,
         );
@@ -2128,7 +2133,7 @@ contract.only('Exchange (liquidity pools)', ([ownerWallet]) => {
       expect(error.message).to.match(/no lp token for address pair/i);
     });
 
-    it('should revert on excessive A fee', async () => {
+    it('should revert on excessive base fee', async () => {
       const depositQuantity = '1.00000000';
       const depositQuantityInAssetUnits = decimalToAssetUnits(
         depositQuantity,
@@ -2163,7 +2168,7 @@ contract.only('Exchange (liquidity pools)', ([ownerWallet]) => {
         token0,
         token1,
       );
-      execution.feeAmountA = decimalToAssetUnits('0.50000000', 18);
+      execution.netBaseQuantityInPips = decimalToPips('0.50000000');
 
       let error;
       try {
@@ -2172,10 +2177,10 @@ contract.only('Exchange (liquidity pools)', ([ownerWallet]) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/excessive A fee/i);
+      expect(error.message).to.match(/excessive base fee/i);
     });
 
-    it('should revert on excessive B fee', async () => {
+    it('should revert on excessive quote fee', async () => {
       const depositQuantity = '1.00000000';
       const depositQuantityInAssetUnits = decimalToAssetUnits(
         depositQuantity,
@@ -2210,7 +2215,7 @@ contract.only('Exchange (liquidity pools)', ([ownerWallet]) => {
         token0,
         token1,
       );
-      execution.feeAmountB = decimalToAssetUnits('0.50000000', 18);
+      execution.netQuoteQuantityInPips = decimalToPips('0.50000000');
 
       let error;
       try {
@@ -2219,7 +2224,7 @@ contract.only('Exchange (liquidity pools)', ([ownerWallet]) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/excessive B fee/i);
+      expect(error.message).to.match(/excessive quote fee/i);
     });
 
     it('should revert on invalid liquidity amount', async () => {
@@ -2257,7 +2262,7 @@ contract.only('Exchange (liquidity pools)', ([ownerWallet]) => {
         token0,
         token1,
       );
-      execution.liquidity = decimalToAssetUnits('0.50000000', 18);
+      execution.liquidityInPips = decimalToPips('0.50000000');
 
       let error;
       try {
@@ -2304,7 +2309,8 @@ contract.only('Exchange (liquidity pools)', ([ownerWallet]) => {
         token0,
         token1,
       );
-      execution.amountA = decimalToAssetUnits('1.10000000', 18);
+      execution.grossBaseQuantityInPips = decimalToPips('1.10000000');
+      execution.netBaseQuantityInPips = execution.grossBaseQuantityInPips;
 
       let error;
       try {
@@ -2313,7 +2319,7 @@ contract.only('Exchange (liquidity pools)', ([ownerWallet]) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/invalid base amount/i);
+      expect(error.message).to.match(/invalid base quantity/i);
     });
 
     it('should revert on invalid quote amount', async () => {
@@ -2351,7 +2357,8 @@ contract.only('Exchange (liquidity pools)', ([ownerWallet]) => {
         token0,
         token1,
       );
-      execution.amountB = decimalToAssetUnits('1.10000000', 18);
+      execution.grossQuoteQuantityInPips = decimalToPips('1.10000000');
+      execution.netQuoteQuantityInPips = execution.grossQuoteQuantityInPips;
 
       let error;
       try {
@@ -2360,7 +2367,7 @@ contract.only('Exchange (liquidity pools)', ([ownerWallet]) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/invalid quote amount/i);
+      expect(error.message).to.match(/invalid quote quantity/i);
     });
 
     it('should revert for invalid signatureHashVersion', async () => {
@@ -2418,6 +2425,10 @@ contract.only('Exchange (liquidity pools)', ([ownerWallet]) => {
         depositQuantity,
         18,
       );
+      const depositQuantityInPips = assetUnitsToPips(
+        depositQuantityInAssetUnits,
+        18,
+      );
 
       const {
         exchange,
@@ -2447,13 +2458,13 @@ contract.only('Exchange (liquidity pools)', ([ownerWallet]) => {
       await exchange.exitWallet();
 
       const [
-        expectedBaseAssetQuantityInAssetUnits,
-        expectedQuoteAssetQuantityInAssetUnits,
-      ] = await getReserveAssetQuantitiesOut(
+        grossBaseQuantityInPips,
+        grossQuoteQuantityInPips,
+      ] = await getOutputAssetQuantitiesInPips(
         exchange,
         token.address,
         ethAddress,
-        depositQuantityInAssetUnits,
+        depositQuantityInPips,
       );
 
       await exchange.removeLiquidityExit(token.address, ethAddress);
@@ -2464,13 +2475,11 @@ contract.only('Exchange (liquidity pools)', ([ownerWallet]) => {
       expect(burnEvents).to.be.an('array');
       expect(burnEvents.length).to.equal(1);
       expect(burnEvents[0].returnValues.baseAssetQuantityInAssetUnits).to.equal(
-        assetUnitsWithoutFractionalPips(expectedBaseAssetQuantityInAssetUnits),
+        pipsToAssetUnits(grossBaseQuantityInPips, 18),
       );
       expect(
         burnEvents[0].returnValues.quoteAssetQuantityInAssetUnits,
-      ).to.equal(
-        assetUnitsWithoutFractionalPips(expectedQuoteAssetQuantityInAssetUnits),
-      );
+      ).to.equal(pipsToAssetUnits(grossQuoteQuantityInPips, 18));
     });
 
     it('should revert when wallet exit not finalized', async () => {
@@ -2768,25 +2777,31 @@ async function addLiquidityAndExecute(
     ? new BigNumber(amountA).multipliedBy(new BigNumber('0.02')).toFixed(0)
     : '0';
 
-  const liquidity =
+  const liquidityInPips =
     liquidityOverride ||
-    (await getLiquidityMinted(
+    (await getOutputLiquidityInPips(
       exchange,
       token0.address,
       token1.address,
-      amountA,
-      amountB,
-      feeAmount,
+      assetUnitsToPips(amountA, 18),
+      assetUnitsToPips(amountB, 18),
+      assetUnitsToPips(feeAmount, 18),
     ));
 
   const execution = {
-    liquidity: assetUnitsWithoutFractionalPips(liquidity),
-    amountA: assetUnitsWithoutFractionalPips(amountA),
-    amountB: assetUnitsWithoutFractionalPips(amountB),
-    feeAmountA: feeAmount,
-    feeAmountB: feeAmount,
     baseAssetAddress: token0.address,
     quoteAssetAddress: token1.address,
+    liquidityInPips,
+    grossBaseQuantityInPips: assetUnitsToPips(amountA, 18),
+    grossQuoteQuantityInPips: assetUnitsToPips(amountB, 18),
+    netBaseQuantityInPips: assetUnitsToPips(
+      new BigNumber(amountA).minus(new BigNumber(feeAmount)).toString(),
+      18,
+    ),
+    netQuoteQuantityInPips: assetUnitsToPips(
+      new BigNumber(amountB).minus(new BigNumber(feeAmount)).toString(),
+      18,
+    ),
   };
 
   await exchange.executeAddLiquidity(
@@ -2827,6 +2842,10 @@ async function addLiquidityETHAndExecute(
     depositQuantity,
     decimals,
   );
+  const depositQuantityInPips = assetUnitsToPips(
+    depositQuantityInAssetUnits,
+    18,
+  );
 
   await token.approve(exchange.address, depositQuantityInAssetUnits, {
     from: ownerWallet,
@@ -2843,27 +2862,31 @@ async function addLiquidityETHAndExecute(
     { value: depositQuantityInAssetUnits },
   );
 
-  const feeAmount = includeFee
-    ? new BigNumber(depositQuantityInAssetUnits)
+  const feeAmountInPips = includeFee
+    ? new BigNumber(depositQuantityInPips)
         .multipliedBy(new BigNumber('0.02'))
         .toFixed(0)
     : '0';
-  const liquidity = await getLiquidityMinted(
+  const liquidityInPips = await getOutputLiquidityInPips(
     exchange,
     token.address,
     ethAddress,
-    depositQuantityInAssetUnits,
-    depositQuantityInAssetUnits,
-    feeAmount,
+    depositQuantityInPips,
+    depositQuantityInPips,
+    feeAmountInPips,
   );
   const execution = {
-    liquidity: assetUnitsWithoutFractionalPips(liquidity),
-    amountA: depositQuantityInAssetUnits,
-    amountB: depositQuantityInAssetUnits,
-    feeAmountA: feeAmount,
-    feeAmountB: feeAmount,
     baseAssetAddress: token.address,
     quoteAssetAddress: ethAddress,
+    liquidityInPips,
+    grossBaseQuantityInPips: depositQuantityInPips,
+    grossQuoteQuantityInPips: depositQuantityInPips,
+    netBaseQuantityInPips: new BigNumber(depositQuantityInPips)
+      .minus(new BigNumber(feeAmountInPips))
+      .toString(),
+    netQuoteQuantityInPips: new BigNumber(depositQuantityInPips)
+      .minus(new BigNumber(feeAmountInPips))
+      .toString(),
   };
 
   await exchange.executeAddLiquidity(
@@ -2889,13 +2912,13 @@ async function addLiquidityETHAndExecute(
   return { execution };
 }
 
-async function getLiquidityMinted(
+async function getOutputLiquidityInPips(
   exchange: ExchangeInstance,
   baseAssetAddress: string,
   quoteAssetAddress: string,
-  amountA: string,
-  amountB: string,
-  feeAmount = '0',
+  baseQuantityInPips: string,
+  quoteQuantityInPips: string,
+  feeAmountInPips = '0',
 ): Promise<string> {
   const LiquidityProviderToken = artifacts.require('LiquidityProviderToken');
   const pool = await exchange.loadLiquidityPoolByAssetAddresses(
@@ -2903,42 +2926,40 @@ async function getLiquidityMinted(
     quoteAssetAddress,
   );
   const lpToken = await LiquidityProviderToken.at(pool.liquidityProviderToken);
-  const totalSupply = new BigNumber((await lpToken.totalSupply()).toString());
+  const totalSupplyInAssetUnits = (await lpToken.totalSupply()).toString();
+  const totalSupplyInPips = new BigNumber(
+    assetUnitsToPips(totalSupplyInAssetUnits, 18),
+  );
 
-  if (totalSupply.isEqualTo(new BigNumber('0'))) {
-    return new BigNumber(amountA)
-      .minus(new BigNumber(feeAmount))
-      .multipliedBy(new BigNumber(amountB).minus(new BigNumber(feeAmount)))
+  if (totalSupplyInAssetUnits === '0') {
+    return new BigNumber(baseQuantityInPips)
+      .minus(new BigNumber(feeAmountInPips))
+      .multipliedBy(
+        new BigNumber(quoteQuantityInPips).minus(
+          new BigNumber(feeAmountInPips),
+        ),
+      )
       .squareRoot()
-      .minus(minimumLiquidity)
       .toFixed(0, BigNumber.ROUND_FLOOR);
   }
 
   return BigNumber.min(
-    new BigNumber(amountA)
-      .minus(new BigNumber(feeAmount))
-      .dividedBy(
-        new BigNumber(
-          pipsToAssetUnits(pool.baseAssetReserveInPips.toString(), 18),
-        ),
-      )
-      .multipliedBy(totalSupply),
-    new BigNumber(amountB)
-      .minus(new BigNumber(feeAmount))
-      .dividedBy(
-        new BigNumber(
-          pipsToAssetUnits(pool.quoteAssetReserveInPips.toString(), 18),
-        ),
-      )
-      .multipliedBy(totalSupply),
+    new BigNumber(baseQuantityInPips)
+      .minus(new BigNumber(feeAmountInPips))
+      .multipliedBy(totalSupplyInPips)
+      .dividedBy(new BigNumber(pool.baseAssetReserveInPips.toString())),
+    new BigNumber(quoteQuantityInPips)
+      .minus(new BigNumber(feeAmountInPips))
+      .multipliedBy(totalSupplyInPips)
+      .dividedBy(new BigNumber(pool.quoteAssetReserveInPips.toString())),
   ).toFixed(0, BigNumber.ROUND_FLOOR);
 }
 
-async function getReserveAssetQuantitiesOut(
+async function getOutputAssetQuantitiesInPips(
   exchange: ExchangeInstance,
   baseAssetAddress: string,
   quoteAssetAddress: string,
-  liquidity: string,
+  liquidityInPips: string,
 ): Promise<[string, string]> {
   const pool = await exchange.loadLiquidityPoolByAssetAddresses(
     baseAssetAddress,
@@ -2949,38 +2970,21 @@ async function getReserveAssetQuantitiesOut(
     baseAssetAddress,
     quoteAssetAddress,
   );
-  const totalSupply = new BigNumber((await lpToken.totalSupply()).toString());
+  const totalSupplyInPips = new BigNumber(
+    assetUnitsToPips((await lpToken.totalSupply()).toString(), 18),
+  );
 
   return [
-    new BigNumber(liquidity)
-      .multipliedBy(
-        new BigNumber(
-          pipsToAssetUnits(pool.baseAssetReserveInPips.toString(), 18),
-        ),
-      )
-      .dividedBy(totalSupply),
-    new BigNumber(liquidity)
-      .multipliedBy(
-        new BigNumber(
-          pipsToAssetUnits(pool.quoteAssetReserveInPips.toString(), 18),
-        ),
-      )
-      .dividedBy(totalSupply),
+    new BigNumber(liquidityInPips)
+      .multipliedBy(new BigNumber(pool.baseAssetReserveInPips.toString()))
+      .dividedBy(totalSupplyInPips),
+    new BigNumber(liquidityInPips)
+      .multipliedBy(new BigNumber(pool.quoteAssetReserveInPips.toString()))
+      .dividedBy(totalSupplyInPips),
   ].map((quantity) => quantity.toFixed(0, BigNumber.ROUND_FLOOR)) as [
     string,
     string,
   ];
-}
-
-function assetUnitsWithoutFractionalPips(
-  quantityInAssetUnits: string | BigNumber,
-  decimals = 18,
-): string {
-  return new BigNumber(quantityInAssetUnits)
-    .shiftedBy(8 - decimals)
-    .decimalPlaces(0, BigNumber.ROUND_FLOOR)
-    .shiftedBy(decimals - 8)
-    .toFixed(0, BigNumber.ROUND_FLOOR);
 }
 
 export async function getLpToken(
@@ -3014,18 +3018,25 @@ async function removeLiquidityAndExecute(
     depositQuantity,
     decimals,
   );
+  const depositQuantityInPips = assetUnitsToPips(
+    depositQuantityInAssetUnits,
+    18,
+  );
 
-  const feeAmount = includeFee
-    ? new BigNumber(depositQuantityInAssetUnits)
+  const feeAmountInPips = includeFee
+    ? new BigNumber(depositQuantityInPips)
         .multipliedBy(new BigNumber('0.02'))
         .toFixed(0)
     : '0';
 
-  const [amountA, amountB] = await getReserveAssetQuantitiesOut(
+  const [
+    grossBaseQuantityInPips,
+    grossQuoteQuantityInPips,
+  ] = await getOutputAssetQuantitiesInPips(
     exchange,
     token0.address,
     token1.address,
-    depositQuantityInAssetUnits,
+    depositQuantityInPips,
   );
 
   await lpToken.approve(exchange.address, depositQuantityInAssetUnits, {
@@ -3036,20 +3047,24 @@ async function removeLiquidityAndExecute(
     token0.address,
     token1.address,
     depositQuantityInAssetUnits,
-    amountA,
-    amountB,
+    pipsToAssetUnits(grossBaseQuantityInPips, 18),
+    pipsToAssetUnits(grossQuoteQuantityInPips, 18),
     to,
     deadline,
   );
 
   const execution = {
-    liquidity: depositQuantityInAssetUnits,
-    amountA: assetUnitsWithoutFractionalPips(amountA),
-    amountB: assetUnitsWithoutFractionalPips(amountB),
-    feeAmountA: feeAmount,
-    feeAmountB: feeAmount,
     baseAssetAddress: token0.address,
     quoteAssetAddress: token1.address,
+    liquidityInPips: depositQuantityInPips,
+    grossBaseQuantityInPips,
+    grossQuoteQuantityInPips,
+    netBaseQuantityInPips: new BigNumber(grossBaseQuantityInPips)
+      .minus(new BigNumber(feeAmountInPips))
+      .toString(),
+    netQuoteQuantityInPips: new BigNumber(grossQuoteQuantityInPips)
+      .minus(new BigNumber(feeAmountInPips))
+      .toString(),
   };
 
   await exchange.executeRemoveLiquidity(
@@ -3061,8 +3076,8 @@ async function removeLiquidityAndExecute(
       assetA: token0.address,
       assetB: token1.address,
       liquidity: depositQuantityInAssetUnits,
-      amountAMin: amountA,
-      amountBMin: amountB,
+      amountAMin: pipsToAssetUnits(grossBaseQuantityInPips, 18),
+      amountBMin: pipsToAssetUnits(grossQuoteQuantityInPips, 18),
       to,
       deadline,
       signature: '0x',
@@ -3089,17 +3104,25 @@ async function removeLiquidityETHAndExecute(
     depositQuantity,
     decimals,
   );
+  const depositQuantityInPips = assetUnitsToPips(
+    depositQuantityInAssetUnits,
+    18,
+  );
 
-  const feeAmount = includeFee
-    ? new BigNumber(depositQuantityInAssetUnits)
+  const feeAmountInPips = includeFee
+    ? new BigNumber(depositQuantityInPips)
         .multipliedBy(new BigNumber('0.02'))
         .toFixed(0)
     : '0';
-  const [amountA, amountB] = await getReserveAssetQuantitiesOut(
+
+  const [
+    grossBaseQuantityInPips,
+    grossQuoteQuantityInPips,
+  ] = await getOutputAssetQuantitiesInPips(
     exchange,
     token.address,
     ethAddress,
-    depositQuantityInAssetUnits,
+    depositQuantityInPips,
   );
 
   await lpToken.approve(exchange.address, depositQuantityInAssetUnits, {
@@ -3109,20 +3132,24 @@ async function removeLiquidityETHAndExecute(
   await exchange.removeLiquidityETH(
     token.address,
     depositQuantityInAssetUnits,
-    amountA,
-    amountB,
+    pipsToAssetUnits(grossBaseQuantityInPips, 18),
+    pipsToAssetUnits(grossQuoteQuantityInPips, 18),
     ownerWallet,
     deadline,
   );
 
   const execution = {
-    liquidity: depositQuantityInAssetUnits,
-    amountA: assetUnitsWithoutFractionalPips(amountA),
-    amountB: assetUnitsWithoutFractionalPips(amountB),
-    feeAmountA: feeAmount,
-    feeAmountB: feeAmount,
     baseAssetAddress: token.address,
     quoteAssetAddress: ethAddress,
+    liquidityInPips: depositQuantityInPips,
+    grossBaseQuantityInPips,
+    grossQuoteQuantityInPips,
+    netBaseQuantityInPips: new BigNumber(grossBaseQuantityInPips)
+      .minus(new BigNumber(feeAmountInPips))
+      .toString(),
+    netQuoteQuantityInPips: new BigNumber(grossQuoteQuantityInPips)
+      .minus(new BigNumber(feeAmountInPips))
+      .toString(),
   };
 
   await exchange.executeRemoveLiquidity(
@@ -3134,8 +3161,8 @@ async function removeLiquidityETHAndExecute(
       assetA: token.address,
       assetB: ethAddress,
       liquidity: depositQuantityInAssetUnits,
-      amountAMin: amountA,
-      amountBMin: amountB,
+      amountAMin: pipsToAssetUnits(grossBaseQuantityInPips, 18),
+      amountBMin: pipsToAssetUnits(grossQuoteQuantityInPips, 18),
       to: ownerWallet,
       deadline,
       signature: '0x',
@@ -3157,6 +3184,11 @@ async function generateOnChainLiquidityAddition(
   addition: ExchangeInstance['executeAddLiquidity']['arguments'][0];
   execution: ExchangeInstance['executeAddLiquidity']['arguments'][1];
 }> {
+  const depositQuantityInPips = assetUnitsToPips(
+    depositQuantityInAssetUnits,
+    18,
+  );
+
   const deadline = Date.now() + 10000;
 
   await token0.approve(exchange.address, depositQuantityInAssetUnits);
@@ -3188,13 +3220,13 @@ async function generateOnChainLiquidityAddition(
     signature: '0x',
   };
   const execution = {
-    liquidity: depositQuantityInAssetUnits,
-    amountA: depositQuantityInAssetUnits,
-    amountB: depositQuantityInAssetUnits,
-    feeAmountA: 0,
-    feeAmountB: 0,
     baseAssetAddress: token0.address,
     quoteAssetAddress: token1.address,
+    liquidityInPips: depositQuantityInPips,
+    grossBaseQuantityInPips: depositQuantityInPips,
+    grossQuoteQuantityInPips: depositQuantityInPips,
+    netBaseQuantityInPips: depositQuantityInPips,
+    netQuoteQuantityInPips: depositQuantityInPips,
   };
 
   return { addition, execution };
@@ -3211,11 +3243,14 @@ async function generateOnChainLiquidityRemoval(
   removal: ExchangeInstance['executeRemoveLiquidity']['arguments'][0];
   execution: ExchangeInstance['executeRemoveLiquidity']['arguments'][1];
 }> {
-  const [amountA, amountB] = await getReserveAssetQuantitiesOut(
+  const [
+    grossBaseQuantityInPips,
+    grossQuoteQuantityInPips,
+  ] = await getOutputAssetQuantitiesInPips(
     exchange,
     token0.address,
     token1.address,
-    depositQuantityInAssetUnits,
+    assetUnitsToPips(depositQuantityInAssetUnits, 18),
   );
 
   const deadline = Date.now() + 10000;
@@ -3227,8 +3262,8 @@ async function generateOnChainLiquidityRemoval(
     token0.address,
     token1.address,
     depositQuantityInAssetUnits,
-    amountA,
-    amountB,
+    pipsToAssetUnits(grossBaseQuantityInPips, 18),
+    pipsToAssetUnits(grossQuoteQuantityInPips, 18),
     ownerWallet,
     deadline,
   );
@@ -3241,21 +3276,21 @@ async function generateOnChainLiquidityRemoval(
     assetA: token0.address,
     assetB: token1.address,
     liquidity: depositQuantityInAssetUnits,
-    amountAMin: amountA,
-    amountBMin: amountB,
+    amountAMin: pipsToAssetUnits(grossBaseQuantityInPips, 18),
+    amountBMin: pipsToAssetUnits(grossQuoteQuantityInPips, 18),
     to: ownerWallet,
     deadline,
     signature: '0x',
   };
 
   const execution = {
-    liquidity: depositQuantityInAssetUnits,
-    amountA: assetUnitsWithoutFractionalPips(amountA),
-    amountB: assetUnitsWithoutFractionalPips(amountB),
-    feeAmountA: 0,
-    feeAmountB: 0,
     baseAssetAddress: token0.address,
     quoteAssetAddress: token1.address,
+    liquidityInPips: assetUnitsToPips(depositQuantityInAssetUnits, 18),
+    grossBaseQuantityInPips,
+    grossQuoteQuantityInPips,
+    netBaseQuantityInPips: grossBaseQuantityInPips,
+    netQuoteQuantityInPips: grossQuoteQuantityInPips,
   };
 
   return { removal, execution };
@@ -3271,12 +3306,17 @@ async function generateOffChainLiquidityAddition(
   addition: LiquidityAddition;
   execution: ExchangeInstance['executeAddLiquidity']['arguments'][1];
 }> {
+  const depositQuantityInPips = assetUnitsToPips(
+    depositQuantityInAssetUnits,
+    18,
+  );
+
   await token0.approve(exchange.address, depositQuantityInAssetUnits);
-  await token1.approve(exchange.address, depositQuantityInAssetUnits);
   await exchange.depositTokenByAddress(
     token0.address,
     depositQuantityInAssetUnits,
   );
+  await token1.approve(exchange.address, depositQuantityInAssetUnits);
   await exchange.depositTokenByAddress(
     token1.address,
     depositQuantityInAssetUnits,
@@ -3297,19 +3337,17 @@ async function generateOffChainLiquidityAddition(
   };
 
   const execution = {
-    liquidity: assetUnitsWithoutFractionalPips(
-      await getLiquidityMinted(
-        exchange,
-        token0.address,
-        token1.address,
-        depositQuantityInAssetUnits,
-        depositQuantityInAssetUnits,
-      ),
+    liquidityInPips: await getOutputLiquidityInPips(
+      exchange,
+      token0.address,
+      token1.address,
+      depositQuantityInPips,
+      depositQuantityInPips,
     ),
-    amountA: depositQuantityInAssetUnits,
-    amountB: depositQuantityInAssetUnits,
-    feeAmountA: 0,
-    feeAmountB: 0,
+    grossBaseQuantityInPips: depositQuantityInPips,
+    grossQuoteQuantityInPips: depositQuantityInPips,
+    netBaseQuantityInPips: depositQuantityInPips,
+    netQuoteQuantityInPips: depositQuantityInPips,
     baseAssetAddress: token0.address,
     quoteAssetAddress: token1.address,
   };
@@ -3329,6 +3367,11 @@ async function generateOffChainLiquidityRemoval(
   removal: LiquidityRemoval;
   execution: ExchangeInstance['executeAddLiquidity']['arguments'][1];
 }> {
+  const depositQuantityInPips = assetUnitsToPips(
+    depositQuantityInAssetUnits,
+    18,
+  );
+
   if (!skipPairTokenDeposit) {
     await lpToken.approve(exchange.address, depositQuantityInAssetUnits, {
       from: ownerWallet,
@@ -3339,11 +3382,14 @@ async function generateOffChainLiquidityRemoval(
     );
   }
 
-  const [amountA, amountB] = await getReserveAssetQuantitiesOut(
+  const [
+    grossBaseQuantityInPips,
+    grossQuoteQuantityInPips,
+  ] = await getOutputAssetQuantitiesInPips(
     exchange,
     token0.address,
     token1.address,
-    depositQuantityInAssetUnits,
+    depositQuantityInPips,
   );
 
   const removal: LiquidityRemoval = {
@@ -3353,20 +3399,20 @@ async function generateOffChainLiquidityRemoval(
     assetA: token0.address,
     assetB: token1.address,
     liquidity: depositQuantityInAssetUnits,
-    amountAMin: amountA,
-    amountBMin: amountB,
+    amountAMin: pipsToAssetUnits(grossBaseQuantityInPips, 18),
+    amountBMin: pipsToAssetUnits(grossQuoteQuantityInPips, 18),
     to: ownerWallet,
     deadline: 0,
   };
 
   const execution = {
-    liquidity: depositQuantityInAssetUnits,
-    amountA: assetUnitsWithoutFractionalPips(amountA),
-    amountB: assetUnitsWithoutFractionalPips(amountB),
-    feeAmountA: 0,
-    feeAmountB: 0,
     baseAssetAddress: token0.address,
     quoteAssetAddress: token1.address,
+    liquidityInPips: assetUnitsToPips(depositQuantityInAssetUnits, 18),
+    grossBaseQuantityInPips,
+    grossQuoteQuantityInPips,
+    netBaseQuantityInPips: grossBaseQuantityInPips,
+    netQuoteQuantityInPips: grossQuoteQuantityInPips,
   };
 
   return { removal, execution };
