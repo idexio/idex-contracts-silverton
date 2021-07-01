@@ -617,7 +617,7 @@ contract(
           error = e;
         }
         expect(error).to.not.be.undefined;
-        expect(error.message).to.match(/quote fees unbalanced/i);
+        expect(error.message).to.match(/input fees unbalanced/i);
       });
 
       it('should revert when net base plus taker fee not equal to gross', async () => {
@@ -659,7 +659,7 @@ contract(
           error = e;
         }
         expect(error).to.not.be.undefined;
-        expect(error.message).to.match(/base fees unbalanced/i);
+        expect(error.message).to.match(/output fees unbalanced/i);
       });
 
       it('should revert when order signature invalid', async () => {

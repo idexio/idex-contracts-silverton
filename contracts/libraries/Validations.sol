@@ -271,7 +271,19 @@ library Validations {
           poolTrade.takerPoolFeeQuantityInPips +
           poolTrade.takerProtocolFeeQuantityInPips ==
           poolTrade.grossQuoteQuantityInPips,
-        'Pool quote fees unbalanced'
+        'Pool input fees unbalanced'
+      );
+      // Net output plus fees will be less than gross for non-zero input fees since the pool output
+      // is decreased commensurately to satisfy the constant product price formula
+      require(
+        poolTrade.netBaseQuantityInPips + poolTrade.takerGasFeeQuantityInPips <=
+          poolTrade.grossBaseQuantityInPips,
+        'Pool output fees unbalanced'
+      );
+      // Price correction only allowed for hybrid trades with a taker sell
+      require(
+        poolTrade.takerPriceCorrectionFeeQuantityInPips == 0,
+        'Price correction not allowed'
       );
     } else {
       // Sell order sends base as pool input, receives quote as pool output
@@ -280,7 +292,16 @@ library Validations {
           poolTrade.takerPoolFeeQuantityInPips +
           poolTrade.takerProtocolFeeQuantityInPips ==
           poolTrade.grossBaseQuantityInPips,
-        'Pool base fees unbalanced'
+        'Pool input fees unbalanced'
+      );
+      // Net output plus fees will be less than gross for non-zero input fees since the pool output
+      // is decreased commensurately to satisfy the constant product price formula
+      require(
+        poolTrade.netQuoteQuantityInPips +
+          poolTrade.takerGasFeeQuantityInPips +
+          poolTrade.takerPriceCorrectionFeeQuantityInPips <=
+          poolTrade.grossQuoteQuantityInPips,
+        'Pool output fees unbalanced'
       );
     }
   }
