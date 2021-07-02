@@ -196,6 +196,8 @@ interface ILiquidityProviderToken is IERC20 {
     uint256 quoteAssetQuantityInAssetUnits,
     address to
   ) external;
+
+  function reverseAssets() external;
 }
 
 interface IWETH9 is IERC20 {

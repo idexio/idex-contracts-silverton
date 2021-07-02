@@ -54,54 +54,14 @@ library LiquidityPoolRegistry {
     address baseAssetAddress,
     address quoteAssetAddress,
     AssetRegistry.Storage storage assetRegistry
-  ) public returns (address liquidityProviderToken) {
+  ) public {
     {
-      {
-        // Create an LP token contract tied to this market
-        bytes memory bytecode = type(LiquidityProviderToken).creationCode;
-        bytes32 salt =
-          keccak256(abi.encodePacked(baseAssetAddress, quoteAssetAddress));
-        assembly {
-          liquidityProviderToken := create2(
-            0,
-            add(bytecode, 32),
-            mload(bytecode),
-            salt
-          )
-        }
-        ILiquidityProviderToken(liquidityProviderToken).initialize(
-          baseAssetAddress,
-          quoteAssetAddress
-        );
-      }
-
-      {
-        // Create internally tracked pool
-        LiquidityPool storage pool =
-          self.poolsByAddresses[baseAssetAddress][quoteAssetAddress];
-        // The above CREATE2 will fail if called with a duplicate base-quote pair, so no need to
-        // verify here that the pool does not already exists
-        pool.exists = true;
-        pool.liquidityProviderToken = ILiquidityProviderToken(
-          liquidityProviderToken
-        );
-
-        // Store asset decimals to avoid redundant asset registry lookups
-        Asset memory asset;
-        asset = assetRegistry.loadAssetByAddress(baseAssetAddress);
-        pool.baseAssetDecimals = asset.decimals;
-        asset = assetRegistry.loadAssetByAddress(quoteAssetAddress);
-        pool.quoteAssetDecimals = asset.decimals;
-      }
-
-      // Store LP token address in both pair directions to allow association with unordered asset
-      // pairs during on-chain initiated liquidity additions and removals
-      self.liquidityProviderTokensByAddress[baseAssetAddress][
-        quoteAssetAddress
-      ] = ILiquidityProviderToken(liquidityProviderToken);
-      self.liquidityProviderTokensByAddress[quoteAssetAddress][
-        baseAssetAddress
-      ] = ILiquidityProviderToken(liquidityProviderToken);
+      createLiquidityPoolByAssetAddresses(
+        self,
+        baseAssetAddress,
+        quoteAssetAddress,
+        assetRegistry
+      );
     }
   }
 
@@ -130,27 +90,22 @@ library LiquidityPoolRegistry {
         loadOrCreateLiquidityPoolByAssetAddresses(
           self,
           baseAssetAddress,
-          quoteAssetAddress
+          quoteAssetAddress,
+          assetRegistry
         );
       liquidityProviderToken = address(pool.liquidityProviderToken);
 
       {
         // Convert transferred reserve amounts to pips and store
-        Asset memory asset;
-        asset = assetRegistry.loadAssetByAddress(baseAssetAddress);
-        // Store asset decimals to avoid redundant asset registry lookups
-        pool.baseAssetDecimals = asset.decimals;
         pool.baseAssetReserveInPips += AssetUnitConversions.assetUnitsToPips(
           baseAssetQuantityInAssetUnits,
-          asset.decimals
+          pool.baseAssetDecimals
         );
         require(pool.baseAssetReserveInPips > 0, 'Insufficient base quantity');
 
-        asset = assetRegistry.loadAssetByAddress(quoteAssetAddress);
-        pool.quoteAssetDecimals = asset.decimals;
         pool.quoteAssetReserveInPips += AssetUnitConversions.assetUnitsToPips(
           quoteAssetQuantityInAssetUnits,
-          asset.decimals
+          pool.quoteAssetDecimals
         );
         require(
           pool.quoteAssetReserveInPips > 0,
@@ -175,6 +130,24 @@ library LiquidityPoolRegistry {
         to
       );
     }
+  }
+
+  function reverseLiquidityPoolAssets(
+    Storage storage self,
+    address baseAssetAddress,
+    address quoteAssetAddress
+  ) public {
+    LiquidityPool memory pool =
+      loadLiquidityPoolByAssetAddresses(
+        self,
+        baseAssetAddress,
+        quoteAssetAddress
+      );
+
+    delete self.poolsByAddresses[baseAssetAddress][quoteAssetAddress];
+    self.poolsByAddresses[quoteAssetAddress][baseAssetAddress] = pool;
+
+    pool.liquidityProviderToken.reverseAssets();
   }
 
   // Add liquidity //
@@ -576,43 +549,77 @@ library LiquidityPoolRegistry {
   function loadOrCreateLiquidityPoolByAssetAddresses(
     Storage storage self,
     address baseAssetAddress,
-    address quoteAssetAddress
+    address quoteAssetAddress,
+    AssetRegistry.Storage storage assetRegistry
   ) private returns (LiquidityPool storage pool) {
     pool = self.poolsByAddresses[baseAssetAddress][quoteAssetAddress];
 
     if (!pool.exists) {
-      // Create an LP token contract tied to this market
-      address liquidityProviderToken;
-      bytes memory bytecode = type(LiquidityProviderToken).creationCode;
-      bytes32 salt =
-        keccak256(abi.encodePacked(baseAssetAddress, quoteAssetAddress));
-      assembly {
-        liquidityProviderToken := create2(
-          0,
-          add(bytecode, 32),
-          mload(bytecode),
-          salt
-        )
-      }
-      ILiquidityProviderToken(liquidityProviderToken).initialize(
+      pool = createLiquidityPoolByAssetAddresses(
+        self,
         baseAssetAddress,
-        quoteAssetAddress
+        quoteAssetAddress,
+        assetRegistry
       );
-
-      pool.exists = true;
-      pool.liquidityProviderToken = ILiquidityProviderToken(
-        liquidityProviderToken
-      );
-
-      // Store LP token address in both pair directions to allow association with unordered asset
-      // pairs during on-chain initiated liquidity additions and removals
-      self.liquidityProviderTokensByAddress[baseAssetAddress][
-        quoteAssetAddress
-      ] = ILiquidityProviderToken(liquidityProviderToken);
-      self.liquidityProviderTokensByAddress[quoteAssetAddress][
-        baseAssetAddress
-      ] = ILiquidityProviderToken(liquidityProviderToken);
     }
+  }
+
+  function createLiquidityPoolByAssetAddresses(
+    Storage storage self,
+    address baseAssetAddress,
+    address quoteAssetAddress,
+    AssetRegistry.Storage storage assetRegistry
+  ) private returns (LiquidityPool storage pool) {
+    // Use bidirectional mapping to require uniqueness of pools by asset pair regardless of
+    // base-quote positions
+    require(
+      address(
+        self.liquidityProviderTokensByAddress[baseAssetAddress][
+          quoteAssetAddress
+        ]
+      ) == address(0x0),
+      'Pool already exists'
+    );
+
+    // Create an LP token contract tied to this market
+    address liquidityProviderToken;
+    bytes memory bytecode = type(LiquidityProviderToken).creationCode;
+    bytes32 salt =
+      keccak256(abi.encodePacked(baseAssetAddress, quoteAssetAddress));
+    assembly {
+      liquidityProviderToken := create2(
+        0,
+        add(bytecode, 32),
+        mload(bytecode),
+        salt
+      )
+    }
+    ILiquidityProviderToken(liquidityProviderToken).initialize(
+      baseAssetAddress,
+      quoteAssetAddress
+    );
+
+    // Store LP token address in both pair directions to allow association with unordered asset
+    // pairs during on-chain initiated liquidity additions and removals
+    self.liquidityProviderTokensByAddress[baseAssetAddress][
+      quoteAssetAddress
+    ] = ILiquidityProviderToken(liquidityProviderToken);
+    self.liquidityProviderTokensByAddress[quoteAssetAddress][
+      baseAssetAddress
+    ] = ILiquidityProviderToken(liquidityProviderToken);
+
+    // Create internally-tracked liquidity pool
+    pool = self.poolsByAddresses[baseAssetAddress][quoteAssetAddress];
+    pool.exists = true;
+    pool.liquidityProviderToken = ILiquidityProviderToken(
+      liquidityProviderToken
+    );
+    // Store asset decimals to avoid redundant asset registry lookups
+    Asset memory asset;
+    asset = assetRegistry.loadAssetByAddress(baseAssetAddress);
+    pool.baseAssetDecimals = asset.decimals;
+    asset = assetRegistry.loadAssetByAddress(quoteAssetAddress);
+    pool.quoteAssetDecimals = asset.decimals;
   }
 
   function loadLiquidityPoolByAssetAddresses(

@@ -17,7 +17,9 @@ import { ICustodian, IExchange, IERC20 } from './libraries/Interfaces.sol';
  * see https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/token/ERC20/ERC20.sol
  */
 contract LiquidityProviderToken is ERC20 {
+  // Used to whitelist Exchange-only functions by loading address of current Exchange from Custodian
   ICustodian public custodian;
+  // Base and quote asset addresses provided only for informational purposes
   address public baseAssetAddress;
   address public quoteAssetAddress;
 
@@ -97,6 +99,13 @@ contract LiquidityProviderToken is ERC20 {
       wallet,
       baseAssetQuantityInAssetUnits,
       quoteAssetQuantityInAssetUnits
+    );
+  }
+
+  function reverseAssets() external onlyExchange {
+    (baseAssetAddress, quoteAssetAddress) = (
+      quoteAssetAddress,
+      baseAssetAddress
     );
   }
 }

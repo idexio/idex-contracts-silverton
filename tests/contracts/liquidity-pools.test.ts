@@ -212,7 +212,39 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/revert/i);
+      expect(error.message).to.match(/pool already exists/i);
+
+      try {
+        await exchange.createLiquidityPool(ethAddress, token.address);
+      } catch (e) {
+        error = e;
+      }
+      expect(error).to.not.be.undefined;
+      expect(error.message).to.match(/pool already exists/i);
+    });
+  });
+
+  describe('reverseLiquidityPoolAssets', () => {
+    it('should work', async () => {
+      const { exchange } = await deployAndAssociateContracts();
+      const token = await deployAndRegisterToken(exchange, token0Symbol);
+
+      await exchange.createLiquidityPool(token.address, ethAddress);
+      await exchange.reverseLiquidityPoolAssets(token.address, ethAddress);
+
+      const pool = await exchange.loadLiquidityPoolByAssetAddresses(
+        ethAddress,
+        token.address,
+      );
+
+      const LiquidityProviderToken = artifacts.require(
+        'LiquidityProviderToken',
+      );
+      const lpToken = await LiquidityProviderToken.at(
+        pool.liquidityProviderToken,
+      );
+      expect(await lpToken.baseAssetAddress()).to.equal(ethAddress);
+      expect(await lpToken.quoteAssetAddress()).to.equal(token.address);
     });
   });
 

@@ -830,6 +830,17 @@ contract Exchange is IExchange, Owned {
 
   // Liquidity pools //
 
+  function createLiquidityPool(
+    address baseAssetAddress,
+    address quoteAssetAddress
+  ) external onlyAdmin {
+    _liquidityPoolRegistry.createLiquidityPool(
+      baseAssetAddress,
+      quoteAssetAddress,
+      _assetRegistry
+    );
+  }
+
   function migrateLiquidityPool(
     address token0,
     address token1,
@@ -850,16 +861,14 @@ contract Exchange is IExchange, Owned {
       );
   }
 
-  function createLiquidityPool(
+  function reverseLiquidityPoolAssets(
     address baseAssetAddress,
     address quoteAssetAddress
-  ) external onlyAdmin returns (address liquidityProviderToken) {
-    return
-      _liquidityPoolRegistry.createLiquidityPool(
-        baseAssetAddress,
-        quoteAssetAddress,
-        _assetRegistry
-      );
+  ) external onlyAdmin {
+    _liquidityPoolRegistry.reverseLiquidityPoolAssets(
+      baseAssetAddress,
+      quoteAssetAddress
+    );
   }
 
   /**
