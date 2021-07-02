@@ -383,13 +383,13 @@ library Validations {
 
     outputBaseAssetQuantityInPips = getOutputQuantityInPips(
       liquidityToBurnInPips,
-      pool.baseAssetReserveInPips,
-      totalLiquidityInPips
+      totalLiquidityInPips,
+      pool.baseAssetReserveInPips
     );
     outputQuoteAssetQuantityInPips = getOutputQuantityInPips(
       liquidityToBurnInPips,
-      pool.quoteAssetReserveInPips,
-      totalLiquidityInPips
+      totalLiquidityInPips,
+      pool.quoteAssetReserveInPips
     );
   }
 
@@ -425,12 +425,12 @@ library Validations {
 
   function getOutputQuantityInPips(
     uint64 inputQuantityInPips,
-    uint64 reserveQuantityInPips,
-    uint64 totalLiquidityInPips
+    uint64 totalInputReserveInPips,
+    uint64 totalOutputReserveInPips
   ) private pure returns (uint64) {
     uint256 outputLiquidityInPips =
-      (uint256(inputQuantityInPips) * totalLiquidityInPips) /
-        reserveQuantityInPips;
+      (uint256(inputQuantityInPips) * totalOutputReserveInPips) /
+        totalInputReserveInPips;
     require(outputLiquidityInPips < 2**64, 'Pip quantity overflows uint64');
 
     return uint64(outputLiquidityInPips);

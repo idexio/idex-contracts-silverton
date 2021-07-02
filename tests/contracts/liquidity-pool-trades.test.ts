@@ -8,6 +8,7 @@ import {
   getHybridTradeArguments,
   getOrderHash,
   getPoolTradeArguments,
+  nativeAssetSymbol,
   Order,
   OrderSide,
   OrderType,
@@ -20,10 +21,10 @@ import {
 } from '../../types/truffle-contracts';
 
 import { deployContractsAndCreateHybridETHPool } from './liquidity-pools.test';
-import { ethSymbol, getSignature } from './helpers';
+import { getSignature } from './helpers';
 
 const token0Symbol = 'DIL';
-const ethMarketSymbol = `${token0Symbol}-${ethSymbol}`;
+const ethMarketSymbol = `${token0Symbol}-${nativeAssetSymbol}`;
 
 contract(
   'Exchange (liquidity pools)',

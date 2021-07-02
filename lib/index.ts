@@ -9,6 +9,8 @@ import * as contracts from './contracts';
 
 export { contracts };
 
+export const nativeAssetSymbol = 'BNB';
+
 /** The fixed number of digits following the decimal in quantities expressed as pips */
 export const pipsDecimals = 8;
 

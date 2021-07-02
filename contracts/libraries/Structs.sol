@@ -181,7 +181,7 @@ struct OrderBookTrade {
 
 /**
  * @notice Argument type for `Exchange.executePoolTrade` specifying execution parameters for an
- * order againsst pool liquidity
+ * order against pool liquidity
  */
 struct PoolTrade {
   // Base asset symbol

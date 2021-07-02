@@ -3,9 +3,8 @@ import {
   deployAndAssociateContracts,
   deployAndRegisterToken,
   minimumTokenQuantity,
-  ethSymbol,
 } from './helpers';
-import { assetUnitsToPips, ethAddress } from '../../lib';
+import { assetUnitsToPips, ethAddress, nativeAssetSymbol } from '../../lib';
 
 contract('Exchange (deposits)', (accounts) => {
   const BalanceMigrationSourceMock = artifacts.require(
@@ -23,6 +22,7 @@ contract('Exchange (deposits)', (accounts) => {
     const exchange = await Exchange.new(
       (await BalanceMigrationSourceMock.new()).address,
       (await WETH.new()).address,
+      nativeAssetSymbol,
       (await WETH.new()).address,
     );
 
@@ -66,7 +66,7 @@ contract('Exchange (deposits)', (accounts) => {
 
     expect(wallet).to.equal(accounts[0]);
     expect(assetAddress).to.equal(ethAddress);
-    expect(assetSymbol).to.equal(ethSymbol);
+    expect(assetSymbol).to.equal(nativeAssetSymbol);
 
     const expectedQuantity = BigNumber.from(minimumTokenQuantity)
       .mul(2)
@@ -83,12 +83,15 @@ contract('Exchange (deposits)', (accounts) => {
     ).to.equal(assetUnitsToPips(expectedQuantity, 18));
     expect(
       (
-        await exchange.loadBalanceInAssetUnitsBySymbol(accounts[0], ethSymbol)
+        await exchange.loadBalanceInAssetUnitsBySymbol(
+          accounts[0],
+          nativeAssetSymbol,
+        )
       ).toString(),
     ).to.equal(expectedQuantity);
     expect(
       (
-        await exchange.loadBalanceInPipsBySymbol(accounts[0], ethSymbol)
+        await exchange.loadBalanceInPipsBySymbol(accounts[0], nativeAssetSymbol)
       ).toString(),
     ).to.equal(assetUnitsToPips(expectedQuantity, 18));
   });
@@ -98,6 +101,7 @@ contract('Exchange (deposits)', (accounts) => {
       const exchange = await Exchange.new(
         (await BalanceMigrationSourceMock.new()).address,
         (await WETH.new()).address,
+        nativeAssetSymbol,
         (await WETH.new()).address,
       );
 
@@ -118,6 +122,7 @@ contract('Exchange (deposits)', (accounts) => {
       const exchange = await Exchange.new(
         (await BalanceMigrationSourceMock.new()).address,
         (await WETH.new()).address,
+        nativeAssetSymbol,
         (await WETH.new()).address,
       );
 
@@ -153,7 +158,7 @@ contract('Exchange (deposits)', (accounts) => {
 
       expect(wallet).to.equal(accounts[0]);
       expect(assetAddress).to.equal(ethAddress);
-      expect(assetSymbol).to.equal(ethSymbol);
+      expect(assetSymbol).to.equal(nativeAssetSymbol);
 
       expect(
         (
@@ -170,12 +175,18 @@ contract('Exchange (deposits)', (accounts) => {
       ).to.equal(assetUnitsToPips(minimumTokenQuantity, 18));
       expect(
         (
-          await exchange.loadBalanceInAssetUnitsBySymbol(accounts[0], ethSymbol)
+          await exchange.loadBalanceInAssetUnitsBySymbol(
+            accounts[0],
+            nativeAssetSymbol,
+          )
         ).toString(),
       ).to.equal(minimumTokenQuantity);
       expect(
         (
-          await exchange.loadBalanceInPipsBySymbol(accounts[0], ethSymbol)
+          await exchange.loadBalanceInPipsBySymbol(
+            accounts[0],
+            nativeAssetSymbol,
+          )
         ).toString(),
       ).to.equal(assetUnitsToPips(minimumTokenQuantity, 18));
     });
@@ -200,6 +211,7 @@ contract('Exchange (deposits)', (accounts) => {
       const exchange = await Exchange.new(
         (await BalanceMigrationSourceMock.new()).address,
         (await WETH.new()).address,
+        nativeAssetSymbol,
         (await WETH.new()).address,
       );
 

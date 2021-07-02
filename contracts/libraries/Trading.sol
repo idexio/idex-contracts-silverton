@@ -134,7 +134,15 @@ library Trading {
     }
 
     {
-      balanceTracking.updateForHybridTradeGasFee(hybridTrade, feeWallet);
+      address takerWallet =
+        hybridTrade.orderBookTrade.makerSide == OrderSide.Buy
+          ? sell.walletAddress
+          : buy.walletAddress;
+      balanceTracking.updateForHybridTradeGasFee(
+        hybridTrade,
+        takerWallet,
+        feeWallet
+      );
     }
   }
 

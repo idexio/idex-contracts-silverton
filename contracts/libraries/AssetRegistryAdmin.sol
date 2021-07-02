@@ -73,7 +73,10 @@ library AssetRegistryAdmin {
       asset.exists && asset.isConfirmed,
       'Registration of token not finalized'
     );
-    require(!AssetRegistry.isStringEqual(symbol, 'BNB'), 'BNB symbol reserved');
+    require(
+      !AssetRegistry.isStringEqual(symbol, self.nativeAssetSymbol),
+      'Symbol reserved for native asset'
+    );
 
     // This will prevent swapping assets for previously existing orders
     uint64 msInOneSecond = 1000;

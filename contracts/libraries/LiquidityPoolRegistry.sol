@@ -49,108 +49,6 @@ library LiquidityPoolRegistry {
 
   // Lifecycle //
 
-  function migrateLiquidityPool(
-    Storage storage self,
-    address token0,
-    address token1,
-    uint8 quotePosition,
-    uint256 desiredLiquidity,
-    address to,
-    ICustodian custodian,
-    IWETH9 WETH,
-    AssetRegistry.Storage storage assetRegistry
-  ) public returns (address liquidityProviderToken) {
-    {
-      // Map Pair token reserve addresses to provided market base/quote addresses
-      (
-        address baseAssetAddress,
-        address quoteAssetAddress,
-        uint256 baseAssetQuantityInAssetUnits,
-        uint256 quoteAssetQuantityInAssetUnits
-      ) =
-        transferInFundingAssets(token0, token1, quotePosition, custodian, WETH);
-
-      {
-        // Create an LP token contract tied to this market
-        bytes memory bytecode = type(LiquidityProviderToken).creationCode;
-        bytes32 salt =
-          keccak256(abi.encodePacked(baseAssetAddress, quoteAssetAddress));
-        assembly {
-          liquidityProviderToken := create2(
-            0,
-            add(bytecode, 32),
-            mload(bytecode),
-            salt
-          )
-        }
-        ILiquidityProviderToken(liquidityProviderToken).initialize(
-          baseAssetAddress,
-          quoteAssetAddress
-        );
-      }
-
-      {
-        // Create internally tracked pool
-        LiquidityPool storage pool =
-          self.poolsByAddresses[baseAssetAddress][quoteAssetAddress];
-        // The above CREATE2 will fail if called with a duplicate base-quote pair, so no need to
-        // verify here that the pool does not already exists
-        pool.exists = true;
-        pool.liquidityProviderToken = ILiquidityProviderToken(
-          liquidityProviderToken
-        );
-
-        // Convert transferred reserve amounts to pips and store
-        Asset memory asset;
-        asset = assetRegistry.loadAssetByAddress(baseAssetAddress);
-        // Store asset decimals to avoid redundant asset registry lookups
-        pool.baseAssetDecimals = asset.decimals;
-        pool.baseAssetReserveInPips = AssetUnitConversions.assetUnitsToPips(
-          baseAssetQuantityInAssetUnits,
-          asset.decimals
-        );
-        require(pool.baseAssetReserveInPips > 0, 'Insufficient base quantity');
-
-        asset = assetRegistry.loadAssetByAddress(quoteAssetAddress);
-        pool.quoteAssetDecimals = asset.decimals;
-        pool.quoteAssetReserveInPips = AssetUnitConversions.assetUnitsToPips(
-          quoteAssetQuantityInAssetUnits,
-          asset.decimals
-        );
-        require(
-          pool.quoteAssetReserveInPips > 0,
-          'Insufficient quote quantity'
-        );
-      }
-
-      // Store LP token address in both pair directions to allow association with unordered asset
-      // pairs during on-chain initiated liquidity additions and removals
-      self.liquidityProviderTokensByAddress[baseAssetAddress][
-        quoteAssetAddress
-      ] = ILiquidityProviderToken(liquidityProviderToken);
-      self.liquidityProviderTokensByAddress[quoteAssetAddress][
-        baseAssetAddress
-      ] = ILiquidityProviderToken(liquidityProviderToken);
-
-      require(
-        AssetUnitConversions.assetUnitsToPips(
-          desiredLiquidity,
-          Constants.liquidityProviderTokenDecimals
-        ) > 0,
-        'Insufficient liquidity'
-      );
-
-      // Mint desired liquidity to Farm to complete migration
-      ILiquidityProviderToken(liquidityProviderToken).mint(
-        address(this),
-        desiredLiquidity,
-        baseAssetQuantityInAssetUnits,
-        quoteAssetQuantityInAssetUnits,
-        to
-      );
-    }
-  }
-
   function createLiquidityPool(
     Storage storage self,
     address baseAssetAddress,
@@ -204,6 +102,78 @@ library LiquidityPoolRegistry {
       self.liquidityProviderTokensByAddress[quoteAssetAddress][
         baseAssetAddress
       ] = ILiquidityProviderToken(liquidityProviderToken);
+    }
+  }
+
+  function migrateLiquidityPool(
+    Storage storage self,
+    address token0,
+    address token1,
+    uint8 quotePosition,
+    uint256 desiredLiquidity,
+    address to,
+    ICustodian custodian,
+    IWETH9 WETH,
+    AssetRegistry.Storage storage assetRegistry
+  ) public returns (address liquidityProviderToken) {
+    {
+      // Map Pair token reserve addresses to provided market base/quote addresses
+      (
+        address baseAssetAddress,
+        address quoteAssetAddress,
+        uint256 baseAssetQuantityInAssetUnits,
+        uint256 quoteAssetQuantityInAssetUnits
+      ) =
+        transferInFundingAssets(token0, token1, quotePosition, custodian, WETH);
+
+      LiquidityPool storage pool =
+        loadOrCreateLiquidityPoolByAssetAddresses(
+          self,
+          baseAssetAddress,
+          quoteAssetAddress
+        );
+      liquidityProviderToken = address(pool.liquidityProviderToken);
+
+      {
+        // Convert transferred reserve amounts to pips and store
+        Asset memory asset;
+        asset = assetRegistry.loadAssetByAddress(baseAssetAddress);
+        // Store asset decimals to avoid redundant asset registry lookups
+        pool.baseAssetDecimals = asset.decimals;
+        pool.baseAssetReserveInPips += AssetUnitConversions.assetUnitsToPips(
+          baseAssetQuantityInAssetUnits,
+          asset.decimals
+        );
+        require(pool.baseAssetReserveInPips > 0, 'Insufficient base quantity');
+
+        asset = assetRegistry.loadAssetByAddress(quoteAssetAddress);
+        pool.quoteAssetDecimals = asset.decimals;
+        pool.quoteAssetReserveInPips += AssetUnitConversions.assetUnitsToPips(
+          quoteAssetQuantityInAssetUnits,
+          asset.decimals
+        );
+        require(
+          pool.quoteAssetReserveInPips > 0,
+          'Insufficient quote quantity'
+        );
+      }
+
+      require(
+        AssetUnitConversions.assetUnitsToPips(
+          desiredLiquidity,
+          Constants.liquidityProviderTokenDecimals
+        ) > 0,
+        'Insufficient liquidity'
+      );
+
+      // Mint desired liquidity to Farm to complete migration
+      ILiquidityProviderToken(liquidityProviderToken).mint(
+        address(this),
+        desiredLiquidity,
+        baseAssetQuantityInAssetUnits,
+        quoteAssetQuantityInAssetUnits,
+        to
+      );
     }
   }
 
@@ -475,7 +445,13 @@ library LiquidityPoolRegistry {
     address quoteAssetAddress,
     ICustodian custodian,
     BalanceTracking.Storage storage balanceTracking
-  ) public {
+  )
+    public
+    returns (
+      uint64 outputBaseAssetQuantityInPips,
+      uint64 outputQuoteAssetQuantityInPips
+    )
+  {
     LiquidityPool storage pool =
       loadLiquidityPoolByAssetAddresses(
         self,
@@ -491,8 +467,8 @@ library LiquidityPoolRegistry {
 
     // Calculate output asset quantities
     (
-      uint64 outputBaseAssetQuantityInPips,
-      uint64 outputQuoteAssetQuantityInPips
+      outputBaseAssetQuantityInPips,
+      outputQuoteAssetQuantityInPips
     ) = Validations.getOutputAssetQuantitiesInPips(pool, liquidityToBurnInPips);
     uint256 outputBaseAssetQuantityInAssetUnits =
       AssetUnitConversions.pipsToAssetUnits(
@@ -597,6 +573,48 @@ library LiquidityPoolRegistry {
 
   // Helpers //
 
+  function loadOrCreateLiquidityPoolByAssetAddresses(
+    Storage storage self,
+    address baseAssetAddress,
+    address quoteAssetAddress
+  ) private returns (LiquidityPool storage pool) {
+    pool = self.poolsByAddresses[baseAssetAddress][quoteAssetAddress];
+
+    if (!pool.exists) {
+      // Create an LP token contract tied to this market
+      address liquidityProviderToken;
+      bytes memory bytecode = type(LiquidityProviderToken).creationCode;
+      bytes32 salt =
+        keccak256(abi.encodePacked(baseAssetAddress, quoteAssetAddress));
+      assembly {
+        liquidityProviderToken := create2(
+          0,
+          add(bytecode, 32),
+          mload(bytecode),
+          salt
+        )
+      }
+      ILiquidityProviderToken(liquidityProviderToken).initialize(
+        baseAssetAddress,
+        quoteAssetAddress
+      );
+
+      pool.exists = true;
+      pool.liquidityProviderToken = ILiquidityProviderToken(
+        liquidityProviderToken
+      );
+
+      // Store LP token address in both pair directions to allow association with unordered asset
+      // pairs during on-chain initiated liquidity additions and removals
+      self.liquidityProviderTokensByAddress[baseAssetAddress][
+        quoteAssetAddress
+      ] = ILiquidityProviderToken(liquidityProviderToken);
+      self.liquidityProviderTokensByAddress[quoteAssetAddress][
+        baseAssetAddress
+      ] = ILiquidityProviderToken(liquidityProviderToken);
+    }
+  }
+
   function loadLiquidityPoolByAssetAddresses(
     Storage storage self,
     address baseAssetAddress,
@@ -618,25 +636,6 @@ library LiquidityPoolRegistry {
       address(liquidityProviderToken) != address(0x0),
       'No LP token for address pair'
     );
-  }
-
-  function transferTokenReserveToCustodian(
-    address token,
-    uint256 reserve,
-    ICustodian custodian,
-    IWETH9 WETH
-  ) private {
-    // Unwrap WETH
-    if (token == address(WETH)) {
-      WETH.withdraw(reserve);
-      AssetTransfers.transferTo(
-        payable(address(custodian)),
-        address(0x0),
-        reserve
-      );
-    } else {
-      AssetTransfers.transferTo(payable(address(custodian)), token, reserve);
-    }
   }
 
   function transferInFundingAssets(
@@ -668,5 +667,24 @@ library LiquidityPoolRegistry {
       quotePosition == 0
         ? (unwrappedToken1, unwrappedToken0, reserve1, reserve0)
         : (unwrappedToken0, unwrappedToken1, reserve0, reserve1);
+  }
+
+  function transferTokenReserveToCustodian(
+    address token,
+    uint256 reserve,
+    ICustodian custodian,
+    IWETH9 WETH
+  ) private {
+    // Unwrap WETH
+    if (token == address(WETH)) {
+      WETH.withdraw(reserve);
+      AssetTransfers.transferTo(
+        payable(address(custodian)),
+        address(0x0),
+        reserve
+      );
+    } else {
+      AssetTransfers.transferTo(payable(address(custodian)), token, reserve);
+    }
   }
 }

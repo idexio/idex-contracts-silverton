@@ -1,11 +1,7 @@
 import BigNumber from 'bignumber.js';
 
-import {
-  deployAndAssociateContracts,
-  deployAndRegisterToken,
-  ethSymbol,
-} from './helpers';
-import { ethAddress } from '../../lib';
+import { deployAndAssociateContracts, deployAndRegisterToken } from './helpers';
+import { ethAddress, nativeAssetSymbol } from '../../lib';
 import { AssetsMockInstance } from '../../types/truffle-contracts';
 
 contract('Exchange (tokens)', () => {
@@ -223,7 +219,7 @@ contract('Exchange (tokens)', () => {
 
       let error;
       try {
-        await exchange.addTokenSymbol(token.address, ethSymbol);
+        await exchange.addTokenSymbol(token.address, nativeAssetSymbol);
       } catch (e) {
         error = e;
       }
@@ -254,7 +250,10 @@ contract('Exchange (tokens)', () => {
       const { exchange } = await deployAndAssociateContracts();
 
       const registeredAddress = (
-        await exchange.loadAssetBySymbol(ethSymbol, new Date().getTime())
+        await exchange.loadAssetBySymbol(
+          nativeAssetSymbol,
+          new Date().getTime(),
+        )
       ).assetAddress;
 
       expect(registeredAddress).to.equal(ethAddress);

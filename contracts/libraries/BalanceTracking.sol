@@ -155,20 +155,23 @@ library BalanceTracking {
   function updateForHybridTradeGasFee(
     Storage storage self,
     HybridTrade memory hybridTrade,
+    address takerWallet,
     address feeWallet
   ) internal {
     Balance storage balance;
-    // Fee wallet receives gas fee from asset credited to order wallet
     balance = loadBalanceAndMigrateIfNeeded(
       self,
       feeWallet,
-      hybridTrade.poolTrade.orderCreditAssetAddress(
-        hybridTrade.orderBookTrade.makerSide == OrderSide.Buy
-          ? OrderSide.Sell
-          : OrderSide.Buy
-      )
+      hybridTrade.orderBookTrade.takerFeeAssetAddress
     );
     balance.balanceInPips += hybridTrade.takerGasFeeQuantityInPips;
+
+    balance = loadBalanceAndMigrateIfNeeded(
+      self,
+      takerWallet,
+      hybridTrade.orderBookTrade.takerFeeAssetAddress
+    );
+    balance.balanceInPips -= hybridTrade.takerGasFeeQuantityInPips;
 
     // Liquidity pool reserves are updated in LiquidityPoolRegistry
   }

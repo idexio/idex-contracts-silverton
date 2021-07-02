@@ -9,7 +9,6 @@ import type {
 import {
   deployAndAssociateContracts,
   deployAndRegisterToken,
-  ethSymbol,
   getSignature,
 } from './helpers';
 import {
@@ -21,12 +20,13 @@ import {
   Order,
   OrderSide,
   OrderType,
+  nativeAssetSymbol,
   Trade,
   uuidToHexString,
 } from '../../lib';
 
 const tokenSymbol = 'TKN';
-const marketSymbol = `${tokenSymbol}-${ethSymbol}`;
+const marketSymbol = `${tokenSymbol}-${nativeAssetSymbol}`;
 
 contract('Exchange (trades)', (accounts) => {
   const Token = artifacts.require('TestToken');
@@ -65,7 +65,7 @@ contract('Exchange (trades)', (accounts) => {
       expect(loggedSellWallet).to.equal(sellWallet);
 
       expect(baseAssetSymbol).to.equal(tokenSymbol);
-      expect(quoteAssetSymbol).to.equal(ethSymbol);
+      expect(quoteAssetSymbol).to.equal(nativeAssetSymbol);
 
       expect(
         (
@@ -362,7 +362,7 @@ contract('Exchange (trades)', (accounts) => {
       expect(loggedSellWallet).to.equal(sellWallet);
 
       expect(baseAssetSymbol).to.equal(tokenSymbol);
-      expect(quoteAssetSymbol).to.equal(ethSymbol);
+      expect(quoteAssetSymbol).to.equal(nativeAssetSymbol);
 
       expect(
         (
@@ -1390,8 +1390,8 @@ contract('Exchange (trades)', (accounts) => {
         buyWallet,
         sellWallet,
       );
-      buyOrder.market = `${ethSymbol}-${ethSymbol}`;
-      sellOrder.market = `${ethSymbol}-${ethSymbol}`;
+      buyOrder.market = `${nativeAssetSymbol}-${nativeAssetSymbol}`;
+      sellOrder.market = `${nativeAssetSymbol}-${nativeAssetSymbol}`;
       fill.baseAssetAddress = ethAddress;
 
       let error;

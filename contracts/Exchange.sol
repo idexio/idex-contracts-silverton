@@ -3,7 +3,6 @@
 pragma solidity 0.8.4;
 
 import { Address } from '@openzeppelin/contracts/utils/Address.sol';
-import { ECDSA } from '@openzeppelin/contracts/utils/cryptography/ECDSA.sol';
 
 import { AssetRegistry } from './libraries/AssetRegistry.sol';
 import { AssetRegistryAdmin } from './libraries/AssetRegistryAdmin.sol';
@@ -117,6 +116,10 @@ contract Exchange is IExchange, Owned {
     address to
   );
   /**
+   * @notice Emitted when an admin changes the Migrator tunable parameter with `setMigrator`
+   */
+  event MigratorChanged(address previousValue, address newValue);
+  /**
    * @notice Emitted when a user invalidates an order nonce with `invalidateOrderNonce`
    */
   event OrderNonceInvalidated(
@@ -175,7 +178,19 @@ contract Exchange is IExchange, Owned {
    */
   event WalletExited(address wallet, uint256 effectiveBlockNumber);
   /**
-   * @notice Emitted when a user withdraws an asset balance through the Exit Wallet mechanism with `withdrawExit`
+   * @notice Emitted when a user withdraws liquidity reserve assets through the Exit Wallet
+   * mechanism with `removeLiquidityExit`
+   */
+  event WalletExitLiquidityRemoved(
+    address wallet,
+    address baseAssetAddress,
+    address quoteAssetAddress,
+    uint64 outputBaseAssetQuantityInPips,
+    uint64 outputQuoteAssetQuantityInPips
+  );
+  /**
+   * @notice Emitted when a user withdraws an asset balance through the Exit Wallet mechanism with
+   * `withdrawExit`
    */
   event WalletExitWithdrawn(
     address wallet,
@@ -234,7 +249,7 @@ contract Exchange is IExchange, Owned {
   // Liquidity pools
   address _migrator;
   LiquidityPoolRegistry.Storage _liquidityPoolRegistry;
-  IWETH9 public immutable _WETH;
+  IWETH9 immutable _WETH;
   // Withdrawals - mapping of withdrawal wallet hash => isComplete
   mapping(bytes32 => bool) _completedWithdrawalHashes;
   // Tunable parameters
@@ -249,6 +264,7 @@ contract Exchange is IExchange, Owned {
   constructor(
     IExchange balanceMigrationSource,
     address feeWallet,
+    string memory nativeAssetSymbol,
     IWETH9 WETH
   ) Owned() {
     require(
@@ -260,8 +276,13 @@ contract Exchange is IExchange, Owned {
 
     setFeeWallet(feeWallet);
 
+    _assetRegistry.nativeAssetSymbol = nativeAssetSymbol;
+
     require(Address.isContract(address(WETH)), 'Invalid WETH address');
     _WETH = WETH;
+
+    // Deposits must be manually enabled via `setDepositIndex`
+    _depositIndex = Constants.depositIndexNotSet;
   }
 
   /**
@@ -296,8 +317,11 @@ contract Exchange is IExchange, Owned {
    * @param newDepositIndex The value of `_depositIndex` currently set on the old Exchange contract
    */
   function setDepositIndex(uint64 newDepositIndex) external onlyAdmin {
-    require(_depositIndex == 0, 'Can only be set once');
-    require(newDepositIndex > 0, 'Must be nonzero');
+    require(
+      _depositIndex == Constants.depositIndexNotSet,
+      'Can only be set once'
+    );
+    require(newDepositIndex != _depositIndex, 'Must be different from current');
 
     _depositIndex = newDepositIndex;
   }
@@ -348,12 +372,18 @@ contract Exchange is IExchange, Owned {
   }
 
   /**
-   * @notice TODO Sets the address of the `Migrator` contract
+   * @notice Sets the address of the `Migrator` contract
+   *
+   * @param newMigrator The new Migrator contract. Must be different from the current one
    */
   function setMigrator(address newMigrator) external onlyAdmin {
     require(Address.isContract(address(newMigrator)), 'Invalid address');
+    require(newMigrator != _migrator, 'Must be different from current');
 
+    address oldMigrator = _migrator;
     _migrator = newMigrator;
+
+    emit MigratorChanged(oldMigrator, newMigrator);
   }
 
   // Accessors //
@@ -487,6 +517,15 @@ contract Exchange is IExchange, Owned {
   }
 
   /**
+   * @notice Load the address of the Migrator contract
+   *
+   * @return The address of the Migrator contract
+   */
+  function loadMigrator() external view returns (address) {
+    return _migrator;
+  }
+
+  /**
    * @notice Load the address of the `WETH` contract associated with the Exchange
    *
    * @return The address of the `WETH` contract
@@ -534,7 +573,7 @@ contract Exchange is IExchange, Owned {
    */
   function depositEther() external payable {
     deposit(
-      address(msg.sender),
+      msg.sender,
       _assetRegistry.loadAssetByAddress(address(0x0)),
       msg.value
     );
@@ -583,7 +622,7 @@ contract Exchange is IExchange, Owned {
     uint256 quantityInAssetUnits
   ) private {
     // Deposits are disabled until `setDepositIndex` is called successfully
-    require(_depositIndex > 0, 'Deposits disabled');
+    require(_depositIndex != Constants.depositIndexNotSet, 'Deposits disabled');
 
     // Calling exitWallet disables deposits immediately on mining, in contrast to withdrawals and
     // trades which respect the Chain Propagation Period given by `effectiveBlockNumber` via
@@ -1090,11 +1129,23 @@ contract Exchange is IExchange, Owned {
   ) external {
     require(isWalletExitFinalized(msg.sender), 'Wallet exit not finalized');
 
-    _liquidityPoolRegistry.removeLiquidityExit(
+    (
+      uint64 outputBaseAssetQuantityInPips,
+      uint64 outputQuoteAssetQuantityInPips
+    ) =
+      _liquidityPoolRegistry.removeLiquidityExit(
+        baseAssetAddress,
+        quoteAssetAddress,
+        ICustodian(_custodian),
+        _balanceTracking
+      );
+
+    emit WalletExitLiquidityRemoved(
+      msg.sender,
       baseAssetAddress,
       quoteAssetAddress,
-      ICustodian(_custodian),
-      _balanceTracking
+      outputBaseAssetQuantityInPips,
+      outputQuoteAssetQuantityInPips
     );
   }
 
