@@ -1,4 +1,6 @@
-import { deployAndAssociateContracts, ethSymbol } from './helpers';
+import { MigratorInstance } from '../../types/truffle-contracts';
+import { deployAndAssociateContracts } from './helpers';
+import { nativeAssetSymbol } from '../../lib';
 
 contract('Exchange (tunable parameters)', (accounts) => {
   const BalanceMigrationSourceMock = artifacts.require(
@@ -15,6 +17,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
       await Exchange.new(
         (await BalanceMigrationSourceMock.new()).address,
         (await WETH.new()).address,
+        nativeAssetSymbol,
         (await WETH.new()).address,
       );
     });
@@ -25,6 +28,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
         await Exchange.new(
           accounts[1],
           (await WETH.new()).address,
+          nativeAssetSymbol,
           (await WETH.new()).address,
         );
       } catch (e) {
@@ -41,6 +45,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
         await Exchange.new(
           (await BalanceMigrationSourceMock.new()).address,
           (await WETH.new()).address,
+          nativeAssetSymbol,
           ethAddress,
         );
       } catch (e) {
@@ -56,6 +61,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
     const exchange = await Exchange.new(
       (await BalanceMigrationSourceMock.new()).address,
       (await WETH.new()).address,
+      nativeAssetSymbol,
       (await WETH.new()).address,
     );
 
@@ -112,7 +118,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
 
       let error;
       try {
-        await exchange.loadBalanceInPipsBySymbol(ethAddress, ethSymbol);
+        await exchange.loadBalanceInPipsBySymbol(ethAddress, nativeAssetSymbol);
       } catch (e) {
         error = e;
       }
@@ -128,7 +134,10 @@ contract('Exchange (tunable parameters)', (accounts) => {
 
       let error;
       try {
-        await exchange.loadBalanceInAssetUnitsBySymbol(ethAddress, ethSymbol);
+        await exchange.loadBalanceInAssetUnitsBySymbol(
+          ethAddress,
+          nativeAssetSymbol,
+        );
       } catch (e) {
         error = e;
       }
@@ -163,6 +172,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
       const exchange = await Exchange.new(
         (await BalanceMigrationSourceMock.new()).address,
         address,
+        nativeAssetSymbol,
         address,
       );
 
@@ -202,6 +212,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
       const exchange = await Exchange.new(
         (await BalanceMigrationSourceMock.new()).address,
         (await WETH.new()).address,
+        nativeAssetSymbol,
         (await WETH.new()).address,
       );
 
@@ -212,6 +223,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
       const exchange = await Exchange.new(
         (await BalanceMigrationSourceMock.new()).address,
         (await WETH.new()).address,
+        nativeAssetSymbol,
         (await WETH.new()).address,
       );
 
@@ -244,6 +256,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
       const exchange = await Exchange.new(
         (await BalanceMigrationSourceMock.new()).address,
         (await WETH.new()).address,
+        nativeAssetSymbol,
         (await WETH.new()).address,
       );
 
@@ -276,6 +289,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
       const exchange = await Exchange.new(
         (await BalanceMigrationSourceMock.new()).address,
         (await WETH.new()).address,
+        nativeAssetSymbol,
         (await WETH.new()).address,
       );
 
@@ -350,6 +364,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
       const exchange = await Exchange.new(
         (await BalanceMigrationSourceMock.new()).address,
         (await WETH.new()).address,
+        nativeAssetSymbol,
         (await WETH.new()).address,
       );
 
@@ -414,6 +429,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
       const exchange = await Exchange.new(
         (await BalanceMigrationSourceMock.new()).address,
         (await WETH.new()).address,
+        nativeAssetSymbol,
         (await WETH.new()).address,
       );
 
@@ -435,6 +451,54 @@ contract('Exchange (tunable parameters)', (accounts) => {
       let error;
       try {
         await exchange.setFeeWallet(accounts[1]);
+      } catch (e) {
+        error = e;
+      }
+      expect(error).to.not.be.undefined;
+      expect(error.message).to.match(/must be different/i);
+    });
+  });
+
+  describe('setMigrator', () => {
+    let migrator: MigratorInstance;
+
+    beforeEach(async () => {
+      const Migrator = artifacts.require('Migrator');
+      migrator = await Migrator.new(ethAddress, ethAddress, ethAddress, 0);
+    });
+
+    it('should work for valid address', async () => {
+      const { exchange } = await deployAndAssociateContracts();
+
+      await exchange.setMigrator(migrator.address);
+    });
+
+    it('should revert for invalid address', async () => {
+      const exchange = await Exchange.new(
+        (await BalanceMigrationSourceMock.new()).address,
+        (await WETH.new()).address,
+        nativeAssetSymbol,
+        (await WETH.new()).address,
+      );
+
+      let error;
+      try {
+        await exchange.setMigrator(ethAddress);
+      } catch (e) {
+        error = e;
+      }
+
+      expect(error).to.not.be.undefined;
+      expect(error.message).to.match(/invalid address/i);
+    });
+
+    it('should revert for setting same address as current', async () => {
+      const { exchange } = await deployAndAssociateContracts();
+      await exchange.setMigrator(migrator.address);
+
+      let error;
+      try {
+        await exchange.setMigrator(migrator.address);
       } catch (e) {
         error = e;
       }

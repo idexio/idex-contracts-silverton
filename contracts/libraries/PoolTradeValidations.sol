@@ -111,6 +111,11 @@ library PoolTradeValidations {
       ) <= Constants.maxTradeFeeBasisPoints,
       'Excessive quote fee'
     );
+    // Price correction only allowed for hybrid trades with a taker sell
+    require(
+      poolTrade.takerPriceCorrectionFeeQuantityInPips == 0,
+      'Price correction not allowed'
+    );
 
     Validations.validatePoolTradeFees(orderSide, poolTrade);
   }

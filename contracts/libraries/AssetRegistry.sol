@@ -16,6 +16,8 @@ library AssetRegistry {
     // Mapping value is array since the same symbol can be re-used for a different address
     // (usually as a result of a token swap or upgrade)
     mapping(string => Asset[]) assetsBySymbol;
+    // Blockchain-specific native asset symbol
+    string nativeAssetSymbol;
   }
 
   /**
@@ -29,7 +31,7 @@ library AssetRegistry {
     returns (Asset memory)
   {
     if (assetAddress == address(0x0)) {
-      return getEthAsset();
+      return getEthAsset(self.nativeAssetSymbol);
     }
 
     Asset memory asset = self.assetsByAddress[assetAddress];
@@ -54,8 +56,8 @@ library AssetRegistry {
     string memory symbol,
     uint64 timestampInMs
   ) internal view returns (Asset memory) {
-    if (isStringEqual('BNB', symbol)) {
-      return getEthAsset();
+    if (isStringEqual(self.nativeAssetSymbol, symbol)) {
+      return getEthAsset(self.nativeAssetSymbol);
     }
 
     Asset memory asset;
@@ -79,8 +81,12 @@ library AssetRegistry {
   /**
    * @dev ETH is modeled as an always-confirmed Asset struct for programmatic consistency
    */
-  function getEthAsset() private pure returns (Asset memory) {
-    return Asset(true, address(0x0), 'BNB', 18, true, 0);
+  function getEthAsset(string memory nativeAssetSymbol)
+    private
+    pure
+    returns (Asset memory)
+  {
+    return Asset(true, address(0x0), nativeAssetSymbol, 18, true, 0);
   }
 
   // See https://solidity.readthedocs.io/en/latest/types.html#bytes-and-strings-as-arrays

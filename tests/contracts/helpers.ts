@@ -13,9 +13,8 @@ import {
   decimalToAssetUnits,
   getWithdrawArguments,
   getWithdrawalHash,
+  nativeAssetSymbol,
 } from '../../lib';
-
-export const ethSymbol = 'BNB';
 
 // TODO Test tokens with decimals other than 18
 export const minimumDecimalQuantity = '0.00000001';
@@ -54,7 +53,12 @@ export const deployAndAssociateContracts = async (
     : BalanceMigrationSourceMock.new());
 
   const [exchange, governance] = await Promise.all([
-    Exchange.new(balanceMigrationSource.address, weth.address, weth.address), // Fee wallet is just WETH
+    Exchange.new(
+      balanceMigrationSource.address,
+      weth.address,
+      nativeAssetSymbol,
+      weth.address,
+    ), // Fee wallet is just WETH
     Governance.new(blockDelay),
   ]);
   const custodian = await Custodian.new(exchange.address, governance.address);

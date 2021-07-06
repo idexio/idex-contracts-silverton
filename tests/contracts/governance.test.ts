@@ -1,4 +1,5 @@
 import { deployAndAssociateContracts } from './helpers';
+import { nativeAssetSymbol } from '../../lib';
 
 contract('Governance', (accounts) => {
   const BalanceMigrationSourceMock = artifacts.require(
@@ -101,6 +102,7 @@ contract('Governance', (accounts) => {
       const newExchange = await Exchange.new(
         (await BalanceMigrationSourceMock.new()).address,
         (await WETH.new()).address,
+        nativeAssetSymbol,
         (await WETH.new()).address,
       );
 
@@ -167,6 +169,7 @@ contract('Governance', (accounts) => {
       const newExchange = await Exchange.new(
         (await BalanceMigrationSourceMock.new()).address,
         (await WETH.new()).address,
+        nativeAssetSymbol,
         (await WETH.new()).address,
       );
       await governance.initiateExchangeUpgrade(newExchange.address);
@@ -191,6 +194,7 @@ contract('Governance', (accounts) => {
       const newExchange = await Exchange.new(
         (await BalanceMigrationSourceMock.new()).address,
         (await WETH.new()).address,
+        nativeAssetSymbol,
         (await WETH.new()).address,
       );
 
@@ -226,6 +230,7 @@ contract('Governance', (accounts) => {
       const newExchange = await Exchange.new(
         (await BalanceMigrationSourceMock.new()).address,
         (await WETH.new()).address,
+        nativeAssetSymbol,
         (await WETH.new()).address,
       );
 
@@ -261,6 +266,7 @@ contract('Governance', (accounts) => {
       const newExchange = await Exchange.new(
         (await BalanceMigrationSourceMock.new()).address,
         (await WETH.new()).address,
+        nativeAssetSymbol,
         (await WETH.new()).address,
       );
       await governance.initiateExchangeUpgrade(newExchange.address);
@@ -281,6 +287,7 @@ contract('Governance', (accounts) => {
       const newExchange = await Exchange.new(
         (await BalanceMigrationSourceMock.new()).address,
         (await WETH.new()).address,
+        nativeAssetSymbol,
         (await WETH.new()).address,
       );
       await governance.initiateExchangeUpgrade(newExchange.address);

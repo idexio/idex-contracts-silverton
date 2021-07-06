@@ -8,6 +8,7 @@ import {
   getHybridTradeArguments,
   getOrderHash,
   getPoolTradeArguments,
+  nativeAssetSymbol,
   Order,
   OrderSide,
   OrderType,
@@ -20,10 +21,10 @@ import {
 } from '../../types/truffle-contracts';
 
 import { deployContractsAndCreateHybridETHPool } from './liquidity-pools.test';
-import { ethSymbol, getSignature } from './helpers';
+import { getSignature } from './helpers';
 
 const token0Symbol = 'DIL';
-const ethMarketSymbol = `${token0Symbol}-${ethSymbol}`;
+const ethMarketSymbol = `${token0Symbol}-${nativeAssetSymbol}`;
 
 contract(
   'Exchange (liquidity pools)',
@@ -617,7 +618,7 @@ contract(
           error = e;
         }
         expect(error).to.not.be.undefined;
-        expect(error.message).to.match(/quote fees unbalanced/i);
+        expect(error.message).to.match(/input fees unbalanced/i);
       });
 
       it('should revert when net base plus taker fee not equal to gross', async () => {
@@ -659,7 +660,7 @@ contract(
           error = e;
         }
         expect(error).to.not.be.undefined;
-        expect(error.message).to.match(/base fees unbalanced/i);
+        expect(error.message).to.match(/output fees unbalanced/i);
       });
 
       it('should revert when order signature invalid', async () => {

@@ -1,6 +1,6 @@
 import BigNumber from 'bignumber.js';
 
-import { ethAddress } from '../../lib';
+import { ethAddress, nativeAssetSymbol } from '../../lib';
 import {
   CustodianInstance,
   ExchangeInstance,
@@ -28,6 +28,7 @@ contract('Custodian', (accounts) => {
     exchange = await Exchange.new(
       (await BalanceMigrationSourceMock.new()).address,
       (await WETH.new()).address,
+      nativeAssetSymbol,
       (await WETH.new()).address,
     );
     governance = await Governance.new(10);
@@ -129,6 +130,7 @@ contract('Custodian', (accounts) => {
       const newExchange = await Exchange.new(
         (await BalanceMigrationSourceMock.new()).address,
         (await WETH.new()).address,
+        nativeAssetSymbol,
         (await WETH.new()).address,
       );
 

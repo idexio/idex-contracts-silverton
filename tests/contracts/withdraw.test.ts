@@ -1,11 +1,7 @@
 import BigNumber from 'bignumber.js';
 import { v1 as uuidv1 } from 'uuid';
 
-import type {
-  CustodianInstance,
-  ExchangeInstance,
-  GovernanceInstance,
-} from '../../types/truffle-contracts';
+import type { ExchangeInstance } from '../../types/truffle-contracts';
 
 import {
   ethAddress,
@@ -13,11 +9,11 @@ import {
   decimalToPips,
   getWithdrawArguments,
   getWithdrawalHash,
+  nativeAssetSymbol,
 } from '../../lib';
 import {
   deployAndAssociateContracts,
   deployAndRegisterToken,
-  ethSymbol,
   getSignature,
   minimumDecimalQuantity,
   minimumTokenQuantity,
@@ -49,7 +45,7 @@ contract('Exchange (withdrawals)', (accounts) => {
           wallet: accounts[0],
           quantity: minimumDecimalQuantity,
           autoDispatchEnabled: true,
-          asset: ethSymbol,
+          asset: nativeAssetSymbol,
         },
         accounts[0],
       );
@@ -58,7 +54,7 @@ contract('Exchange (withdrawals)', (accounts) => {
         exchange,
         accounts[0],
         ethAddress,
-        ethSymbol,
+        nativeAssetSymbol,
         minimumDecimalQuantity,
       );
 
@@ -102,7 +98,7 @@ contract('Exchange (withdrawals)', (accounts) => {
         exchange,
         accounts[0],
         ethAddress,
-        ethSymbol,
+        nativeAssetSymbol,
         minimumDecimalQuantity,
       );
 
@@ -359,7 +355,7 @@ contract('Exchange (withdrawals)', (accounts) => {
         wallet: accounts[0],
         quantity: minimumDecimalQuantity,
         autoDispatchEnabled: true,
-        asset: ethSymbol,
+        asset: nativeAssetSymbol,
       };
       const [withdrawalStruct] = await getWithdrawArguments(
         withdrawal,
@@ -397,7 +393,7 @@ contract('Exchange (withdrawals)', (accounts) => {
             wallet: accounts[0],
             quantity: minimumDecimalQuantity,
             autoDispatchEnabled: true,
-            asset: ethSymbol,
+            asset: nativeAssetSymbol,
           },
           accounts[0],
         );
@@ -426,7 +422,7 @@ contract('Exchange (withdrawals)', (accounts) => {
             wallet: accounts[0],
             quantity: minimumDecimalQuantity,
             autoDispatchEnabled: true,
-            asset: ethSymbol,
+            asset: nativeAssetSymbol,
           },
           accounts[0],
           minimumDecimalQuantity, // 100% fee
@@ -450,7 +446,7 @@ contract('Exchange (withdrawals)', (accounts) => {
         wallet: accounts[0],
         quantity: minimumDecimalQuantity,
         autoDispatchEnabled: true,
-        asset: ethSymbol,
+        asset: nativeAssetSymbol,
       };
       const [withdrawalStruct] = await getWithdrawArguments(
         withdrawal,
