@@ -147,6 +147,17 @@ library LiquidityPoolRegistry {
     delete self.poolsByAddresses[baseAssetAddress][quoteAssetAddress];
     self.poolsByAddresses[quoteAssetAddress][baseAssetAddress] = pool;
 
+    (
+      pool.baseAssetReserveInPips,
+      pool.baseAssetDecimals,
+      pool.quoteAssetReserveInPips,
+      pool.quoteAssetDecimals
+    ) = (
+      pool.quoteAssetReserveInPips,
+      pool.quoteAssetDecimals,
+      pool.baseAssetReserveInPips,
+      pool.baseAssetDecimals
+    );
     pool.liquidityProviderToken.reverseAssets();
   }
 
