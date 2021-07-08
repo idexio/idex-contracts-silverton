@@ -78,6 +78,14 @@ library LiquidityPools {
     IWETH9 WETH,
     AssetRegistry.Storage storage assetRegistry
   ) public returns (address liquidityProviderToken) {
+    require(
+      AssetUnitConversions.assetUnitsToPips(
+        desiredLiquidity,
+        Constants.liquidityProviderTokenDecimals
+      ) > 0,
+      'Desired liquidity too low'
+    );
+
     {
       // Map Pair token reserve addresses to provided market base/quote addresses
       (
@@ -120,14 +128,6 @@ library LiquidityPools {
           'Insufficient quote quantity'
         );
       }
-
-      require(
-        AssetUnitConversions.assetUnitsToPips(
-          desiredLiquidity,
-          Constants.liquidityProviderTokenDecimals
-        ) > 0,
-        'Insufficient liquidity'
-      );
 
       // Mint desired liquidity to Farm to complete migration
       ILiquidityProviderToken(liquidityProviderToken).mint(

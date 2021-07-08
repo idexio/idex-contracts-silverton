@@ -118,7 +118,7 @@ library LiquidityChangeExecutionValidations {
     require(
       execution.grossBaseQuantityInPips > 0 &&
         execution.grossQuoteQuantityInPips > 0,
-      'Insufficient liquidity burned'
+      'Gross quantities must be nonzero'
     );
 
     (uint256 minBaseInAssetUnits, uint256 minQuoteInAssetUnits) =

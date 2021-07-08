@@ -92,7 +92,7 @@ contract Exchange is IExchange, Owned {
    * @notice Emitted when a user initiates an Add Liquidity request via `addLiquidity` or
    * `addLiquidityETH`
    */
-  event LiquidityAdded(
+  event LiquidityAdditionInitiated(
     address wallet,
     address assetA,
     address assetB,
@@ -103,10 +103,22 @@ contract Exchange is IExchange, Owned {
     address to
   );
   /**
+   * @notice Emitted when the Dispatcher Wallet submits a liquidity addition for execution with
+   * `executeAddLiquidity`
+   */
+  event LiquidityAdditionExecuted(
+    address wallet,
+    address baseAssetAddress,
+    address quoteAssetAddress,
+    uint64 baseQuantityInPips,
+    uint64 quoteQuantityInPips,
+    uint64 liquidityInPips
+  );
+  /**
    * @notice Emitted when a user initiates a Remove Liquidity request via `removeLiquidity` or
    * `removeLiquidityETH`
    */
-  event LiquidityRemoved(
+  event LiquidityRemovalInitiated(
     address wallet,
     address assetA,
     address assetB,
@@ -114,6 +126,18 @@ contract Exchange is IExchange, Owned {
     uint256 amountAMin,
     uint256 amountBMin,
     address to
+  );
+  /**
+   * @notice Emitted when the Dispatcher Wallet submits a liquidity removal for execution with
+   * `executeRemoveLiquidity`
+   */
+  event LiquidityRemovalExecuted(
+    address wallet,
+    address baseAssetAddress,
+    address quoteAssetAddress,
+    uint64 baseQuantityInPips,
+    uint64 quoteQuantityInPips,
+    uint64 liquidityInPips
   );
   /**
    * @notice Emitted when an admin changes the Migrator tunable parameter with `setMigrator`
@@ -185,8 +209,8 @@ contract Exchange is IExchange, Owned {
     address wallet,
     address baseAssetAddress,
     address quoteAssetAddress,
-    uint64 outputBaseAssetQuantityInPips,
-    uint64 outputQuoteAssetQuantityInPips
+    uint64 baseAssetQuantityInPips,
+    uint64 quoteAssetQuantityInPips
   );
   /**
    * @notice Emitted when a user withdraws an asset balance through the Exit Wallet mechanism with
@@ -195,10 +219,7 @@ contract Exchange is IExchange, Owned {
   event WalletExitWithdrawn(
     address wallet,
     address assetAddress,
-    string assetSymbol,
-    uint64 quantityInPips,
-    uint64 newExchangeBalanceInPips,
-    uint256 newExchangeBalanceInAssetUnits
+    uint64 quantityInPips
   );
   /**
    * @notice Emitted when a user clears the exited status of a wallet previously exited with `exitWallet`
@@ -247,7 +268,7 @@ contract Exchange is IExchange, Owned {
   // Exits
   mapping(address => WalletExit) _walletExits;
   // Liquidity pools
-  address _migrator;
+  address _liquidityMigrator;
   LiquidityPools.Storage _liquidityPools;
   IWETH9 immutable _WETH;
   // Withdrawals - mapping of withdrawal wallet hash => isComplete
@@ -378,10 +399,13 @@ contract Exchange is IExchange, Owned {
    */
   function setMigrator(address newMigrator) external onlyAdmin {
     require(Address.isContract(address(newMigrator)), 'Invalid address');
-    require(newMigrator != _migrator, 'Must be different from current');
+    require(
+      newMigrator != _liquidityMigrator,
+      'Must be different from current'
+    );
 
-    address oldMigrator = _migrator;
-    _migrator = newMigrator;
+    address oldMigrator = _liquidityMigrator;
+    _liquidityMigrator = newMigrator;
 
     emit MigratorChanged(oldMigrator, newMigrator);
   }
@@ -521,8 +545,8 @@ contract Exchange is IExchange, Owned {
    *
    * @return The address of the Migrator contract
    */
-  function loadMigrator() external view returns (address) {
-    return _migrator;
+  function loadLiquidityMigrator() external view returns (address) {
+    return _liquidityMigrator;
   }
 
   /**
@@ -830,6 +854,9 @@ contract Exchange is IExchange, Owned {
 
   // Liquidity pools //
 
+  /**
+   * @notice Create a new internally tracked liquidity pool and associated LP token
+   */
   function createLiquidityPool(
     address baseAssetAddress,
     address quoteAssetAddress
@@ -840,6 +867,12 @@ contract Exchange is IExchange, Owned {
       _assetRegistry
     );
   }
+
+  /**
+   * @notice Migrate reserve assets into an internally tracked liquidity pool and mints the
+   * specified quantity of the associated LP token. If the pool and LP token do not already exist
+   * creates new ones
+   */
 
   function migrateLiquidityPool(
     address token0,
@@ -861,6 +894,9 @@ contract Exchange is IExchange, Owned {
       );
   }
 
+  /**
+   * @notice Reverse the base and quote assets in an internally tracked liquidity pool
+   */
   function reverseLiquidityPoolAssets(
     address baseAssetAddress,
     address quoteAssetAddress
@@ -921,7 +957,7 @@ contract Exchange is IExchange, Owned {
       _balanceTracking
     );
 
-    emit LiquidityAdded(
+    emit LiquidityAdditionInitiated(
       msg.sender,
       tokenA,
       tokenB,
@@ -979,7 +1015,7 @@ contract Exchange is IExchange, Owned {
       _balanceTracking
     );
 
-    emit LiquidityAdded(
+    emit LiquidityAdditionInitiated(
       msg.sender,
       token,
       address(0x0),
@@ -1004,6 +1040,15 @@ contract Exchange is IExchange, Owned {
       _feeWallet,
       address(_custodian),
       _balanceTracking
+    );
+
+    emit LiquidityAdditionExecuted(
+      addition.wallet,
+      execution.baseAssetAddress,
+      execution.quoteAssetAddress,
+      execution.grossBaseQuantityInPips,
+      execution.grossQuoteQuantityInPips,
+      execution.liquidityInPips
     );
   }
 
@@ -1051,7 +1096,7 @@ contract Exchange is IExchange, Owned {
       _balanceTracking
     );
 
-    emit LiquidityRemoved(
+    emit LiquidityRemovalInitiated(
       msg.sender,
       tokenA,
       tokenB,
@@ -1104,7 +1149,7 @@ contract Exchange is IExchange, Owned {
       _balanceTracking
     );
 
-    emit LiquidityRemoved(
+    emit LiquidityRemovalInitiated(
       msg.sender,
       token,
       address(0x0),
@@ -1129,6 +1174,15 @@ contract Exchange is IExchange, Owned {
       ICustodian(_custodian),
       _feeWallet,
       _balanceTracking
+    );
+
+    emit LiquidityRemovalExecuted(
+      removal.wallet,
+      execution.baseAssetAddress,
+      execution.quoteAssetAddress,
+      execution.grossBaseQuantityInPips,
+      execution.grossQuoteQuantityInPips,
+      execution.liquidityInPips
     );
   }
 
@@ -1187,28 +1241,17 @@ contract Exchange is IExchange, Owned {
 
     // Update wallet balance
     uint64 previousExchangeBalanceInPips =
-      _balanceTracking.updateForExit(msg.sender, assetAddress);
-
-    // Transfer asset from Custodian to wallet
-    Asset memory asset = _assetRegistry.loadAssetByAddress(assetAddress);
-    uint256 balanceInAssetUnits =
-      AssetUnitConversions.pipsToAssetUnits(
-        previousExchangeBalanceInPips,
-        asset.decimals
+      Withdrawing.withdrawExit(
+        assetAddress,
+        _custodian,
+        _assetRegistry,
+        _balanceTracking
       );
-    ICustodian(_custodian).withdraw(
-      payable(msg.sender),
-      assetAddress,
-      balanceInAssetUnits
-    );
 
     emit WalletExitWithdrawn(
       msg.sender,
       assetAddress,
-      asset.symbol,
-      previousExchangeBalanceInPips,
-      0,
-      0
+      previousExchangeBalanceInPips
     );
   }
 
@@ -1384,7 +1427,7 @@ contract Exchange is IExchange, Owned {
   // Migrator whitelisting //
 
   modifier onlyMigrator() {
-    require(msg.sender == _migrator, 'Caller is not Migrator');
+    require(msg.sender == _liquidityMigrator, 'Caller is not Migrator');
     _;
   }
 

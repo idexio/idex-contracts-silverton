@@ -91,6 +91,32 @@ library Withdrawing {
     completedWithdrawalHashes[withdrawalHash] = true;
   }
 
+  function withdrawExit(
+    address assetAddress,
+    ICustodian custodian,
+    AssetRegistry.Storage storage assetRegistry,
+    BalanceTracking.Storage storage balanceTracking
+  ) external returns (uint64 previousExchangeBalanceInPips) {
+    // Update wallet balance
+    previousExchangeBalanceInPips = balanceTracking.updateForExit(
+      msg.sender,
+      assetAddress
+    );
+
+    // Transfer asset from Custodian to wallet
+    Asset memory asset = assetRegistry.loadAssetByAddress(assetAddress);
+    uint256 balanceInAssetUnits =
+      AssetUnitConversions.pipsToAssetUnits(
+        previousExchangeBalanceInPips,
+        asset.decimals
+      );
+    ICustodian(custodian).withdraw(
+      payable(msg.sender),
+      assetAddress,
+      balanceInAssetUnits
+    );
+  }
+
   function withdrawLiquidity(
     LiquidityRemoval memory removal,
     LiquidityChangeExecution memory execution,
