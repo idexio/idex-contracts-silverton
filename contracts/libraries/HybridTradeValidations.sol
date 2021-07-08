@@ -71,11 +71,10 @@ library HybridTradeValidations {
     ) {
       // Price of pool must not be better (lower) than resting buy price
       require(
-        Validations.getImpliedQuoteQuantityInPips(
+        Validations.calculateImpliedQuoteQuantityInPips(
           baseAssetReserveInPips,
           makerOrder.limitPriceInPips
-          // Allow 1 pip buffer for integer rounding
-        ) <= quoteAssetReserveInPips + 1,
+        ) <= quoteAssetReserveInPips,
         'Pool marginal buy price exceeded'
       );
     }
@@ -86,11 +85,13 @@ library HybridTradeValidations {
     ) {
       // Price of pool must not be better (higher) than resting sell price
       require(
-        Validations.getImpliedQuoteQuantityInPips(
+        Validations.calculateImpliedQuoteQuantityInPips(
           baseAssetReserveInPips,
           makerOrder.limitPriceInPips
           // Allow 1 pip buffer for integer rounding
-        ) >= quoteAssetReserveInPips - 1,
+        ) +
+          1 >=
+          quoteAssetReserveInPips - 1,
         'Pool marginal sell price exceeded'
       );
     }
@@ -98,22 +99,22 @@ library HybridTradeValidations {
 
   function validateFees(HybridTrade memory hybridTrade) private pure {
     // Validate maker fee on orderbook trade
-    uint64 grossQuantityInPips = hybridTrade.makerGrossQuantityInPips();
+    uint64 grossQuantityInPips = hybridTrade.getMakerGrossQuantityInPips();
     require(
-      Validations.getFeeBasisPoints(
-        (grossQuantityInPips - hybridTrade.makerNetQuantityInPips()),
+      Validations.isFeeQuantityValid(
+        (grossQuantityInPips - hybridTrade.getMakerNetQuantityInPips()),
         grossQuantityInPips
-      ) <= Constants.maxTradeFeeBasisPoints,
+      ),
       'Excessive maker fee'
     );
 
     // Validate taker fee across orderbook and pool trades
-    grossQuantityInPips = hybridTrade.takerGrossQuantityInPips();
+    grossQuantityInPips = hybridTrade.calculateTakerGrossQuantityInPips();
     require(
-      Validations.getFeeBasisPoints(
-        (grossQuantityInPips - hybridTrade.takerNetQuantityInPips()),
+      Validations.isFeeQuantityValid(
+        (grossQuantityInPips - hybridTrade.calculateTakerNetQuantityInPips()),
         grossQuantityInPips
-      ) <= Constants.maxTradeFeeBasisPoints,
+      ),
       'Excessive taker fee'
     );
 

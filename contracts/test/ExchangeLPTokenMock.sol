@@ -15,20 +15,13 @@ contract ExchangeLPTokenMock {
     address quoteAssetAddress
   ) external returns (ILiquidityProviderToken liquidityProviderToken) {
     // Create an LP token contract tied to this market
-    bytes memory bytecode = type(LiquidityProviderToken).creationCode;
     bytes32 salt =
       keccak256(abi.encodePacked(baseAssetAddress, quoteAssetAddress));
-    assembly {
-      liquidityProviderToken := create2(
-        0,
-        add(bytecode, 32),
-        mload(bytecode),
-        salt
+    liquidityProviderToken = ILiquidityProviderToken(
+      new LiquidityProviderToken{ salt: salt }(
+        baseAssetAddress,
+        quoteAssetAddress
       )
-    }
-    ILiquidityProviderToken(liquidityProviderToken).initialize(
-      baseAssetAddress,
-      quoteAssetAddress
     );
 
     emit LPTokenCreated(liquidityProviderToken);

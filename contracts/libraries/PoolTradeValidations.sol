@@ -71,7 +71,7 @@ library PoolTradeValidations {
       Validations.isLimitOrderType(order.orderType)
     ) {
       require(
-        Validations.getImpliedQuoteQuantityInPips(
+        Validations.calculateImpliedQuoteQuantityInPips(
           poolTrade.grossBaseQuantityInPips,
           order.limitPriceInPips
         ) >= poolTrade.grossQuoteQuantityInPips,
@@ -84,7 +84,7 @@ library PoolTradeValidations {
       Validations.isLimitOrderType(order.orderType)
     ) {
       require(
-        Validations.getImpliedQuoteQuantityInPips(
+        Validations.calculateImpliedQuoteQuantityInPips(
           poolTrade.grossBaseQuantityInPips,
           order.limitPriceInPips
         ) <= poolTrade.grossQuoteQuantityInPips,
@@ -98,17 +98,17 @@ library PoolTradeValidations {
     pure
   {
     require(
-      Validations.getFeeBasisPoints(
+      Validations.isFeeQuantityValid(
         (poolTrade.grossBaseQuantityInPips - poolTrade.netBaseQuantityInPips),
         poolTrade.grossBaseQuantityInPips
-      ) <= Constants.maxTradeFeeBasisPoints,
+      ),
       'Excessive base fee'
     );
     require(
-      Validations.getFeeBasisPoints(
+      Validations.isFeeQuantityValid(
         (poolTrade.grossQuoteQuantityInPips - poolTrade.netQuoteQuantityInPips),
         poolTrade.grossQuoteQuantityInPips
-      ) <= Constants.maxTradeFeeBasisPoints,
+      ),
       'Excessive quote fee'
     );
     // Price correction only allowed for hybrid trades with a taker sell

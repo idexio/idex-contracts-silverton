@@ -8,16 +8,13 @@ library Constants {
 
   uint64 public constant depositIndexNotSet = 2**64 - 1;
 
+  uint8 public constant liquidityProviderTokenDecimals = 18;
+
   // 1 week at 3s/block
   uint256 public constant maxChainPropagationPeriod = (7 * 24 * 60 * 60) / 3;
 
   // 20%
-  uint64 public constant maxTradeFeeBasisPoints = 20 * 100;
-
-  // 20%
-  uint64 public constant maxWithdrawalFeeBasisPoints = 20 * 100;
-
-  uint8 public constant liquidityProviderTokenDecimals = 18;
+  uint64 public constant maxFeeBasisPoints = 20 * 100;
 
   uint8 public constant signatureHashVersion = 2;
 }

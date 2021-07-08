@@ -10,8 +10,7 @@ import {
 contract Migrator is IDEXMigrator {
   constructor(
     address _farm,
-    address _oldFactory,
     ICustodian _custodian,
     uint256 _notBeforeBlock
-  ) public IDEXMigrator(_farm, _oldFactory, _custodian, _notBeforeBlock) {}
+  ) public IDEXMigrator(_farm, _custodian, _notBeforeBlock) {}
 }

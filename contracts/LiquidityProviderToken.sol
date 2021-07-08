@@ -6,22 +6,24 @@ import { Address } from '@openzeppelin/contracts/utils/Address.sol';
 import { ERC20 } from '@openzeppelin/contracts/token/ERC20/ERC20.sol';
 
 import { Constants } from './libraries/Constants.sol';
-import { ICustodian, IExchange, IERC20 } from './libraries/Interfaces.sol';
+import {
+  ICustodian,
+  IExchange,
+  IERC20,
+  ILiquidityProviderToken
+} from './libraries/Interfaces.sol';
 
 /**
- * @dev Implementation of the {IERC20} interface.
+ * @notice Liquidity Provider ERC-20 token contract
  *
- * Largely identical to reference OpenZeppelin implementation but allows minting to zero address in
- * order to lock up minimum liquidity amount.
- *
- * see https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/token/ERC20/ERC20.sol
+ * @dev Reference OpenZeppelin implementation with whitelisted minting and burning
  */
-contract LiquidityProviderToken is ERC20 {
+contract LiquidityProviderToken is ERC20, ILiquidityProviderToken {
   // Used to whitelist Exchange-only functions by loading address of current Exchange from Custodian
-  ICustodian public custodian;
+  ICustodian public override custodian;
   // Base and quote asset addresses provided only for informational purposes
-  address public baseAssetAddress;
-  address public quoteAssetAddress;
+  address public override baseAssetAddress;
+  address public override quoteAssetAddress;
 
   event Mint(
     address indexed sender,
@@ -41,19 +43,19 @@ contract LiquidityProviderToken is ERC20 {
     _;
   }
 
-  constructor() ERC20('IDEX LPs', 'IDEX-LP') {
+  constructor(address _baseAssetAddress, address _quoteAssetAddress)
+    ERC20('IDEX LPs', 'IDEX-LP')
+  {
     custodian = IExchange(msg.sender).loadCustodian();
     require(address(custodian) != address(0x0), 'Invalid Custodian address');
-  }
 
-  function initialize(address _baseAssetAddress, address _quoteAssetAddress)
-    external
-    onlyExchange
-  {
+    // Assets cannot be equal
     require(
       _baseAssetAddress != _quoteAssetAddress,
       'Assets must be different'
     );
+
+    // Each asset must be the native asset or contract
     require(
       _baseAssetAddress == address(0x0) ||
         Address.isContract(_baseAssetAddress),
@@ -75,7 +77,7 @@ contract LiquidityProviderToken is ERC20 {
     uint256 baseAssetQuantityInAssetUnits,
     uint256 quoteAssetQuantityInAssetUnits,
     address to
-  ) external onlyExchange {
+  ) external override onlyExchange {
     _burn(address(custodian), liquidity);
 
     emit Burn(
@@ -92,7 +94,7 @@ contract LiquidityProviderToken is ERC20 {
     uint256 baseAssetQuantityInAssetUnits,
     uint256 quoteAssetQuantityInAssetUnits,
     address to
-  ) external onlyExchange {
+  ) external override onlyExchange {
     _mint(to, liquidity);
 
     emit Mint(
@@ -102,7 +104,7 @@ contract LiquidityProviderToken is ERC20 {
     );
   }
 
-  function reverseAssets() external onlyExchange {
+  function reverseAssets() external override onlyExchange {
     (baseAssetAddress, quoteAssetAddress) = (
       quoteAssetAddress,
       baseAssetAddress

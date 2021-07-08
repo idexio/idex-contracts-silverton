@@ -87,7 +87,7 @@ library OrderBookTradeValidations {
 
     if (Validations.isLimitOrderType(buy.orderType)) {
       require(
-        Validations.getImpliedQuoteQuantityInPips(
+        Validations.calculateImpliedQuoteQuantityInPips(
           trade.grossBaseQuantityInPips,
           buy.limitPriceInPips
         ) >= trade.grossQuoteQuantityInPips,
@@ -97,7 +97,7 @@ library OrderBookTradeValidations {
 
     if (Validations.isLimitOrderType(sell.orderType)) {
       require(
-        Validations.getImpliedQuoteQuantityInPips(
+        Validations.calculateImpliedQuoteQuantityInPips(
           trade.grossBaseQuantityInPips,
           sell.limitPriceInPips
         ) <= trade.grossQuoteQuantityInPips,
@@ -155,10 +155,10 @@ library OrderBookTradeValidations {
         ? trade.grossBaseQuantityInPips
         : trade.grossQuoteQuantityInPips;
     require(
-      Validations.getFeeBasisPoints(
+      Validations.isFeeQuantityValid(
         trade.makerFeeQuantityInPips,
         makerTotalQuantityInPips
-      ) <= Constants.maxTradeFeeBasisPoints,
+      ),
       'Excessive maker fee'
     );
 
@@ -167,10 +167,10 @@ library OrderBookTradeValidations {
         ? trade.grossBaseQuantityInPips
         : trade.grossQuoteQuantityInPips;
     require(
-      Validations.getFeeBasisPoints(
+      Validations.isFeeQuantityValid(
         trade.takerFeeQuantityInPips,
         takerTotalQuantityInPips
-      ) <= Constants.maxTradeFeeBasisPoints,
+      ),
       'Excessive taker fee'
     );
 

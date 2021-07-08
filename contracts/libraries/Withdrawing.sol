@@ -39,10 +39,10 @@ library Withdrawing {
   {
     // Validations
     require(
-      Validations.getFeeBasisPoints(
+      Validations.isFeeQuantityValid(
         withdrawal.gasFeeInPips,
         withdrawal.grossQuantityInPips
-      ) <= Constants.maxWithdrawalFeeBasisPoints,
+      ),
       'Excessive withdrawal fee'
     );
     bytes32 withdrawalHash =

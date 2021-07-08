@@ -171,15 +171,12 @@ interface IExchange {
   function loadCustodian() external view returns (ICustodian);
 }
 
-interface ILiquidityProviderToken is IERC20 {
+interface ILiquidityProviderToken {
   function custodian() external returns (ICustodian);
 
   function baseAssetAddress() external returns (address);
 
   function quoteAssetAddress() external returns (address);
-
-  function initialize(address _baseAssetAddress, address _quoteAssetAddress)
-    external;
 
   function burn(
     address wallet,

@@ -9,9 +9,11 @@ import { BalanceTracking } from './BalanceTracking.sol';
 import { Constants } from './Constants.sol';
 import { Depositing } from './Depositing.sol';
 import { Hashing } from './Hashing.sol';
+import {
+  LiquidityChangeExecutionValidations
+} from './LiquidityChangeExecutionValidations.sol';
 import { LiquidityProviderToken } from '../LiquidityProviderToken.sol';
 import { PoolTradeHelpers } from './PoolTradeHelpers.sol';
-import { Validations } from './Validations.sol';
 import { Withdrawing } from './Withdrawing.sol';
 import {
   ICustodian,
@@ -34,7 +36,7 @@ import {
   PoolTrade
 } from './Structs.sol';
 
-library LiquidityPoolRegistry {
+library LiquidityPools {
   using AssetRegistry for AssetRegistry.Storage;
   using BalanceTracking for BalanceTracking.Storage;
   using PoolTradeHelpers for PoolTrade;
@@ -69,7 +71,7 @@ library LiquidityPoolRegistry {
     Storage storage self,
     address token0,
     address token1,
-    uint8 quotePosition,
+    bool isToken1Quote,
     uint256 desiredLiquidity,
     address to,
     ICustodian custodian,
@@ -84,7 +86,13 @@ library LiquidityPoolRegistry {
         uint256 baseAssetQuantityInAssetUnits,
         uint256 quoteAssetQuantityInAssetUnits
       ) =
-        transferInFundingAssets(token0, token1, quotePosition, custodian, WETH);
+        transferMigratedTokenReservesToCustodian(
+          token0,
+          token1,
+          isToken1Quote,
+          custodian,
+          WETH
+        );
 
       LiquidityPool storage pool =
         loadOrCreateLiquidityPoolByAssetAddresses(
@@ -277,7 +285,11 @@ library LiquidityPoolRegistry {
       );
     liquidityProviderToken = pool.liquidityProviderToken;
 
-    Validations.validateLiquidityAddition(addition, execution, pool);
+    LiquidityChangeExecutionValidations.validateLiquidityAddition(
+      addition,
+      execution,
+      pool
+    );
 
     // Credit pool reserves
     pool.baseAssetReserveInPips += execution.netBaseQuantityInPips;
@@ -397,7 +409,11 @@ library LiquidityPoolRegistry {
       );
     liquidityProviderToken = pool.liquidityProviderToken;
 
-    Validations.validateLiquidityRemoval(removal, execution, pool);
+    LiquidityChangeExecutionValidations.validateLiquidityRemoval(
+      removal,
+      execution,
+      pool
+    );
 
     // Debit pool reserves
     pool.baseAssetReserveInPips -= execution.grossBaseQuantityInPips;
@@ -453,7 +469,8 @@ library LiquidityPoolRegistry {
     (
       outputBaseAssetQuantityInPips,
       outputQuoteAssetQuantityInPips
-    ) = Validations.getOutputAssetQuantitiesInPips(pool, liquidityToBurnInPips);
+    ) = LiquidityChangeExecutionValidations
+      .calculateOutputAssetQuantitiesInPips(pool, liquidityToBurnInPips);
     uint256 outputBaseAssetQuantityInAssetUnits =
       AssetUnitConversions.pipsToAssetUnits(
         outputBaseAssetQuantityInPips,
@@ -517,12 +534,11 @@ library LiquidityPoolRegistry {
     uint128 updatedProduct;
 
     if (orderSide == OrderSide.Buy) {
-      pool.baseAssetReserveInPips -= poolTrade.poolDebitQuantityInPips(
+      pool.baseAssetReserveInPips -= poolTrade.calculatePoolDebitQuantityInPips(
         orderSide
       );
-      pool.quoteAssetReserveInPips += poolTrade.poolCreditQuantityInPips(
-        orderSide
-      );
+      pool.quoteAssetReserveInPips += poolTrade
+        .calculatePoolCreditQuantityInPips(orderSide);
 
       updatedProduct =
         uint128(pool.baseAssetReserveInPips) *
@@ -530,12 +546,10 @@ library LiquidityPoolRegistry {
           pool.quoteAssetReserveInPips - poolTrade.takerPoolFeeQuantityInPips
         );
     } else {
-      pool.baseAssetReserveInPips += poolTrade.poolCreditQuantityInPips(
-        orderSide
-      );
-      pool.quoteAssetReserveInPips -= poolTrade.poolDebitQuantityInPips(
-        orderSide
-      );
+      pool.baseAssetReserveInPips += poolTrade
+        .calculatePoolCreditQuantityInPips(orderSide);
+      pool.quoteAssetReserveInPips -= poolTrade
+        .calculatePoolDebitQuantityInPips(orderSide);
       // Add the taker sell's price correction fee back to the pool from quote asset output
       pool.quoteAssetReserveInPips += poolTrade
         .takerPriceCorrectionFeeQuantityInPips;
@@ -593,22 +607,13 @@ library LiquidityPoolRegistry {
     );
 
     // Create an LP token contract tied to this market
-    address liquidityProviderToken;
-    bytes memory bytecode = type(LiquidityProviderToken).creationCode;
     bytes32 salt =
       keccak256(abi.encodePacked(baseAssetAddress, quoteAssetAddress));
-    assembly {
-      liquidityProviderToken := create2(
-        0,
-        add(bytecode, 32),
-        mload(bytecode),
-        salt
-      )
-    }
-    ILiquidityProviderToken(liquidityProviderToken).initialize(
-      baseAssetAddress,
-      quoteAssetAddress
-    );
+    ILiquidityProviderToken liquidityProviderToken =
+      new LiquidityProviderToken{ salt: salt }(
+        baseAssetAddress,
+        quoteAssetAddress
+      );
 
     // Store LP token address in both pair directions to allow association with unordered asset
     // pairs during on-chain initiated liquidity additions and removals
@@ -656,10 +661,10 @@ library LiquidityPoolRegistry {
     );
   }
 
-  function transferInFundingAssets(
+  function transferMigratedTokenReservesToCustodian(
     address token0,
     address token1,
-    uint8 quotePosition,
+    bool isToken1Quote,
     ICustodian custodian,
     IWETH9 WETH
   )
@@ -675,19 +680,19 @@ library LiquidityPoolRegistry {
     uint256 reserve0 = IERC20(token0).balanceOf(address(this));
     uint256 reserve1 = IERC20(token1).balanceOf(address(this));
     // Transfer reserves to Custodian and unwrap WETH if needed
-    transferTokenReserveToCustodian(token0, reserve0, custodian, WETH);
-    transferTokenReserveToCustodian(token1, reserve1, custodian, WETH);
+    transferMigratedTokenReserveToCustodian(token0, reserve0, custodian, WETH);
+    transferMigratedTokenReserveToCustodian(token1, reserve1, custodian, WETH);
 
     address unwrappedToken0 = token0 == address(WETH) ? address(0x0) : token0;
     address unwrappedToken1 = token1 == address(WETH) ? address(0x0) : token1;
 
     return
-      quotePosition == 0
-        ? (unwrappedToken1, unwrappedToken0, reserve1, reserve0)
-        : (unwrappedToken0, unwrappedToken1, reserve0, reserve1);
+      isToken1Quote
+        ? (unwrappedToken0, unwrappedToken1, reserve0, reserve1)
+        : (unwrappedToken1, unwrappedToken0, reserve1, reserve0);
   }
 
-  function transferTokenReserveToCustodian(
+  function transferMigratedTokenReserveToCustodian(
     address token,
     uint256 reserve,
     ICustodian custodian,

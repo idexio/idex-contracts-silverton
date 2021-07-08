@@ -8,7 +8,7 @@ library HybridTradeHelpers {
   /**
    * @dev Gross quantity received by maker
    */
-  function makerGrossQuantityInPips(HybridTrade memory self)
+  function getMakerGrossQuantityInPips(HybridTrade memory self)
     internal
     pure
     returns (uint64)
@@ -23,7 +23,7 @@ library HybridTradeHelpers {
   /**
    * @dev Gross quantity received by taker
    */
-  function takerGrossQuantityInPips(HybridTrade memory self)
+  function calculateTakerGrossQuantityInPips(HybridTrade memory self)
     internal
     pure
     returns (uint64)
@@ -42,7 +42,7 @@ library HybridTradeHelpers {
   /**
    * @dev Net quantity received by maker
    */
-  function makerNetQuantityInPips(HybridTrade memory self)
+  function getMakerNetQuantityInPips(HybridTrade memory self)
     internal
     pure
     returns (uint64)
@@ -57,7 +57,7 @@ library HybridTradeHelpers {
   /**
    * @dev Net quantity received by taker
    */
-  function takerNetQuantityInPips(HybridTrade memory self)
+  function calculateTakerNetQuantityInPips(HybridTrade memory self)
     internal
     pure
     returns (uint64)

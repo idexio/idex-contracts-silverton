@@ -6,14 +6,12 @@ import { AssetRegistry } from './AssetRegistry.sol';
 import { AssetUnitConversions } from './AssetUnitConversions.sol';
 import { Constants } from './Constants.sol';
 import { Hashing } from './Hashing.sol';
+import { IERC20 } from './Interfaces.sol';
 import { UUID } from './UUID.sol';
 import { OrderSide, OrderType } from './Enums.sol';
 import {
   Asset,
-  LiquidityAddition,
-  LiquidityChangeExecution,
   LiquidityPool,
-  LiquidityRemoval,
   Order,
   OrderBookTrade,
   PoolTrade,
@@ -22,187 +20,6 @@ import {
 
 library Validations {
   using AssetRegistry for AssetRegistry.Storage;
-
-  function validateLiquidityAddition(
-    LiquidityAddition memory addition,
-    LiquidityChangeExecution memory execution,
-    LiquidityPool memory pool
-  ) internal view {
-    require(
-      ((execution.baseAssetAddress == addition.assetA &&
-        execution.quoteAssetAddress == addition.assetB) ||
-        (execution.baseAssetAddress == addition.assetB &&
-          execution.quoteAssetAddress == addition.assetA)),
-      'Asset address mismatch'
-    );
-
-    (uint64 minBase, uint64 maxBase) =
-      execution.baseAssetAddress == addition.assetA
-        ? (
-          AssetUnitConversions.assetUnitsToPips(
-            addition.amountAMin,
-            pool.baseAssetDecimals
-          ),
-          AssetUnitConversions.assetUnitsToPips(
-            addition.amountADesired,
-            pool.baseAssetDecimals
-          )
-        )
-        : (
-          AssetUnitConversions.assetUnitsToPips(
-            addition.amountBMin,
-            pool.baseAssetDecimals
-          ),
-          AssetUnitConversions.assetUnitsToPips(
-            addition.amountBDesired,
-            pool.baseAssetDecimals
-          )
-        );
-    require(
-      execution.grossBaseQuantityInPips >= minBase,
-      'Min base quantity not met'
-    );
-    require(
-      execution.grossBaseQuantityInPips <= maxBase,
-      'Desired base quantity exceeded'
-    );
-
-    (uint64 minQuote, uint64 maxQuote) =
-      execution.baseAssetAddress == addition.assetA
-        ? (
-          AssetUnitConversions.assetUnitsToPips(
-            addition.amountBMin,
-            pool.quoteAssetDecimals
-          ),
-          AssetUnitConversions.assetUnitsToPips(
-            addition.amountBDesired,
-            pool.quoteAssetDecimals
-          )
-        )
-        : (
-          AssetUnitConversions.assetUnitsToPips(
-            addition.amountAMin,
-            pool.quoteAssetDecimals
-          ),
-          AssetUnitConversions.assetUnitsToPips(
-            addition.amountADesired,
-            pool.quoteAssetDecimals
-          )
-        );
-    require(
-      execution.grossQuoteQuantityInPips >= minQuote,
-      'Min quote quantity not met'
-    );
-    require(
-      execution.grossQuoteQuantityInPips <= maxQuote,
-      'Desired quote quantity exceeded'
-    );
-
-    require(
-      getFeeBasisPoints(
-        execution.grossBaseQuantityInPips - execution.netBaseQuantityInPips,
-        execution.grossBaseQuantityInPips
-      ) <= Constants.maxTradeFeeBasisPoints,
-      'Excessive base fee'
-    );
-    require(
-      getFeeBasisPoints(
-        execution.grossQuoteQuantityInPips - execution.netQuoteQuantityInPips,
-        execution.grossQuoteQuantityInPips
-      ) <= Constants.maxTradeFeeBasisPoints,
-      'Excessive quote fee'
-    );
-
-    require(
-      execution.liquidityInPips > 0 &&
-        execution.liquidityInPips ==
-        getOutputLiquidityInPips(
-          pool,
-          execution.netBaseQuantityInPips,
-          execution.netQuoteQuantityInPips
-        ),
-      'Invalid liquidity minted'
-    );
-  }
-
-  function validateLiquidityRemoval(
-    LiquidityRemoval memory removal,
-    LiquidityChangeExecution memory execution,
-    LiquidityPool memory pool
-  ) internal view {
-    require(
-      ((execution.baseAssetAddress == removal.assetA &&
-        execution.quoteAssetAddress == removal.assetB) ||
-        (execution.baseAssetAddress == removal.assetB &&
-          execution.quoteAssetAddress == removal.assetA)),
-      'Asset address mismatch'
-    );
-
-    require(
-      execution.grossBaseQuantityInPips > 0 &&
-        execution.grossQuoteQuantityInPips > 0,
-      'Insufficient liquidity burned'
-    );
-
-    require(
-      getFeeBasisPoints(
-        execution.grossBaseQuantityInPips - execution.netBaseQuantityInPips,
-        execution.grossBaseQuantityInPips
-      ) <= Constants.maxTradeFeeBasisPoints,
-      'Excessive base fee'
-    );
-    require(
-      getFeeBasisPoints(
-        execution.grossQuoteQuantityInPips - execution.netQuoteQuantityInPips,
-        execution.grossQuoteQuantityInPips
-      ) <= Constants.maxTradeFeeBasisPoints,
-      'Excessive quote fee'
-    );
-
-    require(
-      execution.grossBaseQuantityInPips >=
-        AssetUnitConversions.assetUnitsToPips(
-          execution.baseAssetAddress == removal.assetA
-            ? removal.amountAMin
-            : removal.amountBMin,
-          pool.baseAssetDecimals
-        ),
-      'Min base quantity not met'
-    );
-    require(
-      execution.grossQuoteQuantityInPips >=
-        AssetUnitConversions.assetUnitsToPips(
-          execution.baseAssetAddress == removal.assetA
-            ? removal.amountBMin
-            : removal.amountAMin,
-          pool.quoteAssetDecimals
-        ),
-      'Min quote quantity not met'
-    );
-
-    require(
-      execution.liquidityInPips ==
-        AssetUnitConversions.assetUnitsToPips(
-          removal.liquidity,
-          Constants.liquidityProviderTokenDecimals
-        ),
-      'Invalid liquidity burned'
-    );
-
-    (
-      uint256 expectedBaseAssetQuantityInPips,
-      uint256 expectedQuoteAssetQuantityInPips
-    ) = getOutputAssetQuantitiesInPips(pool, execution.liquidityInPips);
-
-    require(
-      execution.grossBaseQuantityInPips == expectedBaseAssetQuantityInPips,
-      'Invalid base quantity'
-    );
-    require(
-      execution.grossQuoteQuantityInPips == expectedQuoteAssetQuantityInPips,
-      'Invalid quote quantity'
-    );
-  }
 
   /**
    * @dev Perform fee validations common to both orderbook-only and hybrid trades
@@ -327,23 +144,7 @@ library Validations {
 
   // Utils //
 
-  function getFeeBasisPoints(uint64 fee, uint64 total)
-    internal
-    pure
-    returns (uint64)
-  {
-    return (fee * Constants.basisPointsInTotal) / total;
-  }
-
-  function getFeeBasisPoints256(uint256 fee, uint256 total)
-    private
-    pure
-    returns (uint256)
-  {
-    return (fee * Constants.basisPointsInTotal) / total;
-  }
-
-  function getImpliedQuoteQuantityInPips(
+  function calculateImpliedQuoteQuantityInPips(
     uint64 baseQuantityInPips,
     uint64 limitPriceInPips
   ) internal pure returns (uint64) {
@@ -361,79 +162,13 @@ library Validations {
     return uint64(impliedQuoteQuantityInPips);
   }
 
-  /**
-   * @dev Calculate reserve asset quantities to remove from a pool for a given liquidity amount
-   */
-  function getOutputAssetQuantitiesInPips(
-    LiquidityPool memory pool,
-    uint64 liquidityToBurnInPips
-  )
+  function isFeeQuantityValid(uint64 fee, uint64 total)
     internal
-    view
-    returns (
-      uint64 outputBaseAssetQuantityInPips,
-      uint64 outputQuoteAssetQuantityInPips
-    )
+    pure
+    returns (bool)
   {
-    uint64 totalLiquidityInPips =
-      AssetUnitConversions.assetUnitsToPips(
-        pool.liquidityProviderToken.totalSupply(),
-        Constants.liquidityProviderTokenDecimals
-      );
-
-    outputBaseAssetQuantityInPips = getOutputQuantityInPips(
-      liquidityToBurnInPips,
-      totalLiquidityInPips,
-      pool.baseAssetReserveInPips
-    );
-    outputQuoteAssetQuantityInPips = getOutputQuantityInPips(
-      liquidityToBurnInPips,
-      totalLiquidityInPips,
-      pool.quoteAssetReserveInPips
-    );
-  }
-
-  function getOutputLiquidityInPips(
-    LiquidityPool memory pool,
-    uint64 baseQuantityInPips,
-    uint64 quoteQuantityInPips
-  ) internal view returns (uint64 outputLiquidityInPips) {
-    if (pool.liquidityProviderToken.totalSupply() == 0) {
-      return sqrt(baseQuantityInPips * quoteQuantityInPips);
-    }
-
-    uint64 totalLiquidityInPips =
-      AssetUnitConversions.assetUnitsToPips(
-        pool.liquidityProviderToken.totalSupply(),
-        Constants.liquidityProviderTokenDecimals
-      );
-
-    return
-      min(
-        getOutputQuantityInPips(
-          baseQuantityInPips,
-          pool.baseAssetReserveInPips,
-          totalLiquidityInPips
-        ),
-        getOutputQuantityInPips(
-          quoteQuantityInPips,
-          pool.quoteAssetReserveInPips,
-          totalLiquidityInPips
-        )
-      );
-  }
-
-  function getOutputQuantityInPips(
-    uint64 inputQuantityInPips,
-    uint64 totalInputReserveInPips,
-    uint64 totalOutputReserveInPips
-  ) private pure returns (uint64) {
-    uint256 outputLiquidityInPips =
-      (uint256(inputQuantityInPips) * totalOutputReserveInPips) /
-        totalInputReserveInPips;
-    require(outputLiquidityInPips < 2**64, 'Pip quantity overflows uint64');
-
-    return uint64(outputLiquidityInPips);
+    uint64 feeBasisPoints = (fee * Constants.basisPointsInTotal) / total;
+    return feeBasisPoints <= Constants.maxFeeBasisPoints;
   }
 
   function isLimitOrderType(OrderType orderType) internal pure returns (bool) {
@@ -442,22 +177,5 @@ library Validations {
       orderType == OrderType.LimitMaker ||
       orderType == OrderType.StopLossLimit ||
       orderType == OrderType.TakeProfitLimit;
-  }
-
-  function min(uint64 x, uint64 y) private pure returns (uint64 z) {
-    z = x < y ? x : y;
-  }
-
-  function sqrt(uint64 y) private pure returns (uint64 z) {
-    if (y > 3) {
-      z = y;
-      uint64 x = y / 2 + 1;
-      while (x < z) {
-        z = x;
-        x = (y / x + x) / 2;
-      }
-    } else if (y != 0) {
-      z = 1;
-    }
   }
 }

@@ -464,7 +464,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
 
     beforeEach(async () => {
       const Migrator = artifacts.require('Migrator');
-      migrator = await Migrator.new(ethAddress, ethAddress, ethAddress, 0);
+      migrator = await Migrator.new(ethAddress, ethAddress, 0);
     });
 
     it('should work for valid address', async () => {

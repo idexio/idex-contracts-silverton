@@ -37,7 +37,7 @@ export const token0Symbol = 'DIL';
 export const token1Symbol = 'JUR';
 
 contract('Exchange (liquidity pools)', ([ownerWallet]) => {
-  describe('migrateLiquidityPool', () => {
+  describe.only('migrateLiquidityPool', () => {
     it('should work', async () => {
       const depositQuantity = '1.00000000';
       const {
@@ -97,7 +97,7 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
         await exchange.migrateLiquidityPool(
           token0.address,
           token1.address,
-          0,
+          false,
           '100000000000',
           ownerWallet,
         );
@@ -125,12 +125,7 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
       await farm.add(100, pair.address, true);
 
       const Migrator = artifacts.require('Migrator');
-      const migrator = await Migrator.new(
-        farm.address,
-        factory.address,
-        custodian.address,
-        0,
-      );
+      const migrator = await Migrator.new(farm.address, custodian.address, 0);
       await exchange.setMigrator(migrator.address);
       await farm.setMigrator(migrator.address);
 
@@ -138,7 +133,10 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
 
       let error;
       try {
-        await farm.migrate(0, weth.address === (await pair.token0()) ? 0 : 1);
+        await farm.migrate(
+          0,
+          weth.address === (await pair.token0()) ? false : true,
+        );
       } catch (e) {
         error = e;
       }
@@ -2672,15 +2670,13 @@ export async function deployContractsAndCreateHybridPool(
   await farm.deposit(0, lpBalance);
 
   const Migrator = artifacts.require('Migrator');
-  const migrator = await Migrator.new(
-    farm.address,
-    factory.address,
-    custodian.address,
-    0,
-  );
+  const migrator = await Migrator.new(farm.address, custodian.address, 0);
   await exchange.setMigrator(migrator.address);
   await farm.setMigrator(migrator.address);
-  await farm.migrate(0, token0.address === (await pair.token0()) ? 1 : 0); // token1 is quote
+  await farm.migrate(
+    0,
+    token0.address === (await pair.token0()) ? true : false,
+  ); // token1 is quote
 
   const LiquidityProviderToken = artifacts.require('LiquidityProviderToken');
   const lpToken = await LiquidityProviderToken.at((await farm.poolInfo(0))[0]);
@@ -2712,7 +2708,7 @@ export async function deployContractsAndCreateHybridETHPool(
     weth,
   } = await deployAndAssociateContracts();
   const token = await deployAndRegisterToken(exchange, token0Symbol);
-  const { factory, pair } = await deployPancakeCoreAndCreateETHPool(
+  const { pair } = await deployPancakeCoreAndCreateETHPool(
     ownerWallet,
     token,
     weth,
@@ -2745,15 +2741,10 @@ export async function deployContractsAndCreateHybridETHPool(
   await farm.deposit(0, lpBalance);
 
   const Migrator = artifacts.require('Migrator');
-  const migrator = await Migrator.new(
-    farm.address,
-    factory.address,
-    custodian.address,
-    0,
-  );
+  const migrator = await Migrator.new(farm.address, custodian.address, 0);
   await exchange.setMigrator(migrator.address);
   await farm.setMigrator(migrator.address);
-  await farm.migrate(0, weth.address === (await pair.token0()) ? 0 : 1);
+  await farm.migrate(0, weth.address === (await pair.token0()) ? false : true);
 
   const LiquidityProviderToken = artifacts.require('LiquidityProviderToken');
   const lpToken = await LiquidityProviderToken.at((await farm.poolInfo(0))[0]);

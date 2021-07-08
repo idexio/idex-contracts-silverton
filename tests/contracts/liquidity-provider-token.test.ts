@@ -40,9 +40,7 @@ contract('Exchange (liquidity provider token)', ([ownerWallet]) => {
       expect(error).to.not.be.undefined;
       expect(error.message).to.match(/revert/i);
     });
-  });
 
-  describe('initialize', () => {
     it('should work', async () => {
       const token = await Token.new();
 
@@ -58,28 +56,6 @@ contract('Exchange (liquidity provider token)', ([ownerWallet]) => {
       expect(await lpToken.name()).to.equal('IDEX LPs');
       expect(await lpToken.symbol()).to.equal('IDEX-LP');
       expect((await lpToken.decimals()).toString()).to.equal('18');
-    });
-
-    it('should revert when not called by exchange', async () => {
-      const token = await Token.new();
-
-      const lpToken = await LiquidityProviderToken.at(
-        (
-          await exchangeMock.createLiquidityProviderToken(
-            token.address,
-            ethAddress,
-          )
-        ).logs[0].args.lpToken,
-      );
-
-      let error;
-      try {
-        await lpToken.initialize(token.address, ethAddress);
-      } catch (e) {
-        error = e;
-      }
-      expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/caller is not exchange/i);
     });
 
     it('should revert when base and quote address are the same', async () => {

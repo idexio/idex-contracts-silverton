@@ -5,7 +5,7 @@ pragma solidity 0.8.4;
 import { AssetRegistry } from './AssetRegistry.sol';
 import { BalanceTracking } from './BalanceTracking.sol';
 import { HybridTradeValidations } from './HybridTradeValidations.sol';
-import { LiquidityPoolRegistry } from './LiquidityPoolRegistry.sol';
+import { LiquidityPools } from './LiquidityPools.sol';
 import { OrderBookTradeValidations } from './OrderBookTradeValidations.sol';
 import { PoolTradeHelpers } from './PoolTradeHelpers.sol';
 import { PoolTradeValidations } from './PoolTradeValidations.sol';
@@ -16,7 +16,7 @@ import { HybridTrade, Order, OrderBookTrade, PoolTrade } from './Structs.sol';
 library Trading {
   using AssetRegistry for AssetRegistry.Storage;
   using BalanceTracking for BalanceTracking.Storage;
-  using LiquidityPoolRegistry for LiquidityPoolRegistry.Storage;
+  using LiquidityPools for LiquidityPools.Storage;
   using PoolTradeHelpers for PoolTrade;
 
   function executeOrderBookTrade(
@@ -61,7 +61,7 @@ library Trading {
     HybridTrade memory hybridTrade,
     address feeWallet,
     AssetRegistry.Storage storage assetRegistry,
-    LiquidityPoolRegistry.Storage storage liquidityPoolRegistry,
+    LiquidityPools.Storage storage liquidityPoolRegistry,
     BalanceTracking.Storage storage balanceTracking,
     mapping(bytes32 => bool) storage completedOrderHashes,
     mapping(bytes32 => uint64) storage partiallyFilledOrderQuantitiesInPips
@@ -151,7 +151,7 @@ library Trading {
     PoolTrade memory poolTrade,
     address feeWallet,
     AssetRegistry.Storage storage assetRegistry,
-    LiquidityPoolRegistry.Storage storage liquidityPoolRegistry,
+    LiquidityPools.Storage storage liquidityPoolRegistry,
     BalanceTracking.Storage storage balanceTracking,
     mapping(bytes32 => bool) storage completedOrderHashes,
     mapping(bytes32 => uint64) storage partiallyFilledOrderQuantitiesInPips

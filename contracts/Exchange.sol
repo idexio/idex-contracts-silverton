@@ -10,7 +10,7 @@ import { AssetUnitConversions } from './libraries/AssetUnitConversions.sol';
 import { BalanceTracking } from './libraries/BalanceTracking.sol';
 import { Constants } from './libraries/Constants.sol';
 import { Depositing } from './libraries/Depositing.sol';
-import { LiquidityPoolRegistry } from './libraries/LiquidityPoolRegistry.sol';
+import { LiquidityPools } from './libraries/LiquidityPools.sol';
 import { Owned } from './Owned.sol';
 import { Trading } from './libraries/Trading.sol';
 import { UUID } from './libraries/UUID.sol';
@@ -44,7 +44,7 @@ contract Exchange is IExchange, Owned {
   using AssetRegistry for AssetRegistry.Storage;
   using AssetRegistryAdmin for AssetRegistry.Storage;
   using BalanceTracking for BalanceTracking.Storage;
-  using LiquidityPoolRegistry for LiquidityPoolRegistry.Storage;
+  using LiquidityPools for LiquidityPools.Storage;
 
   // Events //
 
@@ -248,7 +248,7 @@ contract Exchange is IExchange, Owned {
   mapping(address => WalletExit) _walletExits;
   // Liquidity pools
   address _migrator;
-  LiquidityPoolRegistry.Storage _liquidityPoolRegistry;
+  LiquidityPools.Storage _liquidityPools;
   IWETH9 immutable _WETH;
   // Withdrawals - mapping of withdrawal wallet hash => isComplete
   mapping(bytes32 => bool) _completedWithdrawalHashes;
@@ -510,7 +510,7 @@ contract Exchange is IExchange, Owned {
     address quoteAssetAddress
   ) public view returns (LiquidityPool memory) {
     return
-      _liquidityPoolRegistry.loadLiquidityPoolByAssetAddresses(
+      _liquidityPools.loadLiquidityPoolByAssetAddresses(
         baseAssetAddress,
         quoteAssetAddress
       );
@@ -725,7 +725,7 @@ contract Exchange is IExchange, Owned {
       poolTrade,
       _feeWallet,
       _assetRegistry,
-      _liquidityPoolRegistry,
+      _liquidityPools,
       _balanceTracking,
       _completedOrderHashes,
       _partiallyFilledOrderQuantitiesInPips
@@ -768,7 +768,7 @@ contract Exchange is IExchange, Owned {
       hybridTrade,
       _feeWallet,
       _assetRegistry,
-      _liquidityPoolRegistry,
+      _liquidityPools,
       _balanceTracking,
       _completedOrderHashes,
       _partiallyFilledOrderQuantitiesInPips
@@ -834,7 +834,7 @@ contract Exchange is IExchange, Owned {
     address baseAssetAddress,
     address quoteAssetAddress
   ) external onlyAdmin {
-    _liquidityPoolRegistry.createLiquidityPool(
+    _liquidityPools.createLiquidityPool(
       baseAssetAddress,
       quoteAssetAddress,
       _assetRegistry
@@ -844,15 +844,15 @@ contract Exchange is IExchange, Owned {
   function migrateLiquidityPool(
     address token0,
     address token1,
-    uint8 quotePosition,
+    bool isToken1Quote,
     uint256 desiredLiquidity,
     address to
   ) external onlyMigrator returns (address liquidityProviderToken) {
     return
-      _liquidityPoolRegistry.migrateLiquidityPool(
+      _liquidityPools.migrateLiquidityPool(
         token0,
         token1,
-        quotePosition,
+        isToken1Quote,
         desiredLiquidity,
         to,
         _custodian,
@@ -865,7 +865,7 @@ contract Exchange is IExchange, Owned {
     address baseAssetAddress,
     address quoteAssetAddress
   ) external onlyAdmin {
-    _liquidityPoolRegistry.reverseLiquidityPoolAssets(
+    _liquidityPools.reverseLiquidityPoolAssets(
       baseAssetAddress,
       quoteAssetAddress
     );
@@ -900,7 +900,7 @@ contract Exchange is IExchange, Owned {
     address to,
     uint256 deadline
   ) external {
-    _liquidityPoolRegistry.addLiquidity(
+    _liquidityPools.addLiquidity(
       LiquidityAddition(
         Constants.signatureHashVersion,
         LiquidityChangeOrigination.OnChain,
@@ -958,7 +958,7 @@ contract Exchange is IExchange, Owned {
     address to,
     uint256 deadline
   ) external payable {
-    _liquidityPoolRegistry.addLiquidityETH(
+    _liquidityPools.addLiquidityETH(
       LiquidityAddition(
         Constants.signatureHashVersion,
         LiquidityChangeOrigination.OnChain,
@@ -998,7 +998,7 @@ contract Exchange is IExchange, Owned {
     LiquidityAddition calldata addition,
     LiquidityChangeExecution calldata execution
   ) external onlyDispatcher {
-    _liquidityPoolRegistry.executeAddLiquidity(
+    _liquidityPools.executeAddLiquidity(
       addition,
       execution,
       _feeWallet,
@@ -1030,7 +1030,7 @@ contract Exchange is IExchange, Owned {
     address to,
     uint256 deadline
   ) public {
-    _liquidityPoolRegistry.removeLiquidity(
+    _liquidityPools.removeLiquidity(
       // Use struct to avoid stack too deep
       LiquidityRemoval(
         Constants.signatureHashVersion,
@@ -1083,7 +1083,7 @@ contract Exchange is IExchange, Owned {
     address to,
     uint256 deadline
   ) external {
-    _liquidityPoolRegistry.removeLiquidity(
+    _liquidityPools.removeLiquidity(
       // Use struct to avoid stack too deep
       LiquidityRemoval(
         Constants.signatureHashVersion,
@@ -1123,7 +1123,7 @@ contract Exchange is IExchange, Owned {
     LiquidityRemoval calldata removal,
     LiquidityChangeExecution calldata execution
   ) external onlyDispatcher {
-    _liquidityPoolRegistry.executeRemoveLiquidity(
+    _liquidityPools.executeRemoveLiquidity(
       removal,
       execution,
       ICustodian(_custodian),
@@ -1142,7 +1142,7 @@ contract Exchange is IExchange, Owned {
       uint64 outputBaseAssetQuantityInPips,
       uint64 outputQuoteAssetQuantityInPips
     ) =
-      _liquidityPoolRegistry.removeLiquidityExit(
+      _liquidityPools.removeLiquidityExit(
         baseAssetAddress,
         quoteAssetAddress,
         ICustodian(_custodian),

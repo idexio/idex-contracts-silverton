@@ -123,29 +123,29 @@ library BalanceTracking {
     balance = loadBalanceAndMigrateIfNeeded(
       self,
       order.walletAddress,
-      poolTrade.orderDebitAssetAddress(order.side)
+      poolTrade.getOrderDebitAssetAddress(order.side)
     );
-    balance.balanceInPips -= poolTrade.orderDebitQuantityInPips(order.side);
+    balance.balanceInPips -= poolTrade.getOrderDebitQuantityInPips(order.side);
     // Credit to order wallet
     balance = loadBalanceAndMigrateIfNeeded(
       self,
       order.walletAddress,
-      poolTrade.orderCreditAssetAddress(order.side)
+      poolTrade.getOrderCreditAssetAddress(order.side)
     );
-    balance.balanceInPips += poolTrade.orderCreditQuantityInPips(order.side);
+    balance.balanceInPips += poolTrade.getOrderCreditQuantityInPips(order.side);
 
     // Fee wallet receives protocol fee from asset debited from order wallet
     balance = loadBalanceAndMigrateIfNeeded(
       self,
       feeWallet,
-      poolTrade.orderDebitAssetAddress(order.side)
+      poolTrade.getOrderDebitAssetAddress(order.side)
     );
     balance.balanceInPips += poolTrade.takerProtocolFeeQuantityInPips;
     // Fee wallet receives gas fee from asset credited to order wallet
     balance = loadBalanceAndMigrateIfNeeded(
       self,
       feeWallet,
-      poolTrade.orderCreditAssetAddress(order.side)
+      poolTrade.getOrderCreditAssetAddress(order.side)
     );
     balance.balanceInPips += poolTrade.takerGasFeeQuantityInPips;
 
