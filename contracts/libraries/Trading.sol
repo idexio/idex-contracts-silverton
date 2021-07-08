@@ -138,7 +138,7 @@ library Trading {
         hybridTrade.orderBookTrade.makerSide == OrderSide.Buy
           ? sell.walletAddress
           : buy.walletAddress;
-      balanceTracking.updateForHybridTradeGasFee(
+      balanceTracking.updateForHybridTradeFees(
         hybridTrade,
         takerWallet,
         feeWallet

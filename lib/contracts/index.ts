@@ -26,7 +26,7 @@ export {
 export type LibraryName =
   | 'AssetRegistryAdmin'
   | 'Depositing'
-  | 'LiquidityPoolRegistry'
+  | 'LiquidityPools'
   | 'Trading'
   | 'Withdrawing';
 

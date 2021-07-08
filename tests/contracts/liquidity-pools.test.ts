@@ -37,7 +37,7 @@ export const token0Symbol = 'DIL';
 export const token1Symbol = 'JUR';
 
 contract('Exchange (liquidity pools)', ([ownerWallet]) => {
-  describe.only('migrateLiquidityPool', () => {
+  describe('migrateLiquidityPool', () => {
     it('should work', async () => {
       const depositQuantity = '1.00000000';
       const {

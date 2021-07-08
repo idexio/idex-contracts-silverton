@@ -123,6 +123,13 @@ library HybridTradeValidations {
       'Non-zero pool gas fee'
     );
 
+    if (hybridTrade.poolTrade.takerPriceCorrectionFeeQuantityInPips > 0) {
+      require(
+        hybridTrade.poolTrade.netQuoteQuantityInPips == 0,
+        'Quote out not allowed with price correction'
+      );
+    }
+
     OrderSide poolOrderSide =
       hybridTrade.orderBookTrade.makerSide == OrderSide.Buy
         ? OrderSide.Sell

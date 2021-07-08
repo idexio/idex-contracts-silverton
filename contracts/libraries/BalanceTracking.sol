@@ -152,7 +152,7 @@ library BalanceTracking {
     // Liquidity pool reserves are updated in LiquidityPoolRegistry
   }
 
-  function updateForHybridTradeGasFee(
+  function updateForHybridTradeFees(
     Storage storage self,
     HybridTrade memory hybridTrade,
     address takerWallet,
@@ -172,6 +172,12 @@ library BalanceTracking {
       hybridTrade.orderBookTrade.takerFeeAssetAddress
     );
     balance.balanceInPips -= hybridTrade.takerGasFeeQuantityInPips;
+
+    if (hybridTrade.poolTrade.takerPriceCorrectionFeeQuantityInPips > 0) {
+      balance.balanceInPips -= hybridTrade
+        .poolTrade
+        .takerPriceCorrectionFeeQuantityInPips;
+    }
 
     // Liquidity pool reserves are updated in LiquidityPoolRegistry
   }

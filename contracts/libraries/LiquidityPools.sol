@@ -548,11 +548,14 @@ library LiquidityPools {
     } else {
       pool.baseAssetReserveInPips += poolTrade
         .calculatePoolCreditQuantityInPips(orderSide);
-      pool.quoteAssetReserveInPips -= poolTrade
-        .calculatePoolDebitQuantityInPips(orderSide);
-      // Add the taker sell's price correction fee back to the pool from quote asset output
-      pool.quoteAssetReserveInPips += poolTrade
-        .takerPriceCorrectionFeeQuantityInPips;
+      if (poolTrade.takerPriceCorrectionFeeQuantityInPips > 0) {
+        // Add the taker sell's price correction fee to the pool - there is no quote output
+        pool.quoteAssetReserveInPips += poolTrade
+          .takerPriceCorrectionFeeQuantityInPips;
+      } else {
+        pool.quoteAssetReserveInPips -= poolTrade
+          .calculatePoolDebitQuantityInPips(orderSide);
+      }
 
       updatedProduct =
         uint128(

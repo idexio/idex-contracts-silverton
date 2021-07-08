@@ -80,7 +80,7 @@ library Validations {
     PoolTrade memory poolTrade
   ) internal pure {
     // The quantity received by the wallet is determined by the pool's constant product formula
-    // and enforced in `LiquidityPoolRegistry.updateReservesForPoolTrade`
+    // and enforced in `LiquidityPools.updateReservesForPoolTrade`
     if (orderSide == OrderSide.Buy) {
       // Buy order sends quote as pool input, receives base as pool output
       require(
@@ -112,7 +112,9 @@ library Validations {
         'Pool input fees unbalanced'
       );
       // Net output plus fees will be less than gross for non-zero input fees since the pool output
-      // is decreased commensurately to satisfy the constant product price formula
+      // is decreased commensurately to satisfy the constant product price formula.  Note that only
+      // one of takerGasFeeQuantityInPips or takerPriceCorrectionFeeQuantityInPips can be non-zero;
+      // HybridTradeValidations.validateFees enforces this so the below summation includes both
       require(
         poolTrade.netQuoteQuantityInPips +
           poolTrade.takerGasFeeQuantityInPips +
