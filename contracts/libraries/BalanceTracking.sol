@@ -171,13 +171,9 @@ library BalanceTracking {
       takerWallet,
       hybridTrade.orderBookTrade.takerFeeAssetAddress
     );
-    balance.balanceInPips -= hybridTrade.takerGasFeeQuantityInPips;
-
-    if (hybridTrade.poolTrade.takerPriceCorrectionFeeQuantityInPips > 0) {
-      balance.balanceInPips -= hybridTrade
-        .poolTrade
-        .takerPriceCorrectionFeeQuantityInPips;
-    }
+    balance.balanceInPips -=
+      hybridTrade.takerGasFeeQuantityInPips +
+      hybridTrade.poolTrade.takerPriceCorrectionFeeQuantityInPips;
 
     // Liquidity pool reserves are updated in LiquidityPoolRegistry
   }

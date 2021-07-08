@@ -115,6 +115,14 @@ contract Exchange is IExchange, Owned {
     uint64 liquidityInPips
   );
   /**
+   * @notice Emitted when an Admin switches liquidity pool asset direction via
+   * `reverseLiquidityPoolAssets`
+   */
+  event LiquidityPoolAssetsReversed(
+    address originalBaseAssetAddress,
+    address originalQuoteAssetAddress
+  );
+  /**
    * @notice Emitted when a user initiates a Remove Liquidity request via `removeLiquidity` or
    * `removeLiquidityETH`
    */
@@ -905,6 +913,8 @@ contract Exchange is IExchange, Owned {
       baseAssetAddress,
       quoteAssetAddress
     );
+
+    emit LiquidityPoolAssetsReversed(baseAssetAddress, quoteAssetAddress);
   }
 
   /**

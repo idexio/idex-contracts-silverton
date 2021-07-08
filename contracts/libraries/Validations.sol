@@ -112,7 +112,7 @@ library Validations {
         'Pool input fees unbalanced'
       );
       // Net output plus fees will be less than gross for non-zero input fees since the pool output
-      // is decreased commensurately to satisfy the constant product price formula.  Note that only
+      // is decreased commensurately to satisfy the constant product price formula. Note that only
       // one of takerGasFeeQuantityInPips or takerPriceCorrectionFeeQuantityInPips can be non-zero;
       // HybridTradeValidations.validateFees enforces this so the below summation includes both
       require(
