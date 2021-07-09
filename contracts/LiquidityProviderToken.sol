@@ -24,6 +24,8 @@ contract LiquidityProviderToken is ERC20, ILiquidityProviderToken {
   // Base and quote asset addresses provided only for informational purposes
   address public override baseAssetAddress;
   address public override quoteAssetAddress;
+  string public override baseAssetSymbol;
+  string public override quoteAssetSymbol;
 
   event Mint(
     address indexed sender,
@@ -43,9 +45,12 @@ contract LiquidityProviderToken is ERC20, ILiquidityProviderToken {
     _;
   }
 
-  constructor(address _baseAssetAddress, address _quoteAssetAddress)
-    ERC20('IDEX LPs', 'IDEX-LP')
-  {
+  constructor(
+    address _baseAssetAddress,
+    address _quoteAssetAddress,
+    string memory _baseAssetSymbol,
+    string memory _quoteAssetSymbol
+  ) ERC20('', '') {
     custodian = IExchange(msg.sender).loadCustodian();
     require(address(custodian) != address(0x0), 'Invalid Custodian address');
 
@@ -69,6 +74,41 @@ contract LiquidityProviderToken is ERC20, ILiquidityProviderToken {
 
     baseAssetAddress = _baseAssetAddress;
     quoteAssetAddress = _quoteAssetAddress;
+    baseAssetSymbol = _baseAssetSymbol;
+    quoteAssetSymbol = _quoteAssetSymbol;
+  }
+
+  /**
+   * @dev Returns the name of the token.
+   */
+  function name() public view override returns (string memory) {
+    return
+      string(
+        abi.encodePacked('IDEX HL: ', baseAssetSymbol, '-', quoteAssetSymbol)
+      );
+  }
+
+  /**
+   * @dev Returns the symbol of the token
+   * name.
+   */
+  function symbol() public view override returns (string memory) {
+    return
+      string(abi.encodePacked('IHL-', baseAssetSymbol, '-', quoteAssetSymbol));
+  }
+
+  function token0() external view override returns (address) {
+    return
+      baseAssetAddress < quoteAssetAddress
+        ? baseAssetAddress
+        : quoteAssetAddress;
+  }
+
+  function token1() external view override returns (address) {
+    return
+      baseAssetAddress < quoteAssetAddress
+        ? quoteAssetAddress
+        : baseAssetAddress;
   }
 
   function burn(

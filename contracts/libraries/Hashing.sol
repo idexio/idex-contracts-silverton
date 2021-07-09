@@ -104,7 +104,7 @@ library Hashing {
             order.signatureHashVersion,
             order.nonce,
             order.walletAddress,
-            getMarketSymbol(baseSymbol, quoteSymbol),
+            string(abi.encodePacked(baseSymbol, '-', quoteSymbol)),
             uint8(order.orderType),
             uint8(order.side),
             // Ledger qtys and prices are in pip, but order was signed by wallet owner with decimal values
@@ -145,45 +145,6 @@ library Hashing {
           withdrawal.autoDispatchEnabled
         )
       );
-  }
-
-  /**
-   * @dev Combines base and quote asset symbols into the market symbol originally signed by the
-   * wallet. For example if base is 'IDEX' and quote is 'ETH', the resulting market symbol is
-   * 'IDEX-ETH'. This approach is used rather than passing in the market symbol and splitting it
-   * since the latter incurs a higher gas cost
-   */
-  function getMarketSymbol(string memory baseSymbol, string memory quoteSymbol)
-    private
-    pure
-    returns (string memory)
-  {
-    bytes memory baseSymbolBytes = bytes(baseSymbol);
-    bytes memory hyphenBytes = bytes('-');
-    bytes memory quoteSymbolBytes = bytes(quoteSymbol);
-
-    bytes memory marketSymbolBytes =
-      bytes(
-        new string(
-          baseSymbolBytes.length + quoteSymbolBytes.length + hyphenBytes.length
-        )
-      );
-
-    uint256 i;
-    uint256 j;
-
-    for (i = 0; i < baseSymbolBytes.length; i++) {
-      marketSymbolBytes[j++] = baseSymbolBytes[i];
-    }
-
-    // Hyphen is one byte
-    marketSymbolBytes[j++] = hyphenBytes[0];
-
-    for (i = 0; i < quoteSymbolBytes.length; i++) {
-      marketSymbolBytes[j++] = quoteSymbolBytes[i];
-    }
-
-    return string(marketSymbolBytes);
   }
 
   /**

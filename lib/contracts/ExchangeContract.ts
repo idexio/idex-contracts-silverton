@@ -22,6 +22,7 @@ export default class ExchangeContract extends BaseContract<Exchange> {
     libraryAddresses: {
       assetRegistryAdmin: string;
       depositing: string;
+      liquidityPoolAdmin: string;
       liquidityPools: string;
       trading: string;
       withdrawing: string;
@@ -34,6 +35,8 @@ export default class ExchangeContract extends BaseContract<Exchange> {
       __AssetRegistryAdmin____________________:
         libraryAddresses.assetRegistryAdmin,
       __Depositing____________________________: libraryAddresses.depositing,
+      __LiquidityPoolAdmin____________________:
+        libraryAddresses.liquidityPoolAdmin,
       __LiquidityPools________________________: libraryAddresses.liquidityPools,
       __Trading_______________________________: libraryAddresses.trading,
       __Withdrawing___________________________: libraryAddresses.withdrawing,

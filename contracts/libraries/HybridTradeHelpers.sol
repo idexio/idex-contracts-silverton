@@ -28,15 +28,14 @@ library HybridTradeHelpers {
     pure
     returns (uint64)
   {
-    return
-      (
-        self.orderBookTrade.takerFeeAssetAddress ==
-          self.orderBookTrade.baseAssetAddress
-          ? self.orderBookTrade.grossBaseQuantityInPips +
-            self.poolTrade.grossBaseQuantityInPips
-          : self.orderBookTrade.grossQuoteQuantityInPips +
-            self.poolTrade.grossQuoteQuantityInPips
-      ) + self.takerGasFeeQuantityInPips;
+    return (
+      self.orderBookTrade.takerFeeAssetAddress ==
+        self.orderBookTrade.baseAssetAddress
+        ? self.orderBookTrade.grossBaseQuantityInPips +
+          self.poolTrade.grossBaseQuantityInPips
+        : self.orderBookTrade.grossQuoteQuantityInPips +
+          self.poolTrade.grossQuoteQuantityInPips
+    );
   }
 
   /**
@@ -63,11 +62,13 @@ library HybridTradeHelpers {
     returns (uint64)
   {
     return
-      self.orderBookTrade.takerFeeAssetAddress ==
-        self.orderBookTrade.baseAssetAddress
-        ? self.orderBookTrade.netBaseQuantityInPips +
-          self.poolTrade.netBaseQuantityInPips
-        : self.orderBookTrade.netQuoteQuantityInPips +
-          self.poolTrade.netQuoteQuantityInPips;
+      (
+        self.orderBookTrade.takerFeeAssetAddress ==
+          self.orderBookTrade.baseAssetAddress
+          ? self.orderBookTrade.netBaseQuantityInPips +
+            self.poolTrade.netBaseQuantityInPips
+          : self.orderBookTrade.netQuoteQuantityInPips +
+            self.poolTrade.netQuoteQuantityInPips
+      ) - self.takerGasFeeQuantityInPips;
   }
 }

@@ -24,6 +24,25 @@ contract('Exchange (liquidity provider token)', ([ownerWallet]) => {
   });
 
   describe('constructor', () => {
+    it.only('should work', async () => {
+      const token = await Token.new();
+
+      const lpToken = await LiquidityProviderToken.at(
+        (
+          await exchangeMock.createLiquidityProviderToken(
+            token.address,
+            ethAddress,
+            'DIL',
+            'ETH',
+          )
+        ).logs[0].args.lpToken,
+      );
+
+      expect(await lpToken.name()).to.equal('IDEX HL: DIL-ETH');
+      expect(await lpToken.symbol()).to.equal('IHL-DIL-ETH');
+      expect((await lpToken.decimals()).toString()).to.equal('18');
+    });
+
     it('should revert for zero Custodian address', async () => {
       const token = await Token.new();
       await exchangeMock.setCustodian(ethAddress);
@@ -33,6 +52,8 @@ contract('Exchange (liquidity provider token)', ([ownerWallet]) => {
         await exchangeMock.createLiquidityProviderToken(
           token.address,
           ethAddress,
+          'DIL',
+          'ETH',
         );
       } catch (e) {
         error = e;
@@ -40,28 +61,15 @@ contract('Exchange (liquidity provider token)', ([ownerWallet]) => {
       expect(error).to.not.be.undefined;
       expect(error.message).to.match(/revert/i);
     });
-
-    it('should work', async () => {
-      const token = await Token.new();
-
-      const lpToken = await LiquidityProviderToken.at(
-        (
-          await exchangeMock.createLiquidityProviderToken(
-            token.address,
-            ethAddress,
-          )
-        ).logs[0].args.lpToken,
-      );
-
-      expect(await lpToken.name()).to.equal('IDEX LPs');
-      expect(await lpToken.symbol()).to.equal('IDEX-LP');
-      expect((await lpToken.decimals()).toString()).to.equal('18');
-    });
-
     it('should revert when base and quote address are the same', async () => {
       let error;
       try {
-        await exchangeMock.createLiquidityProviderToken(ethAddress, ethAddress);
+        await exchangeMock.createLiquidityProviderToken(
+          ethAddress,
+          ethAddress,
+          'DIL',
+          'ETH',
+        );
       } catch (e) {
         error = e;
       }
@@ -75,6 +83,8 @@ contract('Exchange (liquidity provider token)', ([ownerWallet]) => {
         await exchangeMock.createLiquidityProviderToken(
           ownerWallet,
           ethAddress,
+          'DIL',
+          'ETH',
         );
       } catch (e) {
         error = e;
@@ -89,6 +99,8 @@ contract('Exchange (liquidity provider token)', ([ownerWallet]) => {
         await exchangeMock.createLiquidityProviderToken(
           ethAddress,
           ownerWallet,
+          'DIL',
+          'ETH',
         );
       } catch (e) {
         error = e;

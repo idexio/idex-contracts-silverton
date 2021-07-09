@@ -55,6 +55,31 @@ library Trading {
     );
   }
 
+  function executePoolTrade(
+    Order memory order,
+    PoolTrade memory poolTrade,
+    address feeWallet,
+    AssetRegistry.Storage storage assetRegistry,
+    LiquidityPools.Storage storage liquidityPoolRegistry,
+    BalanceTracking.Storage storage balanceTracking,
+    mapping(bytes32 => bool) storage completedOrderHashes,
+    mapping(bytes32 => uint64) storage partiallyFilledOrderQuantitiesInPips
+  ) public {
+    bytes32 orderHash =
+      PoolTradeValidations.validatePoolTrade(order, poolTrade, assetRegistry);
+    updateOrderFilledQuantity(
+      order,
+      orderHash,
+      poolTrade.grossBaseQuantityInPips,
+      poolTrade.grossQuoteQuantityInPips,
+      completedOrderHashes,
+      partiallyFilledOrderQuantitiesInPips
+    );
+
+    balanceTracking.updateForPoolTrade(order, poolTrade, feeWallet);
+    liquidityPoolRegistry.updateReservesForPoolTrade(poolTrade, order.side);
+  }
+
   function executeHybridTrade(
     Order memory buy,
     Order memory sell,
@@ -144,31 +169,6 @@ library Trading {
         feeWallet
       );
     }
-  }
-
-  function executePoolTrade(
-    Order memory order,
-    PoolTrade memory poolTrade,
-    address feeWallet,
-    AssetRegistry.Storage storage assetRegistry,
-    LiquidityPools.Storage storage liquidityPoolRegistry,
-    BalanceTracking.Storage storage balanceTracking,
-    mapping(bytes32 => bool) storage completedOrderHashes,
-    mapping(bytes32 => uint64) storage partiallyFilledOrderQuantitiesInPips
-  ) public {
-    bytes32 orderHash =
-      PoolTradeValidations.validatePoolTrade(order, poolTrade, assetRegistry);
-    updateOrderFilledQuantity(
-      order,
-      orderHash,
-      poolTrade.grossBaseQuantityInPips,
-      poolTrade.grossQuoteQuantityInPips,
-      completedOrderHashes,
-      partiallyFilledOrderQuantitiesInPips
-    );
-
-    balanceTracking.updateForPoolTrade(order, poolTrade, feeWallet);
-    liquidityPoolRegistry.updateReservesForPoolTrade(poolTrade, order.side);
   }
 
   function updateOrderFilledQuantities(

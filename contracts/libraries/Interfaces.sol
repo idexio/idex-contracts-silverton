@@ -178,6 +178,14 @@ interface ILiquidityProviderToken {
 
   function quoteAssetAddress() external returns (address);
 
+  function baseAssetSymbol() external returns (string memory);
+
+  function quoteAssetSymbol() external returns (string memory);
+
+  function token0() external returns (address);
+
+  function token1() external returns (address);
+
   function burn(
     address wallet,
     uint256 liquidity,

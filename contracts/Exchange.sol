@@ -11,6 +11,7 @@ import { BalanceTracking } from './libraries/BalanceTracking.sol';
 import { Constants } from './libraries/Constants.sol';
 import { Depositing } from './libraries/Depositing.sol';
 import { LiquidityPools } from './libraries/LiquidityPools.sol';
+import { LiquidityPoolAdmin } from './libraries/LiquidityPoolAdmin.sol';
 import { Owned } from './Owned.sol';
 import { Trading } from './libraries/Trading.sol';
 import { UUID } from './libraries/UUID.sol';
@@ -45,6 +46,7 @@ contract Exchange is IExchange, Owned {
   using AssetRegistryAdmin for AssetRegistry.Storage;
   using BalanceTracking for BalanceTracking.Storage;
   using LiquidityPools for LiquidityPools.Storage;
+  using LiquidityPoolAdmin for LiquidityPools.Storage;
 
   // Events //
 
@@ -879,7 +881,7 @@ contract Exchange is IExchange, Owned {
   /**
    * @notice Migrate reserve assets into an internally tracked liquidity pool and mints the
    * specified quantity of the associated LP token. If the pool and LP token do not already exist
-   * creates new ones
+   * then create new ones
    */
 
   function migrateLiquidityPool(
@@ -946,6 +948,11 @@ contract Exchange is IExchange, Owned {
     address to,
     uint256 deadline
   ) external {
+    // Calling exitWallet disables on-chain add liquidity initiation immediately on mining, in
+    // contrast to withdrawals, trades, and liquidity change executions which respect the Chain
+    // Propagation Period given by `effectiveBlockNumber` via `isWalletExitFinalized`
+    require(!_walletExits[msg.sender].exists, 'Wallet exited');
+
     _liquidityPools.addLiquidity(
       LiquidityAddition(
         Constants.signatureHashVersion,
@@ -1004,7 +1011,12 @@ contract Exchange is IExchange, Owned {
     address to,
     uint256 deadline
   ) external payable {
-    _liquidityPools.addLiquidityETH(
+    // Calling exitWallet disables on-chain add liquidity initiation immediately on mining, in
+    // contrast to withdrawals, trades, and liquidity change executions which respect the Chain
+    // Propagation Period given by `effectiveBlockNumber` via `isWalletExitFinalized`
+    require(!_walletExits[msg.sender].exists, 'Wallet exited');
+
+    _liquidityPools.addLiquidity(
       LiquidityAddition(
         Constants.signatureHashVersion,
         LiquidityChangeOrigination.OnChain,
@@ -1044,6 +1056,8 @@ contract Exchange is IExchange, Owned {
     LiquidityAddition calldata addition,
     LiquidityChangeExecution calldata execution
   ) external onlyDispatcher {
+    require(!isWalletExitFinalized(addition.wallet), 'Wallet exit finalized');
+
     _liquidityPools.executeAddLiquidity(
       addition,
       execution,
@@ -1085,6 +1099,11 @@ contract Exchange is IExchange, Owned {
     address to,
     uint256 deadline
   ) public {
+    // Calling exitWallet disables on-chain remove liquidity initiation immediately on mining, in
+    // contrast to withdrawals, trades, and liquidity change executions which respect the Chain
+    // Propagation Period given by `effectiveBlockNumber` via `isWalletExitFinalized`
+    require(!_walletExits[msg.sender].exists, 'Wallet exited');
+
     _liquidityPools.removeLiquidity(
       // Use struct to avoid stack too deep
       LiquidityRemoval(
@@ -1138,6 +1157,11 @@ contract Exchange is IExchange, Owned {
     address to,
     uint256 deadline
   ) external {
+    // Calling exitWallet disables on-chain remove liquidity initiation immediately on mining, in
+    // contrast to withdrawals, trades, and liquidity change executions which respect the Chain
+    // Propagation Period given by `effectiveBlockNumber` via `isWalletExitFinalized`
+    require(!_walletExits[msg.sender].exists, 'Wallet exited');
+
     _liquidityPools.removeLiquidity(
       // Use struct to avoid stack too deep
       LiquidityRemoval(
@@ -1178,9 +1202,12 @@ contract Exchange is IExchange, Owned {
     LiquidityRemoval calldata removal,
     LiquidityChangeExecution calldata execution
   ) external onlyDispatcher {
+    require(!isWalletExitFinalized(removal.wallet), 'Wallet exit finalized');
+
     _liquidityPools.executeRemoveLiquidity(
       removal,
       execution,
+      _walletExits[removal.wallet].exists,
       ICustodian(_custodian),
       _feeWallet,
       _balanceTracking
@@ -1225,8 +1252,9 @@ contract Exchange is IExchange, Owned {
   // Wallet exits //
 
   /**
-   * @notice Flags the sending wallet as exited, immediately disabling deposits upon mining. After
-   * the Chain Propagation Period passes trades and withdrawals are also disabled for the wallet,
+   * @notice Flags the sending wallet as exited, immediately disabling deposits and on-chain
+   * intitiation of liquidity changes upon mining. After the Chain Propagation Period passes
+   * trades, withdrawals, and liquidity change executions are also disabled for the wallet,
    * and assets may then be withdrawn one at a time via `withdrawExit`
    */
   function exitWallet() external {
@@ -1270,7 +1298,7 @@ contract Exchange is IExchange, Owned {
    * deposits, trades, and withdrawals by sending wallet
    */
   function clearWalletExit() external {
-    require(_walletExits[msg.sender].exists, 'Wallet not exited');
+    require(isWalletExitFinalized(msg.sender), 'Wallet exit not finalized');
 
     delete _walletExits[msg.sender];
 

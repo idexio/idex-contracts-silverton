@@ -12,7 +12,9 @@ contract ExchangeLPTokenMock {
 
   function createLiquidityProviderToken(
     address baseAssetAddress,
-    address quoteAssetAddress
+    address quoteAssetAddress,
+    string memory baseAssetSymbol,
+    string memory quoteAssetSymbol
   ) external returns (ILiquidityProviderToken liquidityProviderToken) {
     // Create an LP token contract tied to this market
     bytes32 salt =
@@ -20,7 +22,9 @@ contract ExchangeLPTokenMock {
     liquidityProviderToken = ILiquidityProviderToken(
       new LiquidityProviderToken{ salt: salt }(
         baseAssetAddress,
-        quoteAssetAddress
+        quoteAssetAddress,
+        baseAssetSymbol,
+        quoteAssetSymbol
       )
     );
 
