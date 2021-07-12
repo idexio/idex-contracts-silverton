@@ -92,6 +92,15 @@ struct LiquidityChangeExecution {
 }
 
 /**
+ * @notice Internally used struct capturing wallet order nonce invalidations created via `invalidateOrderNonce`
+ */
+struct NonceInvalidation {
+  bool exists;
+  uint64 timestampInMs;
+  uint256 effectiveBlockNumber;
+}
+
+/**
  * @notice Return type for `Exchange.loadAssetBySymbol`, and `Exchange.loadAssetByAddress`; also
  * used internally by `AssetRegistry`
  */

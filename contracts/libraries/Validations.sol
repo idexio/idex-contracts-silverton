@@ -14,6 +14,7 @@ import {
   LiquidityPool,
   Order,
   OrderBookTrade,
+  NonceInvalidation,
   PoolTrade,
   Withdrawal
 } from './Structs.sol';
@@ -47,6 +48,34 @@ library Validations {
         ) ==
         trade.grossQuoteQuantityInPips,
       'Orderbook quote fees unbalanced'
+    );
+  }
+
+  function validateOrderNonce(
+    Order memory order,
+    mapping(address => NonceInvalidation) storage nonceInvalidations
+  ) internal view {
+    require(
+      UUID.getTimestampInMsFromUuidV1(order.nonce) >
+        loadLastInvalidatedTimestamp(order.walletAddress, nonceInvalidations),
+      'Order nonce timestamp too low'
+    );
+  }
+
+  function validateOrderNonces(
+    Order memory buy,
+    Order memory sell,
+    mapping(address => NonceInvalidation) storage nonceInvalidations
+  ) internal view {
+    require(
+      UUID.getTimestampInMsFromUuidV1(buy.nonce) >
+        loadLastInvalidatedTimestamp(buy.walletAddress, nonceInvalidations),
+      'Buy order nonce timestamp too low'
+    );
+    require(
+      UUID.getTimestampInMsFromUuidV1(sell.nonce) >
+        loadLastInvalidatedTimestamp(sell.walletAddress, nonceInvalidations),
+      'Sell order nonce timestamp too low'
     );
   }
 
@@ -162,6 +191,20 @@ library Validations {
     );
 
     return uint64(impliedQuoteQuantityInPips);
+  }
+
+  function loadLastInvalidatedTimestamp(
+    address walletAddress,
+    mapping(address => NonceInvalidation) storage nonceInvalidations
+  ) private view returns (uint64) {
+    if (
+      nonceInvalidations[walletAddress].exists &&
+      nonceInvalidations[walletAddress].effectiveBlockNumber <= block.number
+    ) {
+      return nonceInvalidations[walletAddress].timestampInMs;
+    }
+
+    return 0;
   }
 
   function isFeeQuantityValid(uint64 fee, uint64 total)

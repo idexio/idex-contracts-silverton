@@ -8,7 +8,7 @@ import { OrderSide } from './Enums.sol';
 import { Hashing } from './Hashing.sol';
 import { UUID } from './UUID.sol';
 import { Validations } from './Validations.sol';
-import { Asset, Order, OrderBookTrade } from './Structs.sol';
+import { Asset, Order, OrderBookTrade, NonceInvalidation } from './Structs.sol';
 
 library OrderBookTradeValidations {
   using AssetRegistry for AssetRegistry.Storage;
@@ -17,11 +17,18 @@ library OrderBookTradeValidations {
     Order memory buy,
     Order memory sell,
     OrderBookTrade memory trade,
-    AssetRegistry.Storage storage assetRegistry
+    AssetRegistry.Storage storage assetRegistry,
+    mapping(address => NonceInvalidation) storage nonceInvalidations
   ) internal view returns (bytes32, bytes32) {
+    require(
+      buy.walletAddress != sell.walletAddress,
+      'Self-trading not allowed'
+    );
+
     // Order book trade validations
     validateAssetPair(buy, sell, trade, assetRegistry);
     validateLimitPrices(buy, sell, trade);
+    Validations.validateOrderNonces(buy, sell, nonceInvalidations);
     (bytes32 buyHash, bytes32 sellHash) =
       validateOrderSignatures(buy, sell, trade);
     validateFees(trade);

@@ -14,6 +14,7 @@ import {
   HybridTrade,
   Order,
   OrderBookTrade,
+  NonceInvalidation,
   PoolTrade
 } from './Structs.sol';
 
@@ -25,8 +26,14 @@ library HybridTradeValidations {
     Order memory buy,
     Order memory sell,
     HybridTrade memory hybridTrade,
-    AssetRegistry.Storage storage assetRegistry
+    AssetRegistry.Storage storage assetRegistry,
+    mapping(address => NonceInvalidation) storage nonceInvalidations
   ) internal view returns (bytes32 buyHash, bytes32 sellHash) {
+    require(
+      buy.walletAddress != sell.walletAddress,
+      'Self-trading not allowed'
+    );
+
     require(
       hybridTrade.orderBookTrade.baseAssetAddress ==
         hybridTrade.poolTrade.baseAssetAddress &&
@@ -37,6 +44,7 @@ library HybridTradeValidations {
     validateFees(hybridTrade);
 
     // Order book trade validations
+    Validations.validateOrderNonces(buy, sell, nonceInvalidations);
     (buyHash, sellHash) = OrderBookTradeValidations.validateOrderSignatures(
       buy,
       sell,

@@ -30,6 +30,7 @@ import {
   LiquidityChangeExecution,
   LiquidityPool,
   LiquidityRemoval,
+  NonceInvalidation,
   Order,
   OrderBookTrade,
   PoolTrade,
@@ -249,11 +250,6 @@ contract Exchange is IExchange, Owned {
 
   // Internally used structs //
 
-  struct NonceInvalidation {
-    bool exists;
-    uint64 timestampInMs;
-    uint256 effectiveBlockNumber;
-  }
   struct WalletExit {
     bool exists;
     uint256 effectiveBlockNumber;
@@ -720,8 +716,6 @@ contract Exchange is IExchange, Owned {
       'Self-trading not allowed'
     );
 
-    validateOrderNonces(buy, sell);
-
     Trading.executeOrderBookTrade(
       buy,
       sell,
@@ -730,6 +724,7 @@ contract Exchange is IExchange, Owned {
       _assetRegistry,
       _balanceTracking,
       _completedOrderHashes,
+      _nonceInvalidations,
       _partiallyFilledOrderQuantitiesInPips
     );
 
@@ -752,7 +747,6 @@ contract Exchange is IExchange, Owned {
       !isWalletExitFinalized(order.walletAddress),
       'Order wallet exit finalized'
     );
-    validateOrderNonce(order);
 
     Trading.executePoolTrade(
       order,
@@ -762,6 +756,7 @@ contract Exchange is IExchange, Owned {
       _liquidityPools,
       _balanceTracking,
       _completedOrderHashes,
+      _nonceInvalidations,
       _partiallyFilledOrderQuantitiesInPips
     );
 
@@ -789,12 +784,6 @@ contract Exchange is IExchange, Owned {
       !isWalletExitFinalized(sell.walletAddress),
       'Sell wallet exit finalized'
     );
-    require(
-      buy.walletAddress != sell.walletAddress,
-      'Self-trading not allowed'
-    );
-
-    validateOrderNonces(buy, sell);
 
     Trading.executeHybridTrade(
       buy,
@@ -805,6 +794,7 @@ contract Exchange is IExchange, Owned {
       _liquidityPools,
       _balanceTracking,
       _completedOrderHashes,
+      _nonceInvalidations,
       _partiallyFilledOrderQuantitiesInPips
     );
 
@@ -1479,32 +1469,6 @@ contract Exchange is IExchange, Owned {
     AssetRegistryAdmin.skim(tokenAddress, _feeWallet);
   }
 
-  // Private methods - validations //
-
-  function validateOrderNonces(Order memory buy, Order memory sell)
-    private
-    view
-  {
-    require(
-      UUID.getTimestampInMsFromUuidV1(buy.nonce) >
-        getLastInvalidatedTimestamp(buy.walletAddress),
-      'Buy order nonce timestamp too low'
-    );
-    require(
-      UUID.getTimestampInMsFromUuidV1(sell.nonce) >
-        getLastInvalidatedTimestamp(sell.walletAddress),
-      'Sell order nonce timestamp too low'
-    );
-  }
-
-  function validateOrderNonce(Order memory order) private view {
-    require(
-      UUID.getTimestampInMsFromUuidV1(order.nonce) >
-        getLastInvalidatedTimestamp(order.walletAddress),
-      'Order nonce timestamp too low'
-    );
-  }
-
   // Exchange upgrades //
 
   /**
@@ -1524,21 +1488,6 @@ contract Exchange is IExchange, Owned {
     uint64 msInOneSecond = 1000;
 
     return uint64(block.timestamp) * msInOneSecond;
-  }
-
-  function getLastInvalidatedTimestamp(address walletAddress)
-    private
-    view
-    returns (uint64)
-  {
-    if (
-      _nonceInvalidations[walletAddress].exists &&
-      _nonceInvalidations[walletAddress].effectiveBlockNumber <= block.number
-    ) {
-      return _nonceInvalidations[walletAddress].timestampInMs;
-    }
-
-    return 0;
   }
 
   function getOneDayFromNowInMs() private view returns (uint64) {
