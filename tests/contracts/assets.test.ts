@@ -224,7 +224,7 @@ contract('Exchange (tokens)', () => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/BNB symbol reserved/i);
+      expect(error.message).to.match(/reserved for native asset/i);
     });
 
     it('should revert for ETH address', async () => {

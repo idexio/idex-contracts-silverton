@@ -25,14 +25,18 @@ library LiquidityPoolAdmin {
     address baseAssetAddress,
     address quoteAssetAddress,
     AssetRegistry.Storage storage assetRegistry
-  ) public {
+  ) public returns (address liquidityProviderToken) {
     {
-      createLiquidityPoolByAssetAddresses(
-        self,
-        baseAssetAddress,
-        quoteAssetAddress,
-        assetRegistry
-      );
+      return
+        address(
+          createLiquidityPoolByAssetAddresses(
+            self,
+            baseAssetAddress,
+            quoteAssetAddress,
+            assetRegistry
+          )
+            .liquidityProviderToken
+        );
     }
   }
 
@@ -217,6 +221,22 @@ library LiquidityPoolAdmin {
     pool.liquidityProviderToken = ILiquidityProviderToken(
       liquidityProviderToken
     );
+
+    // Build an asset descriptor for the new LP token and add it to the regiistry. There is no need
+    // to validate against it already existing as the preceeding CREATE2 will revert on duplicate
+    // asset pairs
+    Asset memory lpTokenAsset =
+      Asset({
+        exists: true,
+        assetAddress: address(liquidityProviderToken),
+        symbol: LiquidityProviderToken(address(liquidityProviderToken))
+          .symbol(),
+        decimals: Constants.liquidityProviderTokenDecimals,
+        isConfirmed: true,
+        confirmedTimestampInMs: uint64(block.timestamp * 1000) // Block timestamp is in seconds, store ms
+      });
+    assetRegistry.assetsByAddress[lpTokenAsset.assetAddress] = lpTokenAsset;
+    assetRegistry.assetsBySymbol[lpTokenAsset.symbol].push(lpTokenAsset);
   }
 
   function transferMigratedTokenReservesToCustodian(

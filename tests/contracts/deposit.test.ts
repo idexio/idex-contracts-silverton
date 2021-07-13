@@ -23,7 +23,6 @@ contract('Exchange (deposits)', (accounts) => {
       (await BalanceMigrationSourceMock.new()).address,
       (await WETH.new()).address,
       nativeAssetSymbol,
-      (await WETH.new()).address,
     );
 
     let error;
@@ -102,7 +101,6 @@ contract('Exchange (deposits)', (accounts) => {
         (await BalanceMigrationSourceMock.new()).address,
         (await WETH.new()).address,
         nativeAssetSymbol,
-        (await WETH.new()).address,
       );
 
       await exchange.setDepositIndex(1);
@@ -118,23 +116,24 @@ contract('Exchange (deposits)', (accounts) => {
       expect(error.message).to.match(/can only be set once/i);
     });
 
-    it('revert when called with zero', async () => {
+    it('revert when called with invalid value', async () => {
       const exchange = await Exchange.new(
         (await BalanceMigrationSourceMock.new()).address,
         (await WETH.new()).address,
         nativeAssetSymbol,
-        (await WETH.new()).address,
       );
 
       let error;
       try {
-        await exchange.setDepositIndex(0);
+        await exchange.setDepositIndex(
+          BigNumber.from(2).pow(64).sub(1).toString(),
+        );
       } catch (e) {
         error = e;
       }
 
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/must be nonzero/i);
+      expect(error.message).to.match(/invalid deposit index/i);
     });
   });
 
@@ -212,7 +211,6 @@ contract('Exchange (deposits)', (accounts) => {
         (await BalanceMigrationSourceMock.new()).address,
         (await WETH.new()).address,
         nativeAssetSymbol,
-        (await WETH.new()).address,
       );
 
       let error;

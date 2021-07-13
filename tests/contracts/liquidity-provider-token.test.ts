@@ -24,7 +24,7 @@ contract('Exchange (liquidity provider token)', ([ownerWallet]) => {
   });
 
   describe('constructor', () => {
-    it.only('should work', async () => {
+    it('should work', async () => {
       const token = await Token.new();
 
       const lpToken = await LiquidityProviderToken.at(

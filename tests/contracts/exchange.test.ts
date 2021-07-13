@@ -18,7 +18,6 @@ contract('Exchange (tunable parameters)', (accounts) => {
         (await BalanceMigrationSourceMock.new()).address,
         (await WETH.new()).address,
         nativeAssetSymbol,
-        (await WETH.new()).address,
       );
     });
 
@@ -29,7 +28,6 @@ contract('Exchange (tunable parameters)', (accounts) => {
           accounts[1],
           (await WETH.new()).address,
           nativeAssetSymbol,
-          (await WETH.new()).address,
         );
       } catch (e) {
         error = e;
@@ -38,23 +36,6 @@ contract('Exchange (tunable parameters)', (accounts) => {
       expect(error).to.not.be.undefined;
       expect(error.message).to.match(/invalid migration source/i);
     });
-
-    it('should revert for invalid WETH address', async () => {
-      let error;
-      try {
-        await Exchange.new(
-          (await BalanceMigrationSourceMock.new()).address,
-          (await WETH.new()).address,
-          nativeAssetSymbol,
-          ethAddress,
-        );
-      } catch (e) {
-        error = e;
-      }
-
-      expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/invalid WETH address/i);
-    });
   });
 
   it('should revert when receiving ETH directly', async () => {
@@ -62,7 +43,6 @@ contract('Exchange (tunable parameters)', (accounts) => {
       (await BalanceMigrationSourceMock.new()).address,
       (await WETH.new()).address,
       nativeAssetSymbol,
-      (await WETH.new()).address,
     );
 
     let error;
@@ -166,21 +146,6 @@ contract('Exchange (tunable parameters)', (accounts) => {
     });
   });
 
-  describe('loadWETHAddress', () => {
-    it('should work', async () => {
-      const { address } = await WETH.new();
-      const exchange = await Exchange.new(
-        (await BalanceMigrationSourceMock.new()).address,
-        address,
-        nativeAssetSymbol,
-        address,
-      );
-
-      const result = await exchange.loadWETHAddress();
-      expect(result).to.equal(address);
-    });
-  });
-
   describe('cleanupWalletBalance', async () => {
     it('should work for valid address', async () => {
       const { exchange, governance } = await deployAndAssociateContracts();
@@ -213,7 +178,6 @@ contract('Exchange (tunable parameters)', (accounts) => {
         (await BalanceMigrationSourceMock.new()).address,
         (await WETH.new()).address,
         nativeAssetSymbol,
-        (await WETH.new()).address,
       );
 
       await exchange.setAdmin(accounts[1]);
@@ -224,7 +188,6 @@ contract('Exchange (tunable parameters)', (accounts) => {
         (await BalanceMigrationSourceMock.new()).address,
         (await WETH.new()).address,
         nativeAssetSymbol,
-        (await WETH.new()).address,
       );
 
       let error;
@@ -257,7 +220,6 @@ contract('Exchange (tunable parameters)', (accounts) => {
         (await BalanceMigrationSourceMock.new()).address,
         (await WETH.new()).address,
         nativeAssetSymbol,
-        (await WETH.new()).address,
       );
 
       let error;
@@ -290,7 +252,6 @@ contract('Exchange (tunable parameters)', (accounts) => {
         (await BalanceMigrationSourceMock.new()).address,
         (await WETH.new()).address,
         nativeAssetSymbol,
-        (await WETH.new()).address,
       );
 
       let error;
@@ -365,7 +326,6 @@ contract('Exchange (tunable parameters)', (accounts) => {
         (await BalanceMigrationSourceMock.new()).address,
         (await WETH.new()).address,
         nativeAssetSymbol,
-        (await WETH.new()).address,
       );
 
       let error;
@@ -430,7 +390,6 @@ contract('Exchange (tunable parameters)', (accounts) => {
         (await BalanceMigrationSourceMock.new()).address,
         (await WETH.new()).address,
         nativeAssetSymbol,
-        (await WETH.new()).address,
       );
 
       let error;
@@ -478,7 +437,6 @@ contract('Exchange (tunable parameters)', (accounts) => {
         (await BalanceMigrationSourceMock.new()).address,
         (await WETH.new()).address,
         nativeAssetSymbol,
-        (await WETH.new()).address,
       );
 
       let error;

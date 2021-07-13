@@ -57,7 +57,6 @@ export const deployAndAssociateContracts = async (
       balanceMigrationSource.address,
       weth.address,
       nativeAssetSymbol,
-      weth.address,
     ), // Fee wallet is just WETH
     Governance.new(blockDelay),
   ]);

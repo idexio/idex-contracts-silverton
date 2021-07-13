@@ -21,18 +21,24 @@ import {
 contract LiquidityProviderToken is ERC20, ILiquidityProviderToken {
   // Used to whitelist Exchange-only functions by loading address of current Exchange from Custodian
   ICustodian public override custodian;
+
   // Base and quote asset addresses provided only for informational purposes
   address public override baseAssetAddress;
   address public override quoteAssetAddress;
   string public override baseAssetSymbol;
   string public override quoteAssetSymbol;
 
+  /**
+   * @notice Emitted when the Exchange mints new LP tokens to a wallet via `mint`
+   */
   event Mint(
     address indexed sender,
     uint256 baseAssetQuantityInAssetUnits,
     uint256 quoteAssetQuantityInAssetUnits
   );
-
+  /**
+   * @notice Emitted when the Exchange burns a wallet's LP tokens via `burn`
+   */
   event Burn(
     address indexed sender,
     uint256 baseAssetQuantityInAssetUnits,
@@ -44,6 +50,19 @@ contract LiquidityProviderToken is ERC20, ILiquidityProviderToken {
     require(msg.sender == custodian.loadExchange(), 'Caller is not Exchange');
     _;
   }
+
+  /**
+   * @notice Instantiate a new `LiquidityProviderToken` contract
+   *
+   * @dev Should be called by the Exchange via a CREATE2 op to generate stable deterministic
+   * addresses and setup whitelist for `onlyExchange` restricted functions. Asset addresses and
+   * symbols are stored
+   *
+   * @param _baseAssetAddress The base asset address
+   * @param _quoteAssetAddress The quote asset address
+   * @param _baseAssetSymbol The base asset symbol
+   * @param _quoteAssetSymbol The quote asset symbol
+   */
 
   constructor(
     address _baseAssetAddress,
@@ -79,7 +98,7 @@ contract LiquidityProviderToken is ERC20, ILiquidityProviderToken {
   }
 
   /**
-   * @dev Returns the name of the token.
+   * @notice Returns the name of the token
    */
   function name() public view override returns (string memory) {
     return
@@ -89,14 +108,16 @@ contract LiquidityProviderToken is ERC20, ILiquidityProviderToken {
   }
 
   /**
-   * @dev Returns the symbol of the token
-   * name.
+   * @notice Returns the symbol of the token
    */
   function symbol() public view override returns (string memory) {
     return
       string(abi.encodePacked('IHL-', baseAssetSymbol, '-', quoteAssetSymbol));
   }
 
+  /**
+   * @notice Returns the address of the base-quote pair asset with the lower sort order
+   */
   function token0() external view override returns (address) {
     return
       baseAssetAddress < quoteAssetAddress
@@ -104,6 +125,9 @@ contract LiquidityProviderToken is ERC20, ILiquidityProviderToken {
         : quoteAssetAddress;
   }
 
+  /**
+   * @notice Returns the address of the base-quote pair asset with the higher sort order
+   */
   function token1() external view override returns (address) {
     return
       baseAssetAddress < quoteAssetAddress
@@ -111,6 +135,9 @@ contract LiquidityProviderToken is ERC20, ILiquidityProviderToken {
         : baseAssetAddress;
   }
 
+  /**
+   * @notice Burns LP tokens by removing them from `wallet`'s balance and total supply
+   */
   function burn(
     address wallet,
     uint256 liquidity,
@@ -128,6 +155,9 @@ contract LiquidityProviderToken is ERC20, ILiquidityProviderToken {
     );
   }
 
+  /**
+   * @notice Mints LP tokens by adding them to `wallet`'s balance and total supply
+   */
   function mint(
     address wallet,
     uint256 liquidity,
@@ -144,10 +174,23 @@ contract LiquidityProviderToken is ERC20, ILiquidityProviderToken {
     );
   }
 
+  /**
+   * @notice Reverses the asset pair represented by this token by swapping `baseAssetAddress` with
+   * `quoteAssetAddress` and `baseAssetSymbol` with `quoteAssetSymbol`
+   */
   function reverseAssets() external override onlyExchange {
-    (baseAssetAddress, quoteAssetAddress) = (
-      quoteAssetAddress,
-      baseAssetAddress
+    (
+      address _baseAssetAddress,
+      address _quoteAssetAddress,
+      string memory _baseAssetSymbol,
+      string memory _quoteAssetSymbol
+    ) =
+      (quoteAssetAddress, baseAssetAddress, quoteAssetSymbol, baseAssetSymbol);
+    (baseAssetAddress, quoteAssetAddress, baseAssetSymbol, quoteAssetSymbol) = (
+      _baseAssetAddress,
+      _quoteAssetAddress,
+      _baseAssetSymbol,
+      _quoteAssetSymbol
     );
   }
 }

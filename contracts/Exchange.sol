@@ -21,6 +21,7 @@ import {
   ICustodian,
   IERC20,
   IExchange,
+  ILiquidityProviderToken,
   IWETH9
 } from './libraries/Interfaces.sol';
 import {
@@ -116,6 +117,14 @@ contract Exchange is IExchange, Owned {
     uint64 baseQuantityInPips,
     uint64 quoteQuantityInPips,
     uint64 liquidityInPips
+  );
+  /**
+   * @notice Emitted when a
+   */
+  event LiquidityPoolCreated(
+    address baseAssetAddress,
+    address quoteAssetAddress,
+    address liquidityProviderToken
   );
   /**
    * @notice Emitted when an Admin switches liquidity pool asset direction via
@@ -276,7 +285,6 @@ contract Exchange is IExchange, Owned {
   // Liquidity pools
   address _liquidityMigrator;
   LiquidityPools.Storage _liquidityPools;
-  IWETH9 immutable _WETH;
   // Withdrawals - mapping of withdrawal wallet hash => isComplete
   mapping(bytes32 => bool) _completedWithdrawalHashes;
   // Tunable parameters
@@ -287,12 +295,12 @@ contract Exchange is IExchange, Owned {
   /**
    * @notice Instantiate a new `Exchange` contract
    *
-   * @dev Sets `_balanceMigrationSource` to first argument, and `_owner` and `_admin` to `msg.sender` */
+   * @dev Sets `_balanceMigrationSource` to first argument, and `_owner` and `_admin` to `msg.sender`
+   */
   constructor(
     IExchange balanceMigrationSource,
     address feeWallet,
-    string memory nativeAssetSymbol,
-    IWETH9 WETH
+    string memory nativeAssetSymbol
   ) Owned() {
     require(
       address(balanceMigrationSource) == address(0x0) ||
@@ -304,9 +312,6 @@ contract Exchange is IExchange, Owned {
     setFeeWallet(feeWallet);
 
     _assetRegistry.nativeAssetSymbol = nativeAssetSymbol;
-
-    require(Address.isContract(address(WETH)), 'Invalid WETH address');
-    _WETH = WETH;
 
     // Deposits must be manually enabled via `setDepositIndex`
     _depositIndex = Constants.depositIndexNotSet;
@@ -338,8 +343,8 @@ contract Exchange is IExchange, Owned {
    * the old Exchange contract's value
    *
    * @dev The Whistler Exchange does not expose its `_depositIndex` making this manual migration
-   * necessary. The old Exchange must have had at least one deposit. This value cannot be changed
-   * again once set
+   * necessary. If this Exchange is not upgraded from Whistler, call this function with
+   * `newDepositIndex` set to 0. This value cannot be changed again once set
    *
    * @param newDepositIndex The value of `_depositIndex` currently set on the old Exchange contract
    */
@@ -348,7 +353,10 @@ contract Exchange is IExchange, Owned {
       _depositIndex == Constants.depositIndexNotSet,
       'Can only be set once'
     );
-    require(newDepositIndex != _depositIndex, 'Must be different from current');
+    require(
+      newDepositIndex != Constants.depositIndexNotSet,
+      'Invalid deposit index'
+    );
 
     _depositIndex = newDepositIndex;
   }
@@ -556,15 +564,6 @@ contract Exchange is IExchange, Owned {
   }
 
   /**
-   * @notice Load the address of the `WETH` contract associated with the Exchange
-   *
-   * @return The address of the `WETH` contract
-   */
-  function loadWETHAddress() external view returns (address) {
-    return address(_WETH);
-  }
-
-  /**
    * @notice Load the quantity filled so far for a partially filled orders
    *
    * @dev Invalidating an order nonce will not clear partial fill quantities for earlier orders because
@@ -592,10 +591,7 @@ contract Exchange is IExchange, Owned {
    * demotion respectively
    */
   receive() external payable {
-    require(
-      msg.sender == address(_custodian) || msg.sender == address(_WETH),
-      'Use depositEther'
-    );
+    require(Address.isContract(msg.sender), 'Use depositEther');
   }
 
   /**
@@ -856,22 +852,51 @@ contract Exchange is IExchange, Owned {
 
   /**
    * @notice Create a new internally tracked liquidity pool and associated LP token
+   *
+   * @param baseAssetAddress The base asset address
+   * @param quoteAssetAddress The quote asset address
    */
   function createLiquidityPool(
     address baseAssetAddress,
     address quoteAssetAddress
   ) external onlyAdmin {
-    _liquidityPools.createLiquidityPool(
+    address liquidityProviderToken =
+      _liquidityPools.createLiquidityPool(
+        baseAssetAddress,
+        quoteAssetAddress,
+        _assetRegistry
+      );
+
+    emit LiquidityPoolCreated(
       baseAssetAddress,
       quoteAssetAddress,
-      _assetRegistry
+      liquidityProviderToken
     );
   }
 
   /**
-   * @notice Migrate reserve assets into an internally tracked liquidity pool and mints the
+   * @notice Migrate reserve assets into an internally tracked liquidity pool and mint the
    * specified quantity of the associated LP token. If the pool and LP token do not already exist
    * then create new ones
+   *
+   * @dev This function should be called by a Migrator contract associated with a Farm by invoking
+   * the `migrate` function on a Farm instance, passing in the `pid` of a pool holding tokens
+   * compliant with the `IUniswapV2Pair` interface. The Migrator will then liquidate all tokens
+   * held in the pool by calling the `burn` function on the Pair contract, transfer the output
+   * reserve assets to the Exchange, and call this function. The Exchange then mints the
+   * `desiredQuantity` of the new IDEX LP tokens back to the Migrator. This `desiredLiquidity`
+   * should be exactly equal to the asset unit quantity of Pair tokens originally deposited in the
+   * Farm pool
+   *
+   * @param token0 The address of `token0` in the Pair contract being migrated
+   * @param token1 The address of `token1` in the Pair contract being migrated
+   * @param isToken1Quote If true, maps `token0` to the base asset and `token1` to the quote asset
+   * in the internally tracked pool; otherwise maps `token1` to base and `token0` to quote
+   * @param desiredLiquidity The quantity of asset units of the new LP token to mint back to the Migrator
+   * @param to Recipient of the liquidity tokens
+   *
+   * @return liquidityProviderToken The address of the liquidity provider ERC-20 token representing
+   * liquidity in the internally-tracked pool corresponding to the asset pair
    */
 
   function migrateLiquidityPool(
@@ -879,23 +904,34 @@ contract Exchange is IExchange, Owned {
     address token1,
     bool isToken1Quote,
     uint256 desiredLiquidity,
-    address to
+    address to,
+    address payable WETH
   ) external onlyMigrator returns (address liquidityProviderToken) {
-    return
-      _liquidityPools.migrateLiquidityPool(
-        token0,
-        token1,
-        isToken1Quote,
-        desiredLiquidity,
-        to,
-        _custodian,
-        _WETH,
-        _assetRegistry
+    liquidityProviderToken = _liquidityPools.migrateLiquidityPool(
+      token0,
+      token1,
+      isToken1Quote,
+      desiredLiquidity,
+      to,
+      _custodian,
+      IWETH9(WETH),
+      _assetRegistry
+    );
+
+    if (IERC20(liquidityProviderToken).totalSupply() == desiredLiquidity) {
+      emit LiquidityPoolCreated(
+        isToken1Quote ? token0 : token1,
+        isToken1Quote ? token1 : token0,
+        liquidityProviderToken
       );
+    }
   }
 
   /**
    * @notice Reverse the base and quote assets in an internally tracked liquidity pool
+   *
+   * @param baseAssetAddress The base asset address
+   * @param quoteAssetAddress The quote asset address
    */
   function reverseLiquidityPoolAssets(
     address baseAssetAddress,
@@ -1313,19 +1349,16 @@ contract Exchange is IExchange, Owned {
     uint64 timestampInMs = UUID.getTimestampInMsFromUuidV1(nonce);
     // Enforce a maximum skew for invalidating nonce timestamps in the future so the user doesn't
     // lock their wallet from trades indefinitely
-    require(
-      timestampInMs < getOneDayFromNowInMs(),
-      'Nonce timestamp too far in future'
-    );
+    require(timestampInMs < getOneDayFromNowInMs(), 'Nonce timestamp too high');
 
     if (_nonceInvalidations[msg.sender].exists) {
       require(
         _nonceInvalidations[msg.sender].timestampInMs < timestampInMs,
-        'Nonce timestamp already invalidated'
+        'Nonce timestamp invalidated'
       );
       require(
         _nonceInvalidations[msg.sender].effectiveBlockNumber <= block.number,
-        'Previous invalidation awaiting chain propagation'
+        'Last invalidation not finalized'
       );
     }
 
