@@ -102,9 +102,7 @@ library LiquidityPoolAdmin {
           'Insufficient quote quantity'
         );
 
-        if (IERC20(liquidityProviderToken).totalSupply() == 0) {
-          Validations.validatePoolReserveRatio(pool);
-        }
+        Validations.validatePoolReserveRatio(pool);
       }
 
       // Mint desired liquidity to Farm to complete migration
