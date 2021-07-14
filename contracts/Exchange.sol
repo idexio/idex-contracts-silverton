@@ -11,6 +11,7 @@ import { Constants } from './libraries/Constants.sol';
 import { Depositing } from './libraries/Depositing.sol';
 import { LiquidityPools } from './libraries/LiquidityPools.sol';
 import { LiquidityPoolAdmin } from './libraries/LiquidityPoolAdmin.sol';
+import { NonceInvalidations } from './libraries/NonceInvalidations.sol';
 import { Owned } from './Owned.sol';
 import { Trading } from './libraries/Trading.sol';
 import { UUID } from './libraries/UUID.sol';
@@ -49,6 +50,7 @@ contract Exchange is IExchange, Owned {
   using BalanceTracking for BalanceTracking.Storage;
   using LiquidityPools for LiquidityPools.Storage;
   using LiquidityPoolAdmin for LiquidityPools.Storage;
+  using NonceInvalidations for mapping(address => NonceInvalidation);
 
   // Events //
 
@@ -1377,29 +1379,8 @@ contract Exchange is IExchange, Owned {
    * the one provided
    */
   function invalidateOrderNonce(uint128 nonce) external {
-    uint64 timestampInMs = UUID.getTimestampInMsFromUuidV1(nonce);
-    // Enforce a maximum skew for invalidating nonce timestamps in the future so the user doesn't
-    // lock their wallet from trades indefinitely
-    require(timestampInMs < getOneDayFromNowInMs(), 'Nonce timestamp too high');
-
-    if (_nonceInvalidations[msg.sender].exists) {
-      require(
-        _nonceInvalidations[msg.sender].timestampInMs < timestampInMs,
-        'Nonce timestamp invalidated'
-      );
-      require(
-        _nonceInvalidations[msg.sender].effectiveBlockNumber <= block.number,
-        'Last invalidation not finalized'
-      );
-    }
-
-    // Changing the Chain Propagation Period will not affect the effectiveBlockNumber for this invalidation
-    uint256 effectiveBlockNumber = block.number + _chainPropagationPeriod;
-    _nonceInvalidations[msg.sender] = NonceInvalidation(
-      true,
-      timestampInMs,
-      effectiveBlockNumber
-    );
+    (uint64 timestampInMs, uint256 effectiveBlockNumber) =
+      _nonceInvalidations.invalidateOrderNonce(nonce, _chainPropagationPeriod);
 
     emit OrderNonceInvalidated(
       msg.sender,
@@ -1552,12 +1533,5 @@ contract Exchange is IExchange, Owned {
     uint64 msInOneSecond = 1000;
 
     return uint64(block.timestamp) * msInOneSecond;
-  }
-
-  function getOneDayFromNowInMs() private view returns (uint64) {
-    uint64 secondsInOneDay = 24 * 60 * 60; // 24 hours/day * 60 min/hour * 60 seconds/min
-    uint64 msInOneSecond = 1000;
-
-    return (uint64(block.timestamp) + secondsInOneDay) * msInOneSecond;
   }
 }
