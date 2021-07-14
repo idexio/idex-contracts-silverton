@@ -145,13 +145,7 @@ library LiquidityPools {
       pool
     );
 
-    // Store current pool price to validate it does not change
-    uint64 priceBefore = pool.calculateCurrentPoolPriceInPips();
-    // Credit pool reserves
-    pool.baseAssetReserveInPips += execution.netBaseQuantityInPips;
-    pool.quoteAssetReserveInPips += execution.netQuoteQuantityInPips;
-    uint64 priceAfter = pool.calculateCurrentPoolPriceInPips();
-    require(priceBefore == priceAfter, 'Pool price cannot change');
+    validateAndUpdateReservesForLiquidityAddition(pool, execution);
 
     // Mint LP tokens to destination wallet
     liquidityProviderToken.mint(
@@ -550,5 +544,26 @@ library LiquidityPools {
       address(liquidityProviderToken) != address(0x0),
       'No LP token for address pair'
     );
+  }
+
+  function validateAndUpdateReservesForLiquidityAddition(
+    LiquidityPool storage pool,
+    LiquidityChangeExecution memory execution
+  ) private {
+    uint64 initialPrice = pool.calculateCurrentPoolPriceInPips();
+
+    // Credit pool reserves
+    pool.baseAssetReserveInPips += execution.netBaseQuantityInPips;
+    pool.quoteAssetReserveInPips += execution.netQuoteQuantityInPips;
+
+    if (initialPrice == 0) {
+      // First liquidity addition to empty pool establishes price which must be valid ratio
+      Validations.validatePoolReserveRatio(pool);
+    } else {
+      // Liquidity addition to existing pool must maintain same pool price which will already be
+      // a valid ratio as checked above and in `updateReservesForPoolTrade`
+      uint64 updatedPrice = pool.calculateCurrentPoolPriceInPips();
+      require(initialPrice == updatedPrice, 'Pool price cannot change');
+    }
   }
 }

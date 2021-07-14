@@ -660,7 +660,7 @@ contract(
           error = e;
         }
         expect(error).to.not.be.undefined;
-        expect(error.message).to.match(/output fees unbalanced/i);
+        expect(error.message).to.match(/input fees unbalanced/i);
       });
 
       it('should revert when order signature invalid', async () => {
@@ -842,7 +842,7 @@ contract(
           ethAddress,
           buyWallet,
           '2222.22222470',
-          '0.00081000',
+          '0.00080999',
         );
         buyOrder.quantity = '1111.11111235';
         const buySignature = await getSignature(
@@ -861,7 +861,7 @@ contract(
           buyWallet,
           sellWallet,
           '1111.11111235',
-          '0.00081000',
+          '0.00080999',
           ethMarketSymbol,
         );
         sellOrder.quantity = '2222.22222470';

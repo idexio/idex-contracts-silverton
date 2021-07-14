@@ -1055,6 +1055,7 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
         token1,
       );
       execution.netBaseQuantityInPips = decimalToPips('0.50000000');
+      execution.liquidityInPips = decimalToPips('0.50000000');
 
       let error;
       try {
@@ -1092,6 +1093,7 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
         token1,
       );
       execution.netQuoteQuantityInPips = decimalToPips('0.50000000');
+      execution.liquidityInPips = decimalToPips('0.50000000');
 
       let error;
       try {
@@ -1905,7 +1907,7 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
       expect(error.message).to.match(/asset address mismatch/i);
     });
 
-    it('should revert when liquidity is zero', async () => {
+    it('should revert when gross is zero', async () => {
       const depositQuantity = '1.00000000';
       const depositQuantityInAssetUnits = decimalToAssetUnits(
         depositQuantity,
@@ -1949,64 +1951,7 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/insufficient liquidity burned/i);
-    });
-
-    it('should revert when pool has insufficient liquidity', async () => {
-      const baseQuantity = '0.00000002';
-      const quoteQuantity = '1000000.00000000';
-
-      const {
-        exchange,
-        lpToken,
-        token0,
-        token1,
-      } = await deployContractsAndCreateHybridPool(
-        baseQuantity,
-        quoteQuantity,
-        ownerWallet,
-      );
-      await exchange.setDispatcher(ownerWallet);
-
-      await addLiquidityAndExecute(
-        quoteQuantity,
-        ownerWallet,
-        exchange,
-        token0,
-        token1,
-        false,
-        18,
-        decimalToAssetUnits(quoteQuantity, 18),
-        decimalToAssetUnits(baseQuantity, 18),
-      );
-
-      const { removal, execution } = await generateOffChainLiquidityRemoval(
-        '1',
-        ownerWallet,
-        exchange,
-        lpToken,
-        token0,
-        token1,
-        true,
-      );
-      const signature = await getSignature(
-        web3,
-        getLiquidityRemovalHash(removal),
-        ownerWallet,
-      );
-
-      let error;
-      try {
-        // https://github.com/microsoft/TypeScript/issues/28486
-        await (exchange.executeRemoveLiquidity as any)(
-          ...getRemoveLiquidityArguments(removal, signature, execution),
-          { from: ownerWallet },
-        );
-      } catch (e) {
-        error = e;
-      }
-      expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/insufficient liquidity burned/i);
+      expect(error.message).to.match(/gross quantities must be nonzero/i);
     });
 
     it('should revert when minimum base not met', async () => {

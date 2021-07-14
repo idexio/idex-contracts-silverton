@@ -55,8 +55,8 @@ contract LiquidityProviderToken is ERC20, ILiquidityProviderToken {
    * @notice Instantiate a new `LiquidityProviderToken` contract
    *
    * @dev Should be called by the Exchange via a CREATE2 op to generate stable deterministic
-   * addresses and setup whitelist for `onlyExchange` restricted functions. Asset addresses and
-   * symbols are stored
+   * addresses and setup whitelist for `onlyExchange`-restricted functions. Asset addresses and
+   * symbols are stored for informational purposes
    *
    * @param _baseAssetAddress The base asset address
    * @param _quoteAssetAddress The quote asset address
@@ -69,7 +69,7 @@ contract LiquidityProviderToken is ERC20, ILiquidityProviderToken {
     address _quoteAssetAddress,
     string memory _baseAssetSymbol,
     string memory _quoteAssetSymbol
-  ) ERC20('', '') {
+  ) ERC20('', 'IDEX-LP') {
     custodian = IExchange(msg.sender).loadCustodian();
     require(address(custodian) != address(0x0), 'Invalid Custodian address');
 
@@ -103,16 +103,8 @@ contract LiquidityProviderToken is ERC20, ILiquidityProviderToken {
   function name() public view override returns (string memory) {
     return
       string(
-        abi.encodePacked('IDEX HL: ', baseAssetSymbol, '-', quoteAssetSymbol)
+        abi.encodePacked('IDEX LP: ', baseAssetSymbol, '-', quoteAssetSymbol)
       );
-  }
-
-  /**
-   * @notice Returns the symbol of the token
-   */
-  function symbol() public view override returns (string memory) {
-    return
-      string(abi.encodePacked('IHL-', baseAssetSymbol, '-', quoteAssetSymbol));
   }
 
   /**
@@ -179,6 +171,8 @@ contract LiquidityProviderToken is ERC20, ILiquidityProviderToken {
    * `quoteAssetAddress` and `baseAssetSymbol` with `quoteAssetSymbol`
    */
   function reverseAssets() external override onlyExchange {
+    // Assign swapped values to intermediate values first as Solidity won't allow multiple storage
+    // writes in a single statement
     (
       address _baseAssetAddress,
       address _quoteAssetAddress,

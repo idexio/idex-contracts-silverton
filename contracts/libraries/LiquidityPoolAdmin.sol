@@ -8,6 +8,7 @@ import { AssetUnitConversions } from './AssetUnitConversions.sol';
 import { Constants } from './Constants.sol';
 import { LiquidityPools } from './LiquidityPools.sol';
 import { LiquidityProviderToken } from '../LiquidityProviderToken.sol';
+import { Validations } from './Validations.sol';
 import {
   ICustodian,
   IERC20,
@@ -100,6 +101,10 @@ library LiquidityPoolAdmin {
           pool.quoteAssetReserveInPips > 0,
           'Insufficient quote quantity'
         );
+
+        if (IERC20(liquidityProviderToken).totalSupply() == 0) {
+          Validations.validatePoolReserveRatio(pool);
+        }
       }
 
       // Mint desired liquidity to Farm to complete migration
@@ -229,8 +234,9 @@ library LiquidityPoolAdmin {
       Asset({
         exists: true,
         assetAddress: address(liquidityProviderToken),
-        symbol: LiquidityProviderToken(address(liquidityProviderToken))
-          .symbol(),
+        symbol: string(
+          abi.encodePacked('ILP-', baseAssetSymbol, '-', quoteAssetSymbol)
+        ),
         decimals: Constants.liquidityProviderTokenDecimals,
         isConfirmed: true,
         confirmedTimestampInMs: uint64(block.timestamp * 1000) // Block timestamp is in seconds, store ms
