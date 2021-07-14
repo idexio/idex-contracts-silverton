@@ -12,8 +12,10 @@ import { Hashing } from './Hashing.sol';
 import {
   LiquidityChangeExecutionValidations
 } from './LiquidityChangeExecutionValidations.sol';
+import { LiquidityPoolHelpers } from './LiquidityPoolHelpers.sol';
 import { LiquidityProviderToken } from '../LiquidityProviderToken.sol';
 import { PoolTradeHelpers } from './PoolTradeHelpers.sol';
+import { Validations } from './Validations.sol';
 import { Withdrawing } from './Withdrawing.sol';
 import {
   ICustodian,
@@ -39,6 +41,7 @@ import {
 library LiquidityPools {
   using AssetRegistry for AssetRegistry.Storage;
   using BalanceTracking for BalanceTracking.Storage;
+  using LiquidityPoolHelpers for LiquidityPool;
   using PoolTradeHelpers for PoolTrade;
 
   struct Storage {
@@ -142,9 +145,13 @@ library LiquidityPools {
       pool
     );
 
+    // Store current pool price to validate it does not change
+    uint64 priceBefore = pool.calculateCurrentPoolPriceInPips();
     // Credit pool reserves
     pool.baseAssetReserveInPips += execution.netBaseQuantityInPips;
     pool.quoteAssetReserveInPips += execution.netQuoteQuantityInPips;
+    uint64 priceAfter = pool.calculateCurrentPoolPriceInPips();
+    require(priceBefore == priceAfter, 'Pool price cannot change');
 
     // Mint LP tokens to destination wallet
     liquidityProviderToken.mint(
@@ -326,11 +333,8 @@ library LiquidityPools {
       );
 
     // Calculate output asset quantities
-    (
-      outputBaseAssetQuantityInPips,
-      outputQuoteAssetQuantityInPips
-    ) = LiquidityChangeExecutionValidations
-      .calculateOutputAssetQuantitiesInPips(pool, liquidityToBurnInPips);
+    (outputBaseAssetQuantityInPips, outputQuoteAssetQuantityInPips) = pool
+      .calculateOutputAssetQuantitiesInPips(liquidityToBurnInPips);
     uint256 outputBaseAssetQuantityInAssetUnits =
       AssetUnitConversions.pipsToAssetUnits(
         outputBaseAssetQuantityInPips,
@@ -424,10 +428,22 @@ library LiquidityPools {
         uint128(pool.quoteAssetReserveInPips);
     }
 
+    // Constant product will increase when there are fees collected
     require(
       updatedProduct >= initialProduct,
       'Constant product cannot decrease'
     );
+
+    // Trades cannot drive either reserve ratio below the minimum
+    require(
+      pool.baseAssetReserveInPips >= Constants.minLiquidityPoolReserveInPips,
+      'Base reserves below min'
+    );
+    require(
+      pool.quoteAssetReserveInPips >= Constants.minLiquidityPoolReserveInPips,
+      'Quote reserves below min'
+    );
+    Validations.validatePoolReserveRatio(pool);
 
     return (pool.baseAssetReserveInPips, pool.quoteAssetReserveInPips);
   }

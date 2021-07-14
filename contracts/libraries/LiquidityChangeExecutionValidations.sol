@@ -8,6 +8,7 @@ import { IERC20 } from './Interfaces.sol';
 import {
   LiquidityChangeExecutionHelpers
 } from './LiquidityChangeExecutionHelpers.sol';
+import { LiquidityPoolHelpers } from './LiquidityPoolHelpers.sol';
 import { Validations } from './Validations.sol';
 import {
   LiquidityAddition,
@@ -18,6 +19,7 @@ import {
 
 library LiquidityChangeExecutionValidations {
   using LiquidityChangeExecutionHelpers for LiquidityChangeExecution;
+  using LiquidityPoolHelpers for LiquidityPool;
 
   function validateLiquidityAddition(
     LiquidityAddition memory addition,
@@ -91,8 +93,7 @@ library LiquidityChangeExecutionValidations {
     require(
       execution.liquidityInPips > 0 &&
         execution.liquidityInPips ==
-        calculateOutputLiquidityInPips(
-          pool,
+        pool.calculateOutputLiquidityInPips(
           execution.netBaseQuantityInPips,
           execution.netQuoteQuantityInPips
         ),
@@ -158,7 +159,7 @@ library LiquidityChangeExecutionValidations {
     (
       uint256 expectedBaseAssetQuantityInPips,
       uint256 expectedQuoteAssetQuantityInPips
-    ) = calculateOutputAssetQuantitiesInPips(pool, execution.liquidityInPips);
+    ) = pool.calculateOutputAssetQuantitiesInPips(execution.liquidityInPips);
 
     require(
       execution.grossBaseQuantityInPips == expectedBaseAssetQuantityInPips,
@@ -189,101 +190,5 @@ library LiquidityChangeExecutionValidations {
       ),
       'Excessive quote fee'
     );
-  }
-
-  // Utils //
-
-  /**
-   * @dev Calculate reserve asset quantities to remove from a pool for a given liquidity amount
-   */
-  function calculateOutputAssetQuantitiesInPips(
-    LiquidityPool memory pool,
-    uint64 liquidityToBurnInPips
-  )
-    internal
-    view
-    returns (
-      uint64 outputBaseAssetQuantityInPips,
-      uint64 outputQuoteAssetQuantityInPips
-    )
-  {
-    uint64 totalLiquidityInPips =
-      AssetUnitConversions.assetUnitsToPips(
-        IERC20(address(pool.liquidityProviderToken)).totalSupply(),
-        Constants.liquidityProviderTokenDecimals
-      );
-
-    outputBaseAssetQuantityInPips = calculateOutputQuantityInPips(
-      liquidityToBurnInPips,
-      totalLiquidityInPips,
-      pool.baseAssetReserveInPips
-    );
-    outputQuoteAssetQuantityInPips = calculateOutputQuantityInPips(
-      liquidityToBurnInPips,
-      totalLiquidityInPips,
-      pool.quoteAssetReserveInPips
-    );
-  }
-
-  function calculateOutputLiquidityInPips(
-    LiquidityPool memory pool,
-    uint64 baseQuantityInPips,
-    uint64 quoteQuantityInPips
-  ) internal view returns (uint64 outputLiquidityInPips) {
-    uint256 totalSupplyInAssetUnits =
-      IERC20(address(pool.liquidityProviderToken)).totalSupply();
-    if (totalSupplyInAssetUnits == 0) {
-      return sqrt(baseQuantityInPips * quoteQuantityInPips);
-    }
-
-    uint64 totalLiquidityInPips =
-      AssetUnitConversions.assetUnitsToPips(
-        totalSupplyInAssetUnits,
-        Constants.liquidityProviderTokenDecimals
-      );
-
-    return
-      min(
-        calculateOutputQuantityInPips(
-          baseQuantityInPips,
-          pool.baseAssetReserveInPips,
-          totalLiquidityInPips
-        ),
-        calculateOutputQuantityInPips(
-          quoteQuantityInPips,
-          pool.quoteAssetReserveInPips,
-          totalLiquidityInPips
-        )
-      );
-  }
-
-  function calculateOutputQuantityInPips(
-    uint64 inputQuantityInPips,
-    uint64 totalInputReserveInPips,
-    uint64 totalOutputReserveInPips
-  ) private pure returns (uint64) {
-    uint256 outputLiquidityInPips =
-      (uint256(inputQuantityInPips) * totalOutputReserveInPips) /
-        totalInputReserveInPips;
-    require(outputLiquidityInPips < 2**64, 'Pip quantity overflows uint64');
-
-    return uint64(outputLiquidityInPips);
-  }
-
-  function min(uint64 x, uint64 y) private pure returns (uint64 z) {
-    z = x < y ? x : y;
-  }
-
-  function sqrt(uint64 y) private pure returns (uint64 z) {
-    if (y > 3) {
-      z = y;
-      uint64 x = y / 2 + 1;
-      while (x < z) {
-        z = x;
-        x = (y / x + x) / 2;
-      }
-    } else if (y != 0) {
-      z = 1;
-    }
   }
 }

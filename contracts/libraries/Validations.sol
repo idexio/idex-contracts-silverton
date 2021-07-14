@@ -7,6 +7,7 @@ import { AssetUnitConversions } from './AssetUnitConversions.sol';
 import { Constants } from './Constants.sol';
 import { Hashing } from './Hashing.sol';
 import { IERC20 } from './Interfaces.sol';
+import { Math } from './Math.sol';
 import { UUID } from './UUID.sol';
 import { OrderSide, OrderType } from './Enums.sol';
 import {
@@ -101,6 +102,17 @@ library Validations {
     return orderHash;
   }
 
+  function validatePoolReserveRatio(LiquidityPool memory pool) internal pure {
+    (uint64 sortedReserve0, uint64 sortedReserve1) =
+      pool.baseAssetReserveInPips <= pool.quoteAssetReserveInPips
+        ? (pool.baseAssetReserveInPips, pool.quoteAssetReserveInPips)
+        : (pool.quoteAssetReserveInPips, pool.baseAssetReserveInPips);
+    require(
+      sortedReserve0 * Constants.maxLiquidityPoolReserveRatio >= sortedReserve1,
+      'Exceeded max reserve ratio'
+    );
+  }
+
   /**
    * @dev Perform fee validations common to both pool-only and hybrid trades
    */
@@ -179,18 +191,12 @@ library Validations {
     uint64 baseQuantityInPips,
     uint64 limitPriceInPips
   ) internal pure returns (uint64) {
-    // To convert a fractional price to integer pips, shift right by the pip precision of 8 decimals
-    uint256 pipsMultiplier = 10**8;
-
-    uint256 impliedQuoteQuantityInPips =
-      (uint256(baseQuantityInPips) * uint256(limitPriceInPips)) /
-        pipsMultiplier;
-    require(
-      impliedQuoteQuantityInPips < 2**64,
-      'Implied quote pip quantity overflows uint64'
-    );
-
-    return uint64(impliedQuoteQuantityInPips);
+    return
+      Math.multiplyPipsByFraction(
+        baseQuantityInPips,
+        limitPriceInPips,
+        Constants.pipPriceMultiplier
+      );
   }
 
   function loadLastInvalidatedTimestamp(

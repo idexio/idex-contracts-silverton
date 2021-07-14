@@ -36,7 +36,7 @@ const minimumLiquidity = new BigNumber('1000');
 export const token0Symbol = 'DIL';
 export const token1Symbol = 'JUR';
 
-contract.only('Exchange (liquidity pools)', ([ownerWallet]) => {
+contract('Exchange (liquidity pools)', ([ownerWallet]) => {
   describe('migrateLiquidityPool', () => {
     it('should work', async () => {
       const depositQuantity = '1.00000000';
