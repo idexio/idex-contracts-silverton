@@ -54,6 +54,17 @@ struct LiquidityAddition {
   bytes signature;
 }
 
+struct LiquidityAdditionDepositResult {
+  string assetASymbol;
+  uint64 assetAQuantityInPips;
+  uint64 assetANewExchangeBalanceInPips;
+  uint256 assetANewExchangeBalanceInAssetUnits;
+  string assetBSymbol;
+  uint64 assetBQuantityInPips;
+  uint64 assetBNewExchangeBalanceInPips;
+  uint256 assetBNewExchangeBalanceInAssetUnits;
+}
+
 /**
  * @dev Internal struct capturing user-initiated liquidity removal request parameters
  */

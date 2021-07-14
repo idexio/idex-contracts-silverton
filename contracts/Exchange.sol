@@ -5,7 +5,6 @@ pragma solidity 0.8.4;
 import { Address } from '@openzeppelin/contracts/utils/Address.sol';
 
 import { AssetRegistry } from './libraries/AssetRegistry.sol';
-import { AssetRegistryAdmin } from './libraries/AssetRegistryAdmin.sol';
 import { AssetUnitConversions } from './libraries/AssetUnitConversions.sol';
 import { BalanceTracking } from './libraries/BalanceTracking.sol';
 import { Constants } from './libraries/Constants.sol';
@@ -28,6 +27,7 @@ import {
   Asset,
   HybridTrade,
   LiquidityAddition,
+  LiquidityAdditionDepositResult,
   LiquidityChangeExecution,
   LiquidityPool,
   LiquidityRemoval,
@@ -45,7 +45,7 @@ import {
  */
 contract Exchange is IExchange, Owned {
   using AssetRegistry for AssetRegistry.Storage;
-  using AssetRegistryAdmin for AssetRegistry.Storage;
+  using AssetRegistry for AssetRegistry.Storage;
   using BalanceTracking for BalanceTracking.Storage;
   using LiquidityPools for LiquidityPools.Storage;
   using LiquidityPoolAdmin for LiquidityPools.Storage;
@@ -439,14 +439,11 @@ contract Exchange is IExchange, Owned {
     address wallet,
     address assetAddress
   ) external view returns (uint256) {
-    require(wallet != address(0x0), 'Invalid wallet address');
-
-    Asset memory asset = _assetRegistry.loadAssetByAddress(assetAddress);
     return
-      AssetUnitConversions.pipsToAssetUnits(
-        _balanceTracking.balancesByWalletAssetPair[wallet][assetAddress]
-          .balanceInPips,
-        asset.decimals
+      _assetRegistry.loadBalanceInAssetUnitsByAddress(
+        wallet,
+        assetAddress,
+        _balanceTracking
       );
   }
 
@@ -463,15 +460,11 @@ contract Exchange is IExchange, Owned {
     address wallet,
     string calldata assetSymbol
   ) external view returns (uint256) {
-    require(wallet != address(0x0), 'Invalid wallet address');
-
-    Asset memory asset =
-      _assetRegistry.loadAssetBySymbol(assetSymbol, getCurrentTimestampInMs());
     return
-      AssetUnitConversions.pipsToAssetUnits(
-        _balanceTracking.balancesByWalletAssetPair[wallet][asset.assetAddress]
-          .balanceInPips,
-        asset.decimals
+      _assetRegistry.loadBalanceInAssetUnitsBySymbol(
+        wallet,
+        assetSymbol,
+        _balanceTracking
       );
   }
 
@@ -489,11 +482,12 @@ contract Exchange is IExchange, Owned {
     override
     returns (uint64)
   {
-    require(wallet != address(0x0), 'Invalid wallet address');
-
     return
-      _balanceTracking.balancesByWalletAssetPair[wallet][assetAddress]
-        .balanceInPips;
+      AssetRegistry.loadBalanceInPipsByAddress(
+        wallet,
+        assetAddress,
+        _balanceTracking
+      );
   }
 
   /**
@@ -508,15 +502,12 @@ contract Exchange is IExchange, Owned {
     address wallet,
     string calldata assetSymbol
   ) external view returns (uint64) {
-    require(wallet != address(0x0), 'Invalid wallet address');
-
-    address assetAddress =
-      _assetRegistry
-        .loadAssetBySymbol(assetSymbol, getCurrentTimestampInMs())
-        .assetAddress;
     return
-      _balanceTracking.balancesByWalletAssetPair[wallet][assetAddress]
-        .balanceInPips;
+      _assetRegistry.loadBalanceInPipsBySymbol(
+        wallet,
+        assetSymbol,
+        _balanceTracking
+      );
   }
 
   /**
@@ -979,25 +970,46 @@ contract Exchange is IExchange, Owned {
     // Propagation Period given by `effectiveBlockNumber` via `isWalletExitFinalized`
     require(!_walletExits[msg.sender].exists, 'Wallet exited');
 
-    _liquidityPools.addLiquidity(
-      LiquidityAddition(
-        Constants.signatureHashVersion,
-        LiquidityChangeOrigination.OnChain,
-        0,
-        msg.sender,
-        tokenA,
-        tokenB,
-        amountADesired,
-        amountBDesired,
-        amountAMin,
-        amountBMin,
-        to,
-        deadline,
-        bytes('')
-      ),
-      _custodian,
-      _assetRegistry,
-      _balanceTracking
+    LiquidityAdditionDepositResult memory result =
+      _liquidityPools.addLiquidity(
+        LiquidityAddition(
+          Constants.signatureHashVersion,
+          LiquidityChangeOrigination.OnChain,
+          0,
+          msg.sender,
+          tokenA,
+          tokenB,
+          amountADesired,
+          amountBDesired,
+          amountAMin,
+          amountBMin,
+          to,
+          deadline,
+          bytes('')
+        ),
+        _custodian,
+        _assetRegistry,
+        _balanceTracking
+      );
+
+    emit Deposited(
+      ++_depositIndex,
+      msg.sender,
+      tokenA,
+      result.assetASymbol,
+      result.assetAQuantityInPips,
+      result.assetANewExchangeBalanceInPips,
+      result.assetANewExchangeBalanceInAssetUnits
+    );
+
+    emit Deposited(
+      ++_depositIndex,
+      msg.sender,
+      tokenB,
+      result.assetBSymbol,
+      result.assetBQuantityInPips,
+      result.assetBNewExchangeBalanceInPips,
+      result.assetBNewExchangeBalanceInAssetUnits
     );
 
     emit LiquidityAdditionInitiated(
@@ -1042,25 +1054,46 @@ contract Exchange is IExchange, Owned {
     // Propagation Period given by `effectiveBlockNumber` via `isWalletExitFinalized`
     require(!_walletExits[msg.sender].exists, 'Wallet exited');
 
-    _liquidityPools.addLiquidity(
-      LiquidityAddition(
-        Constants.signatureHashVersion,
-        LiquidityChangeOrigination.OnChain,
-        0,
-        msg.sender,
-        token,
-        address(0x0),
-        amountTokenDesired,
-        msg.value,
-        amountTokenMin,
-        amountETHMin,
-        to,
-        deadline,
-        bytes('')
-      ),
-      _custodian,
-      _assetRegistry,
-      _balanceTracking
+    LiquidityAdditionDepositResult memory result =
+      _liquidityPools.addLiquidity(
+        LiquidityAddition(
+          Constants.signatureHashVersion,
+          LiquidityChangeOrigination.OnChain,
+          0,
+          msg.sender,
+          token,
+          address(0x0),
+          amountTokenDesired,
+          msg.value,
+          amountTokenMin,
+          amountETHMin,
+          to,
+          deadline,
+          bytes('')
+        ),
+        _custodian,
+        _assetRegistry,
+        _balanceTracking
+      );
+
+    emit Deposited(
+      ++_depositIndex,
+      msg.sender,
+      token,
+      result.assetASymbol,
+      result.assetAQuantityInPips,
+      result.assetANewExchangeBalanceInPips,
+      result.assetANewExchangeBalanceInAssetUnits
+    );
+
+    emit Deposited(
+      ++_depositIndex,
+      msg.sender,
+      address(0x0),
+      result.assetBSymbol,
+      result.assetBQuantityInPips,
+      result.assetBNewExchangeBalanceInPips,
+      result.assetBNewExchangeBalanceInAssetUnits
     );
 
     emit LiquidityAdditionInitiated(
@@ -1497,7 +1530,7 @@ contract Exchange is IExchange, Owned {
    * `receive` function rejects ETH except when wrapping/unwrapping)
    */
   function skim(address tokenAddress) external onlyAdmin {
-    AssetRegistryAdmin.skim(tokenAddress, _feeWallet);
+    AssetRegistry.skim(tokenAddress, _feeWallet);
   }
 
   // Exchange upgrades //

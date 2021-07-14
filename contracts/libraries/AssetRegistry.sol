@@ -5,6 +5,9 @@ pragma solidity 0.8.4;
 import { Address } from '@openzeppelin/contracts/utils/Address.sol';
 
 import { Asset } from './Structs.sol';
+import { AssetTransfers } from './AssetTransfers.sol';
+import { AssetUnitConversions } from './AssetUnitConversions.sol';
+import { BalanceTracking } from './BalanceTracking.sol';
 import { IERC20 } from './Interfaces.sol';
 
 /**
@@ -18,6 +21,149 @@ library AssetRegistry {
     mapping(string => Asset[]) assetsBySymbol;
     // Blockchain-specific native asset symbol
     string nativeAssetSymbol;
+  }
+
+  // Admin //
+
+  function registerToken(
+    AssetRegistry.Storage storage self,
+    IERC20 tokenAddress,
+    string calldata symbol,
+    uint8 decimals
+  ) external {
+    require(decimals <= 32, 'Token cannot have more than 32 decimals');
+    require(
+      tokenAddress != IERC20(address(0x0)) &&
+        Address.isContract(address(tokenAddress)),
+      'Invalid token address'
+    );
+    // The string type does not have a length property so cast to bytes to check for empty string
+    require(bytes(symbol).length > 0, 'Invalid token symbol');
+    require(
+      !self.assetsByAddress[address(tokenAddress)].isConfirmed,
+      'Token already finalized'
+    );
+
+    self.assetsByAddress[address(tokenAddress)] = Asset({
+      exists: true,
+      assetAddress: address(tokenAddress),
+      symbol: symbol,
+      decimals: decimals,
+      isConfirmed: false,
+      confirmedTimestampInMs: 0
+    });
+  }
+
+  function confirmTokenRegistration(
+    AssetRegistry.Storage storage self,
+    IERC20 tokenAddress,
+    string calldata symbol,
+    uint8 decimals
+  ) external {
+    Asset memory asset = self.assetsByAddress[address(tokenAddress)];
+    require(asset.exists, 'Unknown token');
+    require(!asset.isConfirmed, 'Token already finalized');
+    require(isStringEqual(asset.symbol, symbol), 'Symbols do not match');
+    require(asset.decimals == decimals, 'Decimals do not match');
+
+    asset.isConfirmed = true;
+    asset.confirmedTimestampInMs = uint64(block.timestamp * 1000); // Block timestamp is in seconds, store ms
+    self.assetsByAddress[address(tokenAddress)] = asset;
+    self.assetsBySymbol[symbol].push(asset);
+  }
+
+  function addTokenSymbol(
+    AssetRegistry.Storage storage self,
+    IERC20 tokenAddress,
+    string calldata symbol
+  ) external {
+    Asset memory asset = self.assetsByAddress[address(tokenAddress)];
+    require(
+      asset.exists && asset.isConfirmed,
+      'Registration of token not finalized'
+    );
+    require(
+      !isStringEqual(symbol, self.nativeAssetSymbol),
+      'Symbol reserved for native asset'
+    );
+
+    // This will prevent swapping assets for previously existing orders
+    uint64 msInOneSecond = 1000;
+    asset.confirmedTimestampInMs = uint64(block.timestamp * msInOneSecond);
+
+    self.assetsBySymbol[symbol].push(asset);
+  }
+
+  function skim(address tokenAddress, address feeWallet) external {
+    require(Address.isContract(tokenAddress), 'Invalid token address');
+
+    uint256 balance = IERC20(tokenAddress).balanceOf(address(this));
+    AssetTransfers.transferTo(payable(feeWallet), tokenAddress, balance);
+  }
+
+  // Accessors //
+
+  function loadBalanceInAssetUnitsByAddress(
+    AssetRegistry.Storage storage self,
+    address wallet,
+    address assetAddress,
+    BalanceTracking.Storage storage balanceTracking
+  ) external view returns (uint256) {
+    require(wallet != address(0x0), 'Invalid wallet address');
+
+    Asset memory asset = loadAssetByAddress(self, assetAddress);
+    return
+      AssetUnitConversions.pipsToAssetUnits(
+        balanceTracking.balancesByWalletAssetPair[wallet][assetAddress]
+          .balanceInPips,
+        asset.decimals
+      );
+  }
+
+  function loadBalanceInAssetUnitsBySymbol(
+    AssetRegistry.Storage storage self,
+    address wallet,
+    string calldata assetSymbol,
+    BalanceTracking.Storage storage balanceTracking
+  ) external view returns (uint256) {
+    require(wallet != address(0x0), 'Invalid wallet address');
+
+    Asset memory asset =
+      loadAssetBySymbol(self, assetSymbol, getCurrentTimestampInMs());
+    return
+      AssetUnitConversions.pipsToAssetUnits(
+        balanceTracking.balancesByWalletAssetPair[wallet][asset.assetAddress]
+          .balanceInPips,
+        asset.decimals
+      );
+  }
+
+  function loadBalanceInPipsByAddress(
+    address wallet,
+    address assetAddress,
+    BalanceTracking.Storage storage balanceTracking
+  ) external view returns (uint64) {
+    require(wallet != address(0x0), 'Invalid wallet address');
+
+    return
+      balanceTracking.balancesByWalletAssetPair[wallet][assetAddress]
+        .balanceInPips;
+  }
+
+  function loadBalanceInPipsBySymbol(
+    Storage storage self,
+    address wallet,
+    string calldata assetSymbol,
+    BalanceTracking.Storage storage balanceTracking
+  ) external view returns (uint64) {
+    require(wallet != address(0x0), 'Invalid wallet address');
+
+    address assetAddress =
+      loadAssetBySymbol(self, assetSymbol, getCurrentTimestampInMs())
+        .assetAddress;
+    return
+      balanceTracking.balancesByWalletAssetPair[wallet][assetAddress]
+        .balanceInPips;
   }
 
   /**
@@ -78,6 +224,14 @@ library AssetRegistry {
     return asset;
   }
 
+  // Util //
+
+  function getCurrentTimestampInMs() private view returns (uint64) {
+    uint64 msInOneSecond = 1000;
+
+    return uint64(block.timestamp) * msInOneSecond;
+  }
+
   /**
    * @dev ETH is modeled as an always-confirmed Asset struct for programmatic consistency
    */
@@ -91,7 +245,7 @@ library AssetRegistry {
 
   // See https://solidity.readthedocs.io/en/latest/types.html#bytes-and-strings-as-arrays
   function isStringEqual(string memory a, string memory b)
-    internal
+    private
     pure
     returns (bool)
   {

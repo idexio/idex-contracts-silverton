@@ -32,6 +32,7 @@ import {
 import {
   Asset,
   LiquidityAddition,
+  LiquidityAdditionDepositResult,
   LiquidityChangeExecution,
   LiquidityPool,
   LiquidityRemoval,
@@ -60,7 +61,7 @@ library LiquidityPools {
     ICustodian custodian,
     AssetRegistry.Storage storage assetRegistry,
     BalanceTracking.Storage storage balanceTracking
-  ) public {
+  ) public returns (LiquidityAdditionDepositResult memory) {
     require(addition.deadline >= block.timestamp, 'IDEX: EXPIRED');
 
     bytes32 hash = Hashing.getLiquidityAdditionHash(addition);
@@ -71,16 +72,17 @@ library LiquidityPools {
     self.changes[hash] = LiquidityChangeState.Initiated;
 
     // Transfer assets to Custodian and credit balances
-    Depositing.depositLiquidityReserves(
-      addition.wallet,
-      addition.assetA,
-      addition.assetB,
-      addition.amountADesired,
-      addition.amountBDesired,
-      custodian,
-      assetRegistry,
-      balanceTracking
-    );
+    return
+      Depositing.depositLiquidityReserves(
+        addition.wallet,
+        addition.assetA,
+        addition.assetB,
+        addition.amountADesired,
+        addition.amountBDesired,
+        custodian,
+        assetRegistry,
+        balanceTracking
+      );
   }
 
   function executeAddLiquidity(
