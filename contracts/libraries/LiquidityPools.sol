@@ -239,6 +239,11 @@ library LiquidityPools {
     bool isWalletExited
   ) private returns (ILiquidityProviderToken liquidityProviderToken) {
     {
+      // Following a wallet exit the Dispatcher can liquidate the wallet's liquidity pool positions
+      // without the need for the wallet itself to first initiate the removal. Without this
+      // mechanism, the wallet could change the pool's price at any time following the exit by
+      // calling `removeLiquidityExit` and cause the reversion of pending pool settlements from the
+      // Dispatcher
       if (!isWalletExited) {
         bytes32 hash = Hashing.getLiquidityRemovalHash(removal);
         LiquidityChangeState state = self.changes[hash];

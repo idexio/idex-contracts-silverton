@@ -1228,8 +1228,6 @@ contract Exchange is IExchange, Owned {
     LiquidityRemoval calldata removal,
     LiquidityChangeExecution calldata execution
   ) external onlyDispatcher {
-    require(!isWalletExitFinalized(removal.wallet), 'Wallet exit finalized');
-
     _liquidityPools.executeRemoveLiquidity(
       removal,
       execution,
