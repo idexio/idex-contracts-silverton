@@ -87,6 +87,11 @@ library Hashing {
       );
   }
 
+  /**
+   * @dev As a gas optimization, base and quote symbols are passed in separately and combined to
+   * verify the wallet hash, since this is cheaper than splitting the market symbol into its two
+   * constituent asset symbols
+   */
   function getOrderHash(
     Order memory order,
     string memory baseSymbol,
@@ -96,9 +101,9 @@ library Hashing {
       order.signatureHashVersion == Constants.signatureHashVersion,
       'Signature hash version invalid'
     );
+    // Placing all the fields in a single `abi.encodePacked` call causes a `stack too deep` error
     return
       keccak256(
-        // Placing all the fields in a single `abi.encodePacked` call causes a `stack too deep` error
         abi.encodePacked(
           abi.encodePacked(
             order.signatureHashVersion,
@@ -107,7 +112,8 @@ library Hashing {
             string(abi.encodePacked(baseSymbol, '-', quoteSymbol)),
             uint8(order.orderType),
             uint8(order.side),
-            // Ledger qtys and prices are in pip, but order was signed by wallet owner with decimal values
+            // Ledger qtys and prices are in pip, but order was signed by wallet owner with decimal
+            // values
             pipToDecimal(order.quantityInPips)
           ),
           abi.encodePacked(
