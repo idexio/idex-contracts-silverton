@@ -28,7 +28,7 @@ export type LibraryName =
   | 'Depositing'
   | 'LiquidityPoolAdmin'
   | 'LiquidityPools'
-  | 'NonceInvalidation'
+  | 'NonceInvalidations'
   | 'Trading'
   | 'Withdrawing';
 
