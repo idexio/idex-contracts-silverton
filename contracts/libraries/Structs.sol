@@ -2,7 +2,7 @@
 
 pragma solidity 0.8.4;
 
-import { ILiquidityProviderToken } from './Interfaces.sol';
+import { ILiquidityProviderToken, IWETH9 } from './Interfaces.sol';
 import {
   LiquidityChangeOrigination,
   OrderSelfTradePrevention,
@@ -54,6 +54,9 @@ struct LiquidityAddition {
   bytes signature;
 }
 
+/**
+ * @notice Internally used struct, return type from `LiquidityPools.addLiquidity`
+ */
 struct LiquidityAdditionDepositResult {
   string assetASymbol;
   uint64 assetAQuantityInPips;
@@ -100,6 +103,18 @@ struct LiquidityChangeExecution {
   uint64 netBaseQuantityInPips;
   // Net amount of quote asset sent to pool for additions or received by wallet for removals
   uint64 netQuoteQuantityInPips;
+}
+
+/**
+ * @notice Internally used struct, argument type to `LiquidityPoolAdmin.migrateLiquidityPool`
+ */
+struct LiquidityMigration {
+  address token0;
+  address token1;
+  bool isToken1Quote;
+  uint256 desiredLiquidity;
+  address to;
+  IWETH9 WETH;
 }
 
 /**

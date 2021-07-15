@@ -30,6 +30,7 @@ import {
   LiquidityAddition,
   LiquidityAdditionDepositResult,
   LiquidityChangeExecution,
+  LiquidityMigration,
   LiquidityPool,
   LiquidityRemoval,
   NonceInvalidation,
@@ -580,8 +581,10 @@ contract Exchange is IExchange, Owned {
    * @notice DO NOT send assets directly to the `Exchange`, instead use the appropriate deposit
    * function
    *
-   * @dev Internally used to unwrap and wrap ETH during pool hybrid mode promotion and
-   * demotion respectively
+   * @dev Internally used to unwrap WETH during liquidity pool migrations via
+   * `migrateLiquidityPool`. The sender is only required to be a contract rather than locking it
+   * to a particular WETH instance to allow for migrating from multiple pools that use different
+   * WETH contracts
    */
   receive() external payable {
     require(Address.isContract(msg.sender), 'Use depositEther');
@@ -900,21 +903,26 @@ contract Exchange is IExchange, Owned {
     address to,
     address payable WETH
   ) external onlyMigrator returns (address liquidityProviderToken) {
-    liquidityProviderToken = _liquidityPools.migrateLiquidityPool(
-      token0,
-      token1,
-      isToken1Quote,
-      desiredLiquidity,
-      to,
+    bool isPoolNewlyCreated;
+    (liquidityProviderToken, isPoolNewlyCreated) = _liquidityPools
+      .migrateLiquidityPool(
+      LiquidityMigration(
+        token0,
+        token1,
+        isToken1Quote,
+        desiredLiquidity,
+        to,
+        IWETH9(WETH)
+      ),
       _custodian,
-      IWETH9(WETH),
       _assetRegistry
     );
 
-    if (IERC20(liquidityProviderToken).totalSupply() == desiredLiquidity) {
+    // Only emit event if pool was newly created
+    if (isPoolNewlyCreated) {
       emit LiquidityPoolCreated(
-        isToken1Quote ? token0 : token1,
-        isToken1Quote ? token1 : token0,
+        ILiquidityProviderToken(liquidityProviderToken).baseAssetAddress(),
+        ILiquidityProviderToken(liquidityProviderToken).quoteAssetAddress(),
         liquidityProviderToken
       );
     }
@@ -1282,6 +1290,14 @@ contract Exchange is IExchange, Owned {
     );
   }
 
+  /**
+   * @notice Remove liquidity from a pool immediately without the need for Dispatcher wallet
+   * settlement. The wallet must be exited and the Chain Propagation Period must have already
+   * passed since calling `exitWallet`. The LP tokens must already be deposited in the Exchange
+   *
+   * @param baseAssetAddress The base asset address
+   * @param quoteAssetAddress The quote asset address
+   */
   function removeLiquidityExit(
     address baseAssetAddress,
     address quoteAssetAddress
@@ -1329,7 +1345,7 @@ contract Exchange is IExchange, Owned {
 
   /**
    * @notice Withdraw the entire balance of an asset for an exited wallet. The Chain Propagation Period must
-   * have already passed since calling `exitWallet` on `assetAddress`
+   * have already passed since calling `exitWallet`
    *
    * @param assetAddress The address of the asset to withdraw
    */

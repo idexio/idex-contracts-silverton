@@ -291,6 +291,12 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
       expect(
         mintEvents[1].returnValues.quoteAssetQuantityInAssetUnits,
       ).to.equal(decimalToAssetUnits(depositQuantity, 18));
+
+      const depositEvents = await exchange.getPastEvents('Deposited', {
+        fromBlock: 0,
+      });
+      expect(depositEvents).to.be.an('array');
+      expect(depositEvents.length).to.equal(2);
     });
 
     it('should work with fees', async () => {

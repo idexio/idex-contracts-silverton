@@ -16,7 +16,7 @@ import {
   IWETH9
 } from './Interfaces.sol';
 
-import { Asset, LiquidityPool } from './Structs.sol';
+import { Asset, LiquidityMigration, LiquidityPool } from './Structs.sol';
 
 library LiquidityPoolAdmin {
   using AssetRegistry for AssetRegistry.Storage;
@@ -43,18 +43,13 @@ library LiquidityPoolAdmin {
 
   function migrateLiquidityPool(
     LiquidityPools.Storage storage self,
-    address token0,
-    address token1,
-    bool isToken1Quote,
-    uint256 desiredLiquidity,
-    address to,
+    LiquidityMigration memory migration,
     ICustodian custodian,
-    IWETH9 WETH,
     AssetRegistry.Storage storage assetRegistry
-  ) public returns (address liquidityProviderToken) {
+  ) public returns (address liquidityProviderToken, bool isPoolNewlyCreated) {
     require(
       AssetUnitConversions.assetUnitsToPips(
-        desiredLiquidity,
+        migration.desiredLiquidity,
         Constants.liquidityProviderTokenDecimals
       ) > 0,
       'Desired liquidity too low'
@@ -67,22 +62,15 @@ library LiquidityPoolAdmin {
         address quoteAssetAddress,
         uint256 baseAssetQuantityInAssetUnits,
         uint256 quoteAssetQuantityInAssetUnits
-      ) =
-        transferMigratedTokenReservesToCustodian(
-          token0,
-          token1,
-          isToken1Quote,
-          custodian,
-          WETH
-        );
+      ) = transferMigratedTokenReservesToCustodian(migration, custodian);
 
-      LiquidityPool storage pool =
-        loadOrCreateLiquidityPoolByAssetAddresses(
-          self,
-          baseAssetAddress,
-          quoteAssetAddress,
-          assetRegistry
-        );
+      LiquidityPool storage pool;
+      (pool, isPoolNewlyCreated) = loadOrCreateLiquidityPoolByAssetAddresses(
+        self,
+        baseAssetAddress,
+        quoteAssetAddress,
+        assetRegistry
+      );
       liquidityProviderToken = address(pool.liquidityProviderToken);
 
       {
@@ -108,10 +96,10 @@ library LiquidityPoolAdmin {
       // Mint desired liquidity to Farm to complete migration
       ILiquidityProviderToken(liquidityProviderToken).mint(
         address(this),
-        desiredLiquidity,
+        migration.desiredLiquidity,
         baseAssetQuantityInAssetUnits,
         quoteAssetQuantityInAssetUnits,
-        to
+        migration.to
       );
     }
   }
@@ -152,7 +140,7 @@ library LiquidityPoolAdmin {
     address baseAssetAddress,
     address quoteAssetAddress,
     AssetRegistry.Storage storage assetRegistry
-  ) private returns (LiquidityPool storage pool) {
+  ) private returns (LiquidityPool storage pool, bool isPoolNewlyCreated) {
     pool = self.poolsByAddresses[baseAssetAddress][quoteAssetAddress];
 
     if (!pool.exists) {
@@ -162,6 +150,7 @@ library LiquidityPoolAdmin {
         quoteAssetAddress,
         assetRegistry
       );
+      isPoolNewlyCreated = true;
     }
   }
 
@@ -225,7 +214,7 @@ library LiquidityPoolAdmin {
       liquidityProviderToken
     );
 
-    // Build an asset descriptor for the new LP token and add it to the regiistry. There is no need
+    // Build an asset descriptor for the new LP token and add it to the registry. There is no need
     // to validate against it already existing as the preceeding CREATE2 will revert on duplicate
     // asset pairs
     Asset memory lpTokenAsset =
@@ -244,11 +233,8 @@ library LiquidityPoolAdmin {
   }
 
   function transferMigratedTokenReservesToCustodian(
-    address token0,
-    address token1,
-    bool isToken1Quote,
-    ICustodian custodian,
-    IWETH9 WETH
+    LiquidityMigration memory migration,
+    ICustodian custodian
   )
     private
     returns (
@@ -259,17 +245,33 @@ library LiquidityPoolAdmin {
     )
   {
     // Obtain reserve amounts sent to the Exchange
-    uint256 reserve0 = IERC20(token0).balanceOf(address(this));
-    uint256 reserve1 = IERC20(token1).balanceOf(address(this));
+    uint256 reserve0 = IERC20(migration.token0).balanceOf(address(this));
+    uint256 reserve1 = IERC20(migration.token1).balanceOf(address(this));
     // Transfer reserves to Custodian and unwrap WETH if needed
-    transferMigratedTokenReserveToCustodian(token0, reserve0, custodian, WETH);
-    transferMigratedTokenReserveToCustodian(token1, reserve1, custodian, WETH);
+    transferMigratedTokenReserveToCustodian(
+      migration.token0,
+      reserve0,
+      migration.WETH,
+      custodian
+    );
+    transferMigratedTokenReserveToCustodian(
+      migration.token1,
+      reserve1,
+      migration.WETH,
+      custodian
+    );
 
-    address unwrappedToken0 = token0 == address(WETH) ? address(0x0) : token0;
-    address unwrappedToken1 = token1 == address(WETH) ? address(0x0) : token1;
+    address unwrappedToken0 =
+      migration.token0 == address(migration.WETH)
+        ? address(0x0)
+        : migration.token0;
+    address unwrappedToken1 =
+      migration.token1 == address(migration.WETH)
+        ? address(0x0)
+        : migration.token1;
 
     return
-      isToken1Quote
+      migration.isToken1Quote
         ? (unwrappedToken0, unwrappedToken1, reserve0, reserve1)
         : (unwrappedToken1, unwrappedToken0, reserve1, reserve0);
   }
@@ -277,8 +279,8 @@ library LiquidityPoolAdmin {
   function transferMigratedTokenReserveToCustodian(
     address token,
     uint256 reserve,
-    ICustodian custodian,
-    IWETH9 WETH
+    IWETH9 WETH,
+    ICustodian custodian
   ) private {
     // Unwrap WETH
     if (token == address(WETH)) {
