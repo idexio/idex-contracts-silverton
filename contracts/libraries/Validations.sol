@@ -138,11 +138,6 @@ library Validations {
           poolTrade.grossBaseQuantityInPips,
         'Pool output fees unbalanced'
       );
-      // Price correction only allowed for hybrid trades with a taker sell
-      require(
-        poolTrade.takerPriceCorrectionFeeQuantityInPips == 0,
-        'Price correction not allowed'
-      );
     } else {
       // Sell order sends base as pool input, receives quote as pool output
       require(

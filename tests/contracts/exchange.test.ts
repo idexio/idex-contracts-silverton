@@ -146,6 +146,16 @@ contract('Exchange (tunable parameters)', (accounts) => {
     });
   });
 
+  describe('loadLiquidityMigrator', () => {
+    it('should work', async () => {
+      const { exchange } = await deployAndAssociateContracts();
+      const migratorAddress = (await WETH.new()).address; // Any contract will do
+      await exchange.setMigrator(migratorAddress);
+
+      expect(await exchange.loadLiquidityMigrator()).to.equal(migratorAddress);
+    });
+  });
+
   describe('cleanupWalletBalance', async () => {
     it('should work for valid address', async () => {
       const { exchange, governance } = await deployAndAssociateContracts();

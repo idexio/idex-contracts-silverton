@@ -38,8 +38,7 @@ contract('Exchange (liquidity provider token)', ([ownerWallet]) => {
         ).logs[0].args.lpToken,
       );
 
-      expect(await lpToken.name()).to.equal('IDEX HL: DIL-ETH');
-      expect(await lpToken.symbol()).to.equal('IHL-DIL-ETH');
+      expect(await lpToken.name()).to.equal('IDEX LP: DIL-ETH');
       expect((await lpToken.decimals()).toString()).to.equal('18');
     });
 
@@ -107,6 +106,45 @@ contract('Exchange (liquidity provider token)', ([ownerWallet]) => {
       }
       expect(error).to.not.be.undefined;
       expect(error.message).to.match(/invalid quote asset/i);
+    });
+  });
+
+  describe('onlyExchange', () => {
+    it('should restrict burn, mint, and reverseAssets', async () => {
+      const token = await Token.new();
+
+      const lpToken = await LiquidityProviderToken.at(
+        (
+          await exchangeMock.createLiquidityProviderToken(
+            token.address,
+            ethAddress,
+            'DIL',
+            'ETH',
+          )
+        ).logs[0].args.lpToken,
+      );
+      let error;
+
+      try {
+        await lpToken.burn(ownerWallet, 0, 0, 0, ownerWallet);
+      } catch (e) {
+        error = e;
+      }
+      expect(error.message).to.match(/caller is not exchange/i);
+
+      try {
+        await lpToken.mint(ownerWallet, 0, 0, 0, ownerWallet);
+      } catch (e) {
+        error = e;
+      }
+      expect(error.message).to.match(/caller is not exchange/i);
+
+      try {
+        await lpToken.reverseAssets();
+      } catch (e) {
+        error = e;
+      }
+      expect(error.message).to.match(/caller is not exchange/i);
     });
   });
 });

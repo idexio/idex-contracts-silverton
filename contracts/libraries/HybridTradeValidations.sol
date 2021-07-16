@@ -132,6 +132,12 @@ library HybridTradeValidations {
     );
 
     if (hybridTrade.poolTrade.takerPriceCorrectionFeeQuantityInPips > 0) {
+      // Price correction only allowed for hybrid trades with a taker sell
+      require(
+        hybridTrade.orderBookTrade.makerSide == OrderSide.Buy,
+        'Price correction not allowed'
+      );
+
       require(
         hybridTrade.poolTrade.netQuoteQuantityInPips == 0,
         'Quote out not allowed with price correction'
