@@ -69,6 +69,17 @@ struct LiquidityAdditionDepositResult {
 }
 
 /**
+ * @notice Internally used struct, return type from `LiquidityPools.removeLiquidity`
+ */
+struct LiquidityRemovalDepositResult {
+  address assetAddress;
+  string assetSymbol;
+  uint64 assetQuantityInPips;
+  uint64 assetNewExchangeBalanceInPips;
+  uint256 assetNewExchangeBalanceInAssetUnits;
+}
+
+/**
  * @dev Internal struct capturing user-initiated liquidity removal request parameters
  */
 struct LiquidityRemoval {

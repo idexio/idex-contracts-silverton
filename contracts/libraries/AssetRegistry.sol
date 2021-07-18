@@ -226,7 +226,7 @@ library AssetRegistry {
 
   // Util //
 
-  function getCurrentTimestampInMs() private view returns (uint64) {
+  function getCurrentTimestampInMs() internal view returns (uint64) {
     uint64 msInOneSecond = 1000;
 
     return uint64(block.timestamp) * msInOneSecond;

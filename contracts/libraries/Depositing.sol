@@ -7,7 +7,11 @@ import { AssetTransfers } from './AssetTransfers.sol';
 import { AssetUnitConversions } from './AssetUnitConversions.sol';
 import { BalanceTracking } from './BalanceTracking.sol';
 import { ICustodian, IERC20 } from './Interfaces.sol';
-import { Asset, LiquidityAdditionDepositResult } from './Structs.sol';
+import {
+  Asset,
+  LiquidityAdditionDepositResult,
+  LiquidityRemovalDepositResult
+} from './Structs.sol';
 
 library Depositing {
   using AssetRegistry for AssetRegistry.Storage;
@@ -88,11 +92,17 @@ library Depositing {
     ICustodian custodian,
     AssetRegistry.Storage storage assetRegistry,
     BalanceTracking.Storage storage balanceTracking
-  ) internal {
+  ) internal returns (LiquidityRemovalDepositResult memory result) {
     Asset memory asset =
       assetRegistry.loadAssetByAddress(liquidityProviderToken);
+    result.assetSymbol = asset.symbol;
+    result.assetAddress = liquidityProviderToken;
 
-    depositAsset(
+    (
+      result.assetQuantityInPips,
+      result.assetNewExchangeBalanceInPips,
+      result.assetNewExchangeBalanceInAssetUnits
+    ) = depositAsset(
       wallet,
       asset,
       quantityInAssetUnits,
