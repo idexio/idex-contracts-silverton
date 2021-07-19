@@ -29,10 +29,20 @@ nvm use
 yarn && yarn build
 ```
 
+It is necessary to change [solidity-coverage's](https://github.com/sc-forks/solidity-coverage) compiler settings to complete the test suite without encountering a `Stack too deep` error as documented in [Github Issues](https://github.com/sc-forks/solidity-coverage/issues/636). Modify `node_modules/solidity-coverage/plugins/truffle.plugin.js` to:
+
+    config.compilers.solc.settings.optimizer.enabled = false;
+    config.compilers.solc.settings.optimizer.details = {
+      yul: true,
+      yulDetails: {
+        stackAllocation: true,
+      },
+    };
+
 To run test suite, generate coverage report, and perform static analysis:
 
 ```console
-yarn coverage
+yarn test:contracts:coverage
 yarn analyze
 ```
 
