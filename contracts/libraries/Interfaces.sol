@@ -171,15 +171,20 @@ interface IExchange {
   function loadCustodian() external view returns (ICustodian);
 }
 
-interface ILiquidityProviderToken is IERC20 {
+interface ILiquidityProviderToken {
   function custodian() external returns (ICustodian);
 
   function baseAssetAddress() external returns (address);
 
   function quoteAssetAddress() external returns (address);
 
-  function initialize(address _baseAssetAddress, address _quoteAssetAddress)
-    external;
+  function baseAssetSymbol() external returns (string memory);
+
+  function quoteAssetSymbol() external returns (string memory);
+
+  function token0() external returns (address);
+
+  function token1() external returns (address);
 
   function burn(
     address wallet,
@@ -196,6 +201,8 @@ interface ILiquidityProviderToken is IERC20 {
     uint256 quoteAssetQuantityInAssetUnits,
     address to
   ) external;
+
+  function reverseAssets() external;
 }
 
 interface IWETH9 is IERC20 {

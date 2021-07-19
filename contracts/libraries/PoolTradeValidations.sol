@@ -7,7 +7,7 @@ import { Constants } from './Constants.sol';
 import { OrderSide } from './Enums.sol';
 import { UUID } from './UUID.sol';
 import { Validations } from './Validations.sol';
-import { Asset, Order, PoolTrade } from './Structs.sol';
+import { Asset, Order, NonceInvalidation, PoolTrade } from './Structs.sol';
 
 library PoolTradeValidations {
   using AssetRegistry for AssetRegistry.Storage;
@@ -15,7 +15,8 @@ library PoolTradeValidations {
   function validatePoolTrade(
     Order memory order,
     PoolTrade memory poolTrade,
-    AssetRegistry.Storage storage assetRegistry
+    AssetRegistry.Storage storage assetRegistry,
+    mapping(address => NonceInvalidation) storage nonceInvalidations
   ) internal view returns (bytes32 orderHash) {
     orderHash = Validations.validateOrderSignature(
       order,
@@ -24,6 +25,7 @@ library PoolTradeValidations {
     );
     validateAssetPair(order, poolTrade, assetRegistry);
     validateLimitPrice(order, poolTrade);
+    Validations.validateOrderNonce(order, nonceInvalidations);
     validateFees(order.side, poolTrade);
   }
 
@@ -71,7 +73,7 @@ library PoolTradeValidations {
       Validations.isLimitOrderType(order.orderType)
     ) {
       require(
-        Validations.getImpliedQuoteQuantityInPips(
+        Validations.calculateImpliedQuoteQuantityInPips(
           poolTrade.grossBaseQuantityInPips,
           order.limitPriceInPips
         ) >= poolTrade.grossQuoteQuantityInPips,
@@ -84,7 +86,7 @@ library PoolTradeValidations {
       Validations.isLimitOrderType(order.orderType)
     ) {
       require(
-        Validations.getImpliedQuoteQuantityInPips(
+        Validations.calculateImpliedQuoteQuantityInPips(
           poolTrade.grossBaseQuantityInPips,
           order.limitPriceInPips
         ) <= poolTrade.grossQuoteQuantityInPips,
@@ -98,17 +100,17 @@ library PoolTradeValidations {
     pure
   {
     require(
-      Validations.getFeeBasisPoints(
+      Validations.isFeeQuantityValid(
         (poolTrade.grossBaseQuantityInPips - poolTrade.netBaseQuantityInPips),
         poolTrade.grossBaseQuantityInPips
-      ) <= Constants.maxTradeFeeBasisPoints,
+      ),
       'Excessive base fee'
     );
     require(
-      Validations.getFeeBasisPoints(
+      Validations.isFeeQuantityValid(
         (poolTrade.grossQuoteQuantityInPips - poolTrade.netQuoteQuantityInPips),
         poolTrade.grossQuoteQuantityInPips
-      ) <= Constants.maxTradeFeeBasisPoints,
+      ),
       'Excessive quote fee'
     );
     // Price correction only allowed for hybrid trades with a taker sell

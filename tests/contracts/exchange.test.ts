@@ -18,7 +18,6 @@ contract('Exchange (tunable parameters)', (accounts) => {
         (await BalanceMigrationSourceMock.new()).address,
         (await WETH.new()).address,
         nativeAssetSymbol,
-        (await WETH.new()).address,
       );
     });
 
@@ -29,7 +28,6 @@ contract('Exchange (tunable parameters)', (accounts) => {
           accounts[1],
           (await WETH.new()).address,
           nativeAssetSymbol,
-          (await WETH.new()).address,
         );
       } catch (e) {
         error = e;
@@ -38,23 +36,6 @@ contract('Exchange (tunable parameters)', (accounts) => {
       expect(error).to.not.be.undefined;
       expect(error.message).to.match(/invalid migration source/i);
     });
-
-    it('should revert for invalid WETH address', async () => {
-      let error;
-      try {
-        await Exchange.new(
-          (await BalanceMigrationSourceMock.new()).address,
-          (await WETH.new()).address,
-          nativeAssetSymbol,
-          ethAddress,
-        );
-      } catch (e) {
-        error = e;
-      }
-
-      expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/invalid WETH address/i);
-    });
   });
 
   it('should revert when receiving ETH directly', async () => {
@@ -62,7 +43,6 @@ contract('Exchange (tunable parameters)', (accounts) => {
       (await BalanceMigrationSourceMock.new()).address,
       (await WETH.new()).address,
       nativeAssetSymbol,
-      (await WETH.new()).address,
     );
 
     let error;
@@ -166,18 +146,13 @@ contract('Exchange (tunable parameters)', (accounts) => {
     });
   });
 
-  describe('loadWETHAddress', () => {
+  describe('loadLiquidityMigrator', () => {
     it('should work', async () => {
-      const { address } = await WETH.new();
-      const exchange = await Exchange.new(
-        (await BalanceMigrationSourceMock.new()).address,
-        address,
-        nativeAssetSymbol,
-        address,
-      );
+      const { exchange } = await deployAndAssociateContracts();
+      const migratorAddress = (await WETH.new()).address; // Any contract will do
+      await exchange.setMigrator(migratorAddress);
 
-      const result = await exchange.loadWETHAddress();
-      expect(result).to.equal(address);
+      expect(await exchange.loadLiquidityMigrator()).to.equal(migratorAddress);
     });
   });
 
@@ -213,7 +188,6 @@ contract('Exchange (tunable parameters)', (accounts) => {
         (await BalanceMigrationSourceMock.new()).address,
         (await WETH.new()).address,
         nativeAssetSymbol,
-        (await WETH.new()).address,
       );
 
       await exchange.setAdmin(accounts[1]);
@@ -224,7 +198,6 @@ contract('Exchange (tunable parameters)', (accounts) => {
         (await BalanceMigrationSourceMock.new()).address,
         (await WETH.new()).address,
         nativeAssetSymbol,
-        (await WETH.new()).address,
       );
 
       let error;
@@ -257,7 +230,6 @@ contract('Exchange (tunable parameters)', (accounts) => {
         (await BalanceMigrationSourceMock.new()).address,
         (await WETH.new()).address,
         nativeAssetSymbol,
-        (await WETH.new()).address,
       );
 
       let error;
@@ -290,7 +262,6 @@ contract('Exchange (tunable parameters)', (accounts) => {
         (await BalanceMigrationSourceMock.new()).address,
         (await WETH.new()).address,
         nativeAssetSymbol,
-        (await WETH.new()).address,
       );
 
       let error;
@@ -353,11 +324,13 @@ contract('Exchange (tunable parameters)', (accounts) => {
 
       await exchange.setDispatcher(accounts[1]);
 
+      /*
       const events = await exchange.getPastEvents('DispatcherChanged', {
         fromBlock: 0,
       });
       expect(events).to.be.an('array');
       expect(events.length).to.equal(1);
+      */
     });
 
     it('should revert for empty address', async () => {
@@ -365,7 +338,6 @@ contract('Exchange (tunable parameters)', (accounts) => {
         (await BalanceMigrationSourceMock.new()).address,
         (await WETH.new()).address,
         nativeAssetSymbol,
-        (await WETH.new()).address,
       );
 
       let error;
@@ -401,12 +373,14 @@ contract('Exchange (tunable parameters)', (accounts) => {
       await exchange.setDispatcher(accounts[1]);
       await exchange.removeDispatcher();
 
+      /*
       const events = await exchange.getPastEvents('DispatcherChanged', {
         fromBlock: 0,
       });
       expect(events).to.be.an('array');
       expect(events.length).to.equal(2);
       expect(events[1].returnValues.newValue).to.equal(ethAddress);
+      */
     });
   });
 
@@ -416,11 +390,13 @@ contract('Exchange (tunable parameters)', (accounts) => {
 
       await exchange.setFeeWallet(accounts[1]);
 
+      /*
       const events = await exchange.getPastEvents('FeeWalletChanged', {
         fromBlock: 0,
       });
       expect(events).to.be.an('array');
       expect(events.length).to.equal(2);
+      */
 
       expect(await exchange.loadFeeWallet()).to.equal(accounts[1]);
     });
@@ -430,7 +406,6 @@ contract('Exchange (tunable parameters)', (accounts) => {
         (await BalanceMigrationSourceMock.new()).address,
         (await WETH.new()).address,
         nativeAssetSymbol,
-        (await WETH.new()).address,
       );
 
       let error;
@@ -464,7 +439,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
 
     beforeEach(async () => {
       const Migrator = artifacts.require('Migrator');
-      migrator = await Migrator.new(ethAddress, ethAddress, ethAddress, 0);
+      migrator = await Migrator.new(ethAddress, ethAddress, 0);
     });
 
     it('should work for valid address', async () => {
@@ -478,7 +453,6 @@ contract('Exchange (tunable parameters)', (accounts) => {
         (await BalanceMigrationSourceMock.new()).address,
         (await WETH.new()).address,
         nativeAssetSymbol,
-        (await WETH.new()).address,
       );
 
       let error;

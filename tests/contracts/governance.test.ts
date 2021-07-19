@@ -103,7 +103,6 @@ contract('Governance', (accounts) => {
         (await BalanceMigrationSourceMock.new()).address,
         (await WETH.new()).address,
         nativeAssetSymbol,
-        (await WETH.new()).address,
       );
 
       await governance.initiateExchangeUpgrade(newExchange.address);
@@ -170,7 +169,6 @@ contract('Governance', (accounts) => {
         (await BalanceMigrationSourceMock.new()).address,
         (await WETH.new()).address,
         nativeAssetSymbol,
-        (await WETH.new()).address,
       );
       await governance.initiateExchangeUpgrade(newExchange.address);
 
@@ -195,7 +193,6 @@ contract('Governance', (accounts) => {
         (await BalanceMigrationSourceMock.new()).address,
         (await WETH.new()).address,
         nativeAssetSymbol,
-        (await WETH.new()).address,
       );
 
       await governance.initiateExchangeUpgrade(newExchange.address);
@@ -231,7 +228,6 @@ contract('Governance', (accounts) => {
         (await BalanceMigrationSourceMock.new()).address,
         (await WETH.new()).address,
         nativeAssetSymbol,
-        (await WETH.new()).address,
       );
 
       await governance.initiateExchangeUpgrade(newExchange.address);
@@ -267,7 +263,6 @@ contract('Governance', (accounts) => {
         (await BalanceMigrationSourceMock.new()).address,
         (await WETH.new()).address,
         nativeAssetSymbol,
-        (await WETH.new()).address,
       );
       await governance.initiateExchangeUpgrade(newExchange.address);
 
@@ -288,7 +283,6 @@ contract('Governance', (accounts) => {
         (await BalanceMigrationSourceMock.new()).address,
         (await WETH.new()).address,
         nativeAssetSymbol,
-        (await WETH.new()).address,
       );
       await governance.initiateExchangeUpgrade(newExchange.address);
 

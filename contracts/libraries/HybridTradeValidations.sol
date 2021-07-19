@@ -14,6 +14,7 @@ import {
   HybridTrade,
   Order,
   OrderBookTrade,
+  NonceInvalidation,
   PoolTrade
 } from './Structs.sol';
 
@@ -25,8 +26,14 @@ library HybridTradeValidations {
     Order memory buy,
     Order memory sell,
     HybridTrade memory hybridTrade,
-    AssetRegistry.Storage storage assetRegistry
+    AssetRegistry.Storage storage assetRegistry,
+    mapping(address => NonceInvalidation) storage nonceInvalidations
   ) internal view returns (bytes32 buyHash, bytes32 sellHash) {
+    require(
+      buy.walletAddress != sell.walletAddress,
+      'Self-trading not allowed'
+    );
+
     require(
       hybridTrade.orderBookTrade.baseAssetAddress ==
         hybridTrade.poolTrade.baseAssetAddress &&
@@ -37,6 +44,7 @@ library HybridTradeValidations {
     validateFees(hybridTrade);
 
     // Order book trade validations
+    Validations.validateOrderNonces(buy, sell, nonceInvalidations);
     (buyHash, sellHash) = OrderBookTradeValidations.validateOrderSignatures(
       buy,
       sell,
@@ -71,11 +79,10 @@ library HybridTradeValidations {
     ) {
       // Price of pool must not be better (lower) than resting buy price
       require(
-        Validations.getImpliedQuoteQuantityInPips(
+        Validations.calculateImpliedQuoteQuantityInPips(
           baseAssetReserveInPips,
           makerOrder.limitPriceInPips
-          // Allow 1 pip buffer for integer rounding
-        ) <= quoteAssetReserveInPips + 1,
+        ) <= quoteAssetReserveInPips,
         'Pool marginal buy price exceeded'
       );
     }
@@ -86,11 +93,13 @@ library HybridTradeValidations {
     ) {
       // Price of pool must not be better (higher) than resting sell price
       require(
-        Validations.getImpliedQuoteQuantityInPips(
+        Validations.calculateImpliedQuoteQuantityInPips(
           baseAssetReserveInPips,
           makerOrder.limitPriceInPips
           // Allow 1 pip buffer for integer rounding
-        ) >= quoteAssetReserveInPips - 1,
+        ) +
+          1 >=
+          quoteAssetReserveInPips - 1,
         'Pool marginal sell price exceeded'
       );
     }
@@ -98,22 +107,22 @@ library HybridTradeValidations {
 
   function validateFees(HybridTrade memory hybridTrade) private pure {
     // Validate maker fee on orderbook trade
-    uint64 grossQuantityInPips = hybridTrade.makerGrossQuantityInPips();
+    uint64 grossQuantityInPips = hybridTrade.getMakerGrossQuantityInPips();
     require(
-      Validations.getFeeBasisPoints(
-        (grossQuantityInPips - hybridTrade.makerNetQuantityInPips()),
+      Validations.isFeeQuantityValid(
+        (grossQuantityInPips - hybridTrade.getMakerNetQuantityInPips()),
         grossQuantityInPips
-      ) <= Constants.maxTradeFeeBasisPoints,
+      ),
       'Excessive maker fee'
     );
 
     // Validate taker fee across orderbook and pool trades
-    grossQuantityInPips = hybridTrade.takerGrossQuantityInPips();
+    grossQuantityInPips = hybridTrade.calculateTakerGrossQuantityInPips();
     require(
-      Validations.getFeeBasisPoints(
-        (grossQuantityInPips - hybridTrade.takerNetQuantityInPips()),
+      Validations.isFeeQuantityValid(
+        (grossQuantityInPips - hybridTrade.calculateTakerNetQuantityInPips()),
         grossQuantityInPips
-      ) <= Constants.maxTradeFeeBasisPoints,
+      ),
       'Excessive taker fee'
     );
 
@@ -121,6 +130,19 @@ library HybridTradeValidations {
       hybridTrade.poolTrade.takerGasFeeQuantityInPips == 0,
       'Non-zero pool gas fee'
     );
+
+    if (hybridTrade.poolTrade.takerPriceCorrectionFeeQuantityInPips > 0) {
+      // Price correction only allowed for hybrid trades with a taker sell
+      require(
+        hybridTrade.orderBookTrade.makerSide == OrderSide.Buy,
+        'Price correction not allowed'
+      );
+
+      require(
+        hybridTrade.poolTrade.netQuoteQuantityInPips == 0,
+        'Quote out not allowed with price correction'
+      );
+    }
 
     OrderSide poolOrderSide =
       hybridTrade.orderBookTrade.makerSide == OrderSide.Buy

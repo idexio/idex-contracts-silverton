@@ -9,11 +9,10 @@ library PoolTradeHelpers {
   /**
    * @dev Address of asset order wallet is receiving from pool
    */
-  function orderCreditAssetAddress(PoolTrade memory self, OrderSide orderSide)
-    internal
-    pure
-    returns (address)
-  {
+  function getOrderCreditAssetAddress(
+    PoolTrade memory self,
+    OrderSide orderSide
+  ) internal pure returns (address) {
     return
       orderSide == OrderSide.Buy
         ? self.baseAssetAddress
@@ -23,7 +22,7 @@ library PoolTradeHelpers {
   /**
    * @dev Address of asset order wallet is giving to pool
    */
-  function orderDebitAssetAddress(PoolTrade memory self, OrderSide orderSide)
+  function getOrderDebitAssetAddress(PoolTrade memory self, OrderSide orderSide)
     internal
     pure
     returns (address)
@@ -37,11 +36,10 @@ library PoolTradeHelpers {
   /**
    * @dev Quantity in pips of asset that order wallet is receiving from pool
    */
-  function orderCreditQuantityInPips(PoolTrade memory self, OrderSide orderSide)
-    internal
-    pure
-    returns (uint64)
-  {
+  function getOrderCreditQuantityInPips(
+    PoolTrade memory self,
+    OrderSide orderSide
+  ) internal pure returns (uint64) {
     return
       orderSide == OrderSide.Buy
         ? self.netBaseQuantityInPips
@@ -51,11 +49,10 @@ library PoolTradeHelpers {
   /**
    * @dev Quantity in pips of asset that order wallet is giving to pool
    */
-  function orderDebitQuantityInPips(PoolTrade memory self, OrderSide orderSide)
-    internal
-    pure
-    returns (uint64)
-  {
+  function getOrderDebitQuantityInPips(
+    PoolTrade memory self,
+    OrderSide orderSide
+  ) internal pure returns (uint64) {
     return
       orderSide == OrderSide.Buy
         ? self.grossQuoteQuantityInPips
@@ -65,11 +62,10 @@ library PoolTradeHelpers {
   /**
    * @dev Quantity in pips of asset that pool receives from order wallet
    */
-  function poolCreditQuantityInPips(PoolTrade memory self, OrderSide orderSide)
-    internal
-    pure
-    returns (uint64)
-  {
+  function calculatePoolCreditQuantityInPips(
+    PoolTrade memory self,
+    OrderSide orderSide
+  ) internal pure returns (uint64) {
     return
       (
         orderSide == OrderSide.Buy
@@ -81,11 +77,10 @@ library PoolTradeHelpers {
   /**
    * @dev Quantity in pips of asset that leaves pool as output
    */
-  function poolDebitQuantityInPips(PoolTrade memory self, OrderSide orderSide)
-    internal
-    pure
-    returns (uint64)
-  {
+  function calculatePoolDebitQuantityInPips(
+    PoolTrade memory self,
+    OrderSide orderSide
+  ) internal pure returns (uint64) {
     return
       (
         orderSide == OrderSide.Buy

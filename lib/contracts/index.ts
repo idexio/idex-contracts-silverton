@@ -24,9 +24,11 @@ export {
 };
 
 export type LibraryName =
-  | 'AssetRegistryAdmin'
+  | 'AssetRegistry'
   | 'Depositing'
-  | 'LiquidityPoolRegistry'
+  | 'LiquidityPoolAdmin'
+  | 'LiquidityPools'
+  | 'NonceInvalidations'
   | 'Trading'
   | 'Withdrawing';
 

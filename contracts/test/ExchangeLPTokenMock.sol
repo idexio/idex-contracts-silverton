@@ -12,23 +12,20 @@ contract ExchangeLPTokenMock {
 
   function createLiquidityProviderToken(
     address baseAssetAddress,
-    address quoteAssetAddress
+    address quoteAssetAddress,
+    string memory baseAssetSymbol,
+    string memory quoteAssetSymbol
   ) external returns (ILiquidityProviderToken liquidityProviderToken) {
     // Create an LP token contract tied to this market
-    bytes memory bytecode = type(LiquidityProviderToken).creationCode;
     bytes32 salt =
       keccak256(abi.encodePacked(baseAssetAddress, quoteAssetAddress));
-    assembly {
-      liquidityProviderToken := create2(
-        0,
-        add(bytecode, 32),
-        mload(bytecode),
-        salt
+    liquidityProviderToken = ILiquidityProviderToken(
+      new LiquidityProviderToken{ salt: salt }(
+        baseAssetAddress,
+        quoteAssetAddress,
+        baseAssetSymbol,
+        quoteAssetSymbol
       )
-    }
-    ILiquidityProviderToken(liquidityProviderToken).initialize(
-      baseAssetAddress,
-      quoteAssetAddress
     );
 
     emit LPTokenCreated(liquidityProviderToken);
@@ -40,39 +37,5 @@ contract ExchangeLPTokenMock {
 
   function loadCustodian() external view returns (address) {
     return _custodian;
-  }
-
-  function mint(
-    ILiquidityProviderToken liquidityProviderToken,
-    address wallet,
-    uint256 liquidity,
-    uint256 baseAssetQuantityInAssetUnits,
-    uint256 quoteAssetQuantityInAssetUnits,
-    address to
-  ) external {
-    liquidityProviderToken.mint(
-      wallet,
-      liquidity,
-      baseAssetQuantityInAssetUnits,
-      quoteAssetQuantityInAssetUnits,
-      to
-    );
-  }
-
-  function burn(
-    ILiquidityProviderToken liquidityProviderToken,
-    address wallet,
-    uint256 liquidity,
-    uint256 baseAssetQuantityInAssetUnits,
-    uint256 quoteAssetQuantityInAssetUnits,
-    address to
-  ) external {
-    liquidityProviderToken.burn(
-      wallet,
-      liquidity,
-      baseAssetQuantityInAssetUnits,
-      quoteAssetQuantityInAssetUnits,
-      to
-    );
   }
 }

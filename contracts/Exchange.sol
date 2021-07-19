@@ -5,12 +5,13 @@ pragma solidity 0.8.4;
 import { Address } from '@openzeppelin/contracts/utils/Address.sol';
 
 import { AssetRegistry } from './libraries/AssetRegistry.sol';
-import { AssetRegistryAdmin } from './libraries/AssetRegistryAdmin.sol';
 import { AssetUnitConversions } from './libraries/AssetUnitConversions.sol';
 import { BalanceTracking } from './libraries/BalanceTracking.sol';
 import { Constants } from './libraries/Constants.sol';
 import { Depositing } from './libraries/Depositing.sol';
-import { LiquidityPoolRegistry } from './libraries/LiquidityPoolRegistry.sol';
+import { LiquidityPools } from './libraries/LiquidityPools.sol';
+import { LiquidityPoolAdmin } from './libraries/LiquidityPoolAdmin.sol';
+import { NonceInvalidations } from './libraries/NonceInvalidations.sol';
 import { Owned } from './Owned.sol';
 import { Trading } from './libraries/Trading.sol';
 import { UUID } from './libraries/UUID.sol';
@@ -20,15 +21,20 @@ import {
   ICustodian,
   IERC20,
   IExchange,
+  ILiquidityProviderToken,
   IWETH9
 } from './libraries/Interfaces.sol';
 import {
   Asset,
   HybridTrade,
   LiquidityAddition,
+  LiquidityAdditionDepositResult,
   LiquidityChangeExecution,
+  LiquidityMigration,
   LiquidityPool,
   LiquidityRemoval,
+  LiquidityRemovalDepositResult,
+  NonceInvalidation,
   Order,
   OrderBookTrade,
   PoolTrade,
@@ -36,24 +42,29 @@ import {
 } from './libraries/Structs.sol';
 
 /**
- * @notice The Exchange contract. Implements all deposit, trade, and withdrawal logic and associated balance tracking
+ * @notice The Exchange contract. Implements all deposit, trade, and withdrawal logic and
+ * associated balance tracking
  *
- * @dev The term `asset` refers collectively to ETH and ERC-20 tokens, the term `token` refers only to the latter
+ * @dev The term `asset` refers collectively to ETH and ERC-20 tokens, the term `token` refers only
+ * to the latter
  */
 contract Exchange is IExchange, Owned {
   using AssetRegistry for AssetRegistry.Storage;
-  using AssetRegistryAdmin for AssetRegistry.Storage;
   using BalanceTracking for BalanceTracking.Storage;
-  using LiquidityPoolRegistry for LiquidityPoolRegistry.Storage;
+  using LiquidityPools for LiquidityPools.Storage;
+  using LiquidityPoolAdmin for LiquidityPools.Storage;
+  using NonceInvalidations for mapping(address => NonceInvalidation);
 
   // Events //
 
   /**
-   * @notice Emitted when an admin changes the Chain Propagation Period tunable parameter with `setChainPropagationPeriod`
+   * @notice Emitted when an admin changes the Chain Propagation Period tunable parameter with
+   * `setChainPropagationPeriod`
    */
   event ChainPropagationPeriodChanged(uint256 previousValue, uint256 newValue);
   /**
-   * @notice Emitted when a user deposits ETH with `depositEther` or a token with `depositTokenByAddress` or `depositTokenBySymbol`
+   * @notice Emitted when a user deposits ETH with `depositEther` or a token with
+   * `depositTokenByAddress` or `depositTokenBySymbol`
    */
   event Deposited(
     uint64 index,
@@ -65,15 +76,8 @@ contract Exchange is IExchange, Owned {
     uint256 newExchangeBalanceInAssetUnits
   );
   /**
-   * @notice Emitted when an admin changes the Dispatch Wallet tunable parameter with `setDispatcher`
-   */
-  event DispatcherChanged(address previousValue, address newValue);
-  /**
-   * @notice Emitted when an admin changes the Fee Wallet tunable parameter with `setFeeWallet`
-   */
-  event FeeWalletChanged(address previousValue, address newValue);
-  /**
-   * @notice Emitted when the Dispatcher Wallet submits a hybrid trade for execution with `executeHybridTrade`
+   * @notice Emitted when the Dispatcher Wallet submits a hybrid trade for execution with
+   * `executeHybridTrade`
    */
   event HybridTradeExecuted(
     address buyWallet,
@@ -92,7 +96,7 @@ contract Exchange is IExchange, Owned {
    * @notice Emitted when a user initiates an Add Liquidity request via `addLiquidity` or
    * `addLiquidityETH`
    */
-  event LiquidityAdded(
+  event LiquidityAdditionInitiated(
     address wallet,
     address assetA,
     address assetB,
@@ -103,10 +107,38 @@ contract Exchange is IExchange, Owned {
     address to
   );
   /**
+   * @notice Emitted when the Dispatcher Wallet submits a liquidity addition for execution with
+   * `executeAddLiquidity`
+   */
+  event LiquidityAdditionExecuted(
+    address wallet,
+    address baseAssetAddress,
+    address quoteAssetAddress,
+    uint64 baseQuantityInPips,
+    uint64 quoteQuantityInPips,
+    uint64 liquidityInPips
+  );
+  /**
+   * @notice Emitted when a
+   */
+  event LiquidityPoolCreated(
+    address baseAssetAddress,
+    address quoteAssetAddress,
+    address liquidityProviderToken
+  );
+  /**
+   * @notice Emitted when an Admin switches liquidity pool asset direction via
+   * `reverseLiquidityPoolAssets`
+   */
+  event LiquidityPoolAssetsReversed(
+    address originalBaseAssetAddress,
+    address originalQuoteAssetAddress
+  );
+  /**
    * @notice Emitted when a user initiates a Remove Liquidity request via `removeLiquidity` or
    * `removeLiquidityETH`
    */
-  event LiquidityRemoved(
+  event LiquidityRemovalInitiated(
     address wallet,
     address assetA,
     address assetB,
@@ -116,53 +148,20 @@ contract Exchange is IExchange, Owned {
     address to
   );
   /**
-   * @notice Emitted when an admin changes the Migrator tunable parameter with `setMigrator`
+   * @notice Emitted when the Dispatcher Wallet submits a liquidity removal for execution with
+   * `executeRemoveLiquidity`
    */
-  event MigratorChanged(address previousValue, address newValue);
-  /**
-   * @notice Emitted when a user invalidates an order nonce with `invalidateOrderNonce`
-   */
-  event OrderNonceInvalidated(
+  event LiquidityRemovalExecuted(
     address wallet,
-    uint128 nonce,
-    uint128 timestampInMs,
-    uint256 effectiveBlockNumber
-  );
-  /**
-   * @notice Emitted when the Dispatcher Wallet submits a pool trade for execution with `executePoolTrade`
-   */
-  event PoolTradeExecuted(
-    address wallet,
-    string baseAssetSymbol,
-    string quoteAssetSymbol,
+    address baseAssetAddress,
+    address quoteAssetAddress,
     uint64 baseQuantityInPips,
     uint64 quoteQuantityInPips,
-    OrderSide takerSide
+    uint64 liquidityInPips
   );
   /**
-   * @notice Emitted when an admin initiates the token registration process with `registerToken`
-   */
-  event TokenRegistered(
-    IERC20 assetAddress,
-    string assetSymbol,
-    uint8 decimals
-  );
-  /**
-   * @notice Emitted when an admin finalizes the token registration process with `confirmAssetRegistration`, after
-   * which it can be deposited, traded, or withdrawn
-   */
-  event TokenRegistrationConfirmed(
-    IERC20 assetAddress,
-    string assetSymbol,
-    uint8 decimals
-  );
-  /**
-   * @notice Emitted when an admin adds a symbol to a previously registered and confirmed token
-   * via `addTokenSymbol`
-   */
-  event TokenSymbolAdded(IERC20 assetAddress, string assetSymbol);
-  /**
-   * @notice Emitted when the Dispatcher Wallet submits a trade for execution with `executeOrderBookTrade`
+   * @notice Emitted when the Dispatcher Wallet submits a trade for execution with
+   * `executeOrderBookTrade`
    */
   event OrderBookTradeExecuted(
     address buyWallet,
@@ -173,6 +172,37 @@ contract Exchange is IExchange, Owned {
     uint64 quoteQuantityInPips,
     OrderSide takerSide
   );
+  /**
+   * @notice Emitted when a user invalidates an order nonce with `invalidateOrderNonce`
+   */
+  event OrderNonceInvalidated(
+    address wallet,
+    uint128 nonce,
+    uint128 timestampInMs,
+    uint256 effectiveBlockNumber
+  );
+  /**
+   * @notice Emitted when the Dispatcher Wallet submits a pool trade for execution with
+   * `executePoolTrade`
+   */
+  event PoolTradeExecuted(
+    address wallet,
+    string baseAssetSymbol,
+    string quoteAssetSymbol,
+    uint64 baseQuantityInPips,
+    uint64 quoteQuantityInPips,
+    OrderSide takerSide
+  );
+  /**
+   * @notice Emitted when an admin adds a symbol to a previously registered and confirmed token
+   * via `addTokenSymbol`
+   */
+  event TokenSymbolAdded(IERC20 assetAddress, string assetSymbol);
+  /**
+   * @notice Emitted when the Dispatcher Wallet submits a trade for execution with `executeOrderBookTrade`
+   * @notice Emitted when the Dispatcher Wallet submits a trade for execution with
+   * `executeOrderBookTrade`
+   */
   /**
    * @notice Emitted when a user invokes the Exit Wallet mechanism with `exitWallet`
    */
@@ -185,8 +215,8 @@ contract Exchange is IExchange, Owned {
     address wallet,
     address baseAssetAddress,
     address quoteAssetAddress,
-    uint64 outputBaseAssetQuantityInPips,
-    uint64 outputQuoteAssetQuantityInPips
+    uint64 baseAssetQuantityInPips,
+    uint64 quoteAssetQuantityInPips
   );
   /**
    * @notice Emitted when a user withdraws an asset balance through the Exit Wallet mechanism with
@@ -195,13 +225,11 @@ contract Exchange is IExchange, Owned {
   event WalletExitWithdrawn(
     address wallet,
     address assetAddress,
-    string assetSymbol,
-    uint64 quantityInPips,
-    uint64 newExchangeBalanceInPips,
-    uint256 newExchangeBalanceInAssetUnits
+    uint64 quantityInPips
   );
   /**
-   * @notice Emitted when a user clears the exited status of a wallet previously exited with `exitWallet`
+   * @notice Emitted when a user clears the exited status of a wallet previously exited with
+   * `exitWallet`
    */
   event WalletExitCleared(address wallet);
   /**
@@ -218,11 +246,6 @@ contract Exchange is IExchange, Owned {
 
   // Internally used structs //
 
-  struct NonceInvalidation {
-    bool exists;
-    uint64 timestampInMs;
-    uint256 effectiveBlockNumber;
-  }
   struct WalletExit {
     bool exists;
     uint256 effectiveBlockNumber;
@@ -247,9 +270,8 @@ contract Exchange is IExchange, Owned {
   // Exits
   mapping(address => WalletExit) _walletExits;
   // Liquidity pools
-  address _migrator;
-  LiquidityPoolRegistry.Storage _liquidityPoolRegistry;
-  IWETH9 immutable _WETH;
+  address _liquidityMigrator;
+  LiquidityPools.Storage _liquidityPools;
   // Withdrawals - mapping of withdrawal wallet hash => isComplete
   mapping(bytes32 => bool) _completedWithdrawalHashes;
   // Tunable parameters
@@ -260,12 +282,13 @@ contract Exchange is IExchange, Owned {
   /**
    * @notice Instantiate a new `Exchange` contract
    *
-   * @dev Sets `_balanceMigrationSource` to first argument, and `_owner` and `_admin` to `msg.sender` */
+   * @dev Sets `_balanceMigrationSource` to first argument, and `_owner` and `_admin` to
+   * `msg.sender`
+   */
   constructor(
     IExchange balanceMigrationSource,
     address feeWallet,
-    string memory nativeAssetSymbol,
-    IWETH9 WETH
+    string memory nativeAssetSymbol
   ) Owned() {
     require(
       address(balanceMigrationSource) == address(0x0) ||
@@ -277,9 +300,6 @@ contract Exchange is IExchange, Owned {
     setFeeWallet(feeWallet);
 
     _assetRegistry.nativeAssetSymbol = nativeAssetSymbol;
-
-    require(Address.isContract(address(WETH)), 'Invalid WETH address');
-    _WETH = WETH;
 
     // Deposits must be manually enabled via `setDepositIndex`
     _depositIndex = Constants.depositIndexNotSet;
@@ -311,8 +331,8 @@ contract Exchange is IExchange, Owned {
    * the old Exchange contract's value
    *
    * @dev The Whistler Exchange does not expose its `_depositIndex` making this manual migration
-   * necessary. The old Exchange must have had at least one deposit. This value cannot be changed
-   * again once set
+   * necessary. If this Exchange is not upgraded from Whistler, call this function with
+   * `newDepositIndex` set to 0. This value cannot be changed again once set
    *
    * @param newDepositIndex The value of `_depositIndex` currently set on the old Exchange contract
    */
@@ -321,7 +341,10 @@ contract Exchange is IExchange, Owned {
       _depositIndex == Constants.depositIndexNotSet,
       'Can only be set once'
     );
-    require(newDepositIndex != _depositIndex, 'Must be different from current');
+    require(
+      newDepositIndex != Constants.depositIndexNotSet,
+      'Invalid deposit index'
+    );
 
     _depositIndex = newDepositIndex;
   }
@@ -329,11 +352,11 @@ contract Exchange is IExchange, Owned {
   /*** Tunable parameters ***/
 
   /**
-   * @notice Sets a new Chain Propagation Period - the block delay after which order nonce invalidations
-   * and wallet exits go into effect
+   * @notice Sets a new Chain Propagation Period - the block delay after which order nonce
+   * invalidations and wallet exits go into effect
    *
-   * @param newChainPropagationPeriod The new Chain Propagation Period expressed as a number of blocks. Must
-   * be less than `Constants.maxChainPropagationPeriod`
+   * @param newChainPropagationPeriod The new Chain Propagation Period expressed as a number of
+   * blocks. Must be less than `Constants.maxChainPropagationPeriod`
    */
   function setChainPropagationPeriod(uint256 newChainPropagationPeriod)
     external
@@ -365,10 +388,7 @@ contract Exchange is IExchange, Owned {
     require(newFeeWallet != address(0x0), 'Invalid wallet address');
     require(newFeeWallet != _feeWallet, 'Must be different from current');
 
-    address oldFeeWallet = _feeWallet;
     _feeWallet = newFeeWallet;
-
-    emit FeeWalletChanged(oldFeeWallet, newFeeWallet);
   }
 
   /**
@@ -378,12 +398,12 @@ contract Exchange is IExchange, Owned {
    */
   function setMigrator(address newMigrator) external onlyAdmin {
     require(Address.isContract(address(newMigrator)), 'Invalid address');
-    require(newMigrator != _migrator, 'Must be different from current');
+    require(
+      newMigrator != _liquidityMigrator,
+      'Must be different from current'
+    );
 
-    address oldMigrator = _migrator;
-    _migrator = newMigrator;
-
-    emit MigratorChanged(oldMigrator, newMigrator);
+    _liquidityMigrator = newMigrator;
   }
 
   // Accessors //
@@ -401,14 +421,11 @@ contract Exchange is IExchange, Owned {
     address wallet,
     address assetAddress
   ) external view returns (uint256) {
-    require(wallet != address(0x0), 'Invalid wallet address');
-
-    Asset memory asset = _assetRegistry.loadAssetByAddress(assetAddress);
     return
-      AssetUnitConversions.pipsToAssetUnits(
-        _balanceTracking.balancesByWalletAssetPair[wallet][assetAddress]
-          .balanceInPips,
-        asset.decimals
+      _assetRegistry.loadBalanceInAssetUnitsByAddress(
+        wallet,
+        assetAddress,
+        _balanceTracking
       );
   }
 
@@ -425,15 +442,11 @@ contract Exchange is IExchange, Owned {
     address wallet,
     string calldata assetSymbol
   ) external view returns (uint256) {
-    require(wallet != address(0x0), 'Invalid wallet address');
-
-    Asset memory asset =
-      _assetRegistry.loadAssetBySymbol(assetSymbol, getCurrentTimestampInMs());
     return
-      AssetUnitConversions.pipsToAssetUnits(
-        _balanceTracking.balancesByWalletAssetPair[wallet][asset.assetAddress]
-          .balanceInPips,
-        asset.decimals
+      _assetRegistry.loadBalanceInAssetUnitsBySymbol(
+        wallet,
+        assetSymbol,
+        _balanceTracking
       );
   }
 
@@ -443,7 +456,8 @@ contract Exchange is IExchange, Owned {
    * @param wallet The wallet address to load the balance for. Can be different from `msg.sender`
    * @param assetAddress The asset address to load the wallet's balance for
    *
-   * @return The quantity denominated in pips of asset at `assetAddress` currently deposited by `wallet`
+   * @return The quantity denominated in pips of asset at `assetAddress` currently deposited by
+   * `wallet`
    */
   function loadBalanceInPipsByAddress(address wallet, address assetAddress)
     external
@@ -451,11 +465,12 @@ contract Exchange is IExchange, Owned {
     override
     returns (uint64)
   {
-    require(wallet != address(0x0), 'Invalid wallet address');
-
     return
-      _balanceTracking.balancesByWalletAssetPair[wallet][assetAddress]
-        .balanceInPips;
+      AssetRegistry.loadBalanceInPipsByAddress(
+        wallet,
+        assetAddress,
+        _balanceTracking
+      );
   }
 
   /**
@@ -464,21 +479,19 @@ contract Exchange is IExchange, Owned {
    * @param wallet The wallet address to load the balance for. Can be different from `msg.sender`
    * @param assetSymbol The asset symbol to load the wallet's balance for
    *
-   * @return The quantity denominated in pips of asset with `assetSymbol` currently deposited by `wallet`
+   * @return The quantity denominated in pips of asset with `assetSymbol` currently deposited by
+   * `wallet`
    */
   function loadBalanceInPipsBySymbol(
     address wallet,
     string calldata assetSymbol
   ) external view returns (uint64) {
-    require(wallet != address(0x0), 'Invalid wallet address');
-
-    address assetAddress =
-      _assetRegistry
-        .loadAssetBySymbol(assetSymbol, getCurrentTimestampInMs())
-        .assetAddress;
     return
-      _balanceTracking.balancesByWalletAssetPair[wallet][assetAddress]
-        .balanceInPips;
+      _assetRegistry.loadBalanceInPipsBySymbol(
+        wallet,
+        assetSymbol,
+        _balanceTracking
+      );
   }
 
   /**
@@ -508,9 +521,9 @@ contract Exchange is IExchange, Owned {
   function loadLiquidityPoolByAssetAddresses(
     address baseAssetAddress,
     address quoteAssetAddress
-  ) public view returns (LiquidityPool memory) {
+  ) external view returns (LiquidityPool memory) {
     return
-      _liquidityPoolRegistry.loadLiquidityPoolByAssetAddresses(
+      _liquidityPools.loadLiquidityPoolByAssetAddresses(
         baseAssetAddress,
         quoteAssetAddress
       );
@@ -521,28 +534,22 @@ contract Exchange is IExchange, Owned {
    *
    * @return The address of the Migrator contract
    */
-  function loadMigrator() external view returns (address) {
-    return _migrator;
-  }
-
-  /**
-   * @notice Load the address of the `WETH` contract associated with the Exchange
-   *
-   * @return The address of the `WETH` contract
-   */
-  function loadWETHAddress() external view returns (address) {
-    return address(_WETH);
+  function loadLiquidityMigrator() external view returns (address) {
+    return _liquidityMigrator;
   }
 
   /**
    * @notice Load the quantity filled so far for a partially filled orders
    *
-   * @dev Invalidating an order nonce will not clear partial fill quantities for earlier orders because
+   * @dev Invalidating an order nonce will not clear partial fill quantities for earlier orders
+   * because
    * the gas cost would potentially be unbound
    *
-   * @param orderHash The order hash as originally signed by placing wallet that uniquely identifies an order
+   * @param orderHash The order hash as originally signed by placing wallet that uniquely
+   * identifies an order
    *
-   * @return For partially filled orders, the amount filled so far in pips. For orders in all other states, 0
+   * @return For partially filled orders, the amount filled so far in pips. For orders in all other
+   * states, 0
    */
   function loadPartiallyFilledOrderQuantityInPips(bytes32 orderHash)
     external
@@ -558,14 +565,13 @@ contract Exchange is IExchange, Owned {
    * @notice DO NOT send assets directly to the `Exchange`, instead use the appropriate deposit
    * function
    *
-   * @dev Internally used to unwrap and wrap ETH during pool hybrid mode promotion and
-   * demotion respectively
+   * @dev Internally used to unwrap WETH during liquidity pool migrations via
+   * `migrateLiquidityPool`. The sender is only required to be a contract rather than locking it
+   * to a particular WETH instance to allow for migrating from multiple pools that use different
+   * WETH contracts
    */
   receive() external payable {
-    require(
-      msg.sender == address(_custodian) || msg.sender == address(_WETH),
-      'Use depositEther'
-    );
+    require(Address.isContract(msg.sender), 'Use depositEther');
   }
 
   /**
@@ -583,8 +589,8 @@ contract Exchange is IExchange, Owned {
    * @notice Deposit `IERC20` compliant tokens
    *
    * @param tokenAddress The token contract address
-   * @param quantityInAssetUnits The quantity to deposit. The sending wallet must first call the `approve` method on
-   * the token contract for at least this quantity first
+   * @param quantityInAssetUnits The quantity to deposit. The sending wallet must first call the
+   * `approve` method on the token contract for at least this quantity first
    */
   function depositTokenByAddress(
     address tokenAddress,
@@ -601,15 +607,18 @@ contract Exchange is IExchange, Owned {
    * @notice Deposit `IERC20` compliant tokens
    *
    * @param assetSymbol The case-sensitive symbol string for the token
-   * @param quantityInAssetUnits The quantity to deposit. The sending wallet must first call the `approve` method on
-   * the token contract for at least this quantity first
+   * @param quantityInAssetUnits The quantity to deposit. The sending wallet must first call the
+   * `approve` method on the token contract for at least this quantity first
    */
   function depositTokenBySymbol(
     string memory assetSymbol,
     uint256 quantityInAssetUnits
-  ) public {
+  ) external {
     Asset memory asset =
-      _assetRegistry.loadAssetBySymbol(assetSymbol, getCurrentTimestampInMs());
+      _assetRegistry.loadAssetBySymbol(
+        assetSymbol,
+        AssetRegistry.getCurrentTimestampInMs()
+      );
 
     require(address(asset.assetAddress) != address(0x0), 'Use depositEther');
 
@@ -660,19 +669,18 @@ contract Exchange is IExchange, Owned {
   /**
    * @notice Settles a trade between two orders submitted and matched off-chain
    *
-   * @dev As a gas optimization, base and quote symbols are passed in separately and combined to verify
-   * the wallet hash, since this is cheaper than splitting the market symbol into its two constituent asset symbols
-   * @dev Stack level too deep if declared external
-   *
-   * @param buy An `Order` struct encoding the parameters of the buy-side order (receiving base, giving quote)
-   * @param sell An `Order` struct encoding the parameters of the sell-side order (giving base, receiving quote)
-   * @param orderBookTrade An `OrderBookTrade` struct encoding the parameters of this trade execution of the two orders
+   * @param buy An `Order` struct encoding the parameters of the buy-side order (receiving base,
+   * giving quote)
+   * @param sell An `Order` struct encoding the parameters of the sell-side order (giving base,
+   * receiving quote)
+   * @param orderBookTrade An `OrderBookTrade` struct encoding the parameters of this trade
+   * execution of the two orders
    */
   function executeOrderBookTrade(
     Order memory buy,
     Order memory sell,
     OrderBookTrade memory orderBookTrade
-  ) public onlyDispatcher {
+  ) external onlyDispatcher {
     require(
       !isWalletExitFinalized(buy.walletAddress),
       'Buy wallet exit finalized'
@@ -686,8 +694,6 @@ contract Exchange is IExchange, Owned {
       'Self-trading not allowed'
     );
 
-    validateOrderNonces(buy, sell);
-
     Trading.executeOrderBookTrade(
       buy,
       sell,
@@ -696,6 +702,7 @@ contract Exchange is IExchange, Owned {
       _assetRegistry,
       _balanceTracking,
       _completedOrderHashes,
+      _nonceInvalidations,
       _partiallyFilledOrderQuantitiesInPips
     );
 
@@ -710,24 +717,31 @@ contract Exchange is IExchange, Owned {
     );
   }
 
+  /**
+   * @notice Settles a trade between pool liquidity and an order submitted and matched off-chain
+   *
+   * @param order An `Order` struct encoding the parameters of the taker order
+   * @param poolTrade A `PoolTrade` struct encoding the parameters of this trade execution between
+   * the order and pool liquidity
+   */
   function executePoolTrade(Order memory order, PoolTrade memory poolTrade)
-    public
+    external
     onlyDispatcher
   {
     require(
       !isWalletExitFinalized(order.walletAddress),
       'Order wallet exit finalized'
     );
-    validateOrderNonce(order);
 
     Trading.executePoolTrade(
       order,
       poolTrade,
       _feeWallet,
       _assetRegistry,
-      _liquidityPoolRegistry,
+      _liquidityPools,
       _balanceTracking,
       _completedOrderHashes,
+      _nonceInvalidations,
       _partiallyFilledOrderQuantitiesInPips
     );
 
@@ -741,11 +755,23 @@ contract Exchange is IExchange, Owned {
     );
   }
 
+  /**
+   * @notice Settles a trade between pool liquidity and two order submitted and matched off-chain.
+   * The taker order is filled by pool liquidity up to the maker order price and the remainder of
+   * the taker order quantity is then filled by the maker order
+   *
+   * @param buy An `Order` struct encoding the parameters of the buy-side order (receiving base,
+   * giving quote)
+   * @param sell An `Order` struct encoding the parameters of the sell-side order (giving base,
+   * receiving quote)
+   * @param hybridTrade A `HybridTrade` struct encoding the parameters of this trade execution
+   * between the two orders and pool liquidity
+   */
   function executeHybridTrade(
     Order memory buy,
     Order memory sell,
     HybridTrade memory hybridTrade
-  ) public onlyDispatcher {
+  ) external onlyDispatcher {
     // OrderBook trade validations
     require(
       !isWalletExitFinalized(buy.walletAddress),
@@ -755,12 +781,6 @@ contract Exchange is IExchange, Owned {
       !isWalletExitFinalized(sell.walletAddress),
       'Sell wallet exit finalized'
     );
-    require(
-      buy.walletAddress != sell.walletAddress,
-      'Self-trading not allowed'
-    );
-
-    validateOrderNonces(buy, sell);
 
     Trading.executeHybridTrade(
       buy,
@@ -768,9 +788,10 @@ contract Exchange is IExchange, Owned {
       hybridTrade,
       _feeWallet,
       _assetRegistry,
-      _liquidityPoolRegistry,
+      _liquidityPools,
       _balanceTracking,
       _completedOrderHashes,
+      _nonceInvalidations,
       _partiallyFilledOrderQuantitiesInPips
     );
 
@@ -796,7 +817,8 @@ contract Exchange is IExchange, Owned {
   // Withdrawing //
 
   /**
-   * @notice Settles a user withdrawal submitted off-chain. Calls restricted to currently whitelisted Dispatcher wallet
+   * @notice Settles a user withdrawal submitted off-chain. Calls restricted to currently
+   * whitelisted Dispatcher wallet
    *
    * @param withdrawal A `Withdrawal` struct encoding the parameters of the withdrawal
    */
@@ -830,36 +852,87 @@ contract Exchange is IExchange, Owned {
 
   // Liquidity pools //
 
-  function migrateLiquidityPool(
-    address token0,
-    address token1,
-    uint8 quotePosition,
-    uint256 desiredLiquidity,
-    address to
-  ) external onlyMigrator returns (address liquidityProviderToken) {
-    return
-      _liquidityPoolRegistry.migrateLiquidityPool(
-        token0,
-        token1,
-        quotePosition,
-        desiredLiquidity,
-        to,
-        _custodian,
-        _WETH,
-        _assetRegistry
-      );
-  }
-
+  /**
+   * @notice Create a new internally tracked liquidity pool and associated LP token
+   *
+   * @param baseAssetAddress The base asset address
+   * @param quoteAssetAddress The quote asset address
+   */
   function createLiquidityPool(
     address baseAssetAddress,
     address quoteAssetAddress
-  ) external onlyAdmin returns (address liquidityProviderToken) {
-    return
-      _liquidityPoolRegistry.createLiquidityPool(
-        baseAssetAddress,
-        quoteAssetAddress,
-        _assetRegistry
-      );
+  ) external onlyAdmin {
+    _liquidityPools.createLiquidityPool(
+      baseAssetAddress,
+      quoteAssetAddress,
+      _assetRegistry
+    );
+  }
+
+  /**
+   * @notice Migrate reserve assets into an internally tracked liquidity pool and mint the
+   * specified quantity of the associated LP token. If the pool and LP token do not already exist
+   * then create new ones
+   *
+   * @dev This function should be called by a Migrator contract associated with a Farm by invoking
+   * the `migrate` function on a Farm instance, passing in the `pid` of a pool holding tokens
+   * compliant with the `IUniswapV2Pair` interface. The Migrator will then liquidate all tokens
+   * held in the pool by calling the `burn` function on the Pair contract, transfer the output
+   * reserve assets to the Exchange, and call this function. The Exchange then mints the
+   * `desiredQuantity` of the new IDEX LP tokens back to the Migrator. This `desiredLiquidity`
+   * should be exactly equal to the asset unit quantity of Pair tokens originally deposited in the
+   * Farm pool
+   *
+   * @param token0 The address of `token0` in the Pair contract being migrated
+   * @param token1 The address of `token1` in the Pair contract being migrated
+   * @param isToken1Quote If true, maps `token0` to the base asset and `token1` to the quote asset
+   * in the internally tracked pool; otherwise maps `token1` to base and `token0` to quote
+   * @param desiredLiquidity The quantity of asset units of the new LP token to mint back to the
+   * Migrator
+   * @param to Recipient of the liquidity tokens
+   *
+   * @return liquidityProviderToken The address of the liquidity provider ERC-20 token representing
+   * liquidity in the internally-tracked pool corresponding to the asset pair
+   */
+
+  function migrateLiquidityPool(
+    address token0,
+    address token1,
+    bool isToken1Quote,
+    uint256 desiredLiquidity,
+    address to,
+    address payable WETH
+  ) external onlyMigrator returns (address liquidityProviderToken) {
+    liquidityProviderToken = _liquidityPools.migrateLiquidityPool(
+      LiquidityMigration(
+        token0,
+        token1,
+        isToken1Quote,
+        desiredLiquidity,
+        to,
+        IWETH9(WETH)
+      ),
+      _custodian,
+      _assetRegistry
+    );
+  }
+
+  /**
+   * @notice Reverse the base and quote assets in an internally tracked liquidity pool
+   *
+   * @param baseAssetAddress The base asset address
+   * @param quoteAssetAddress The quote asset address
+   */
+  function reverseLiquidityPoolAssets(
+    address baseAssetAddress,
+    address quoteAssetAddress
+  ) external onlyAdmin {
+    _liquidityPools.reverseLiquidityPoolAssets(
+      baseAssetAddress,
+      quoteAssetAddress
+    );
+
+    emit LiquidityPoolAssetsReversed(baseAssetAddress, quoteAssetAddress);
   }
 
   /**
@@ -891,28 +964,54 @@ contract Exchange is IExchange, Owned {
     address to,
     uint256 deadline
   ) external {
-    _liquidityPoolRegistry.addLiquidity(
-      LiquidityAddition(
-        Constants.signatureHashVersion,
-        LiquidityChangeOrigination.OnChain,
-        0,
-        msg.sender,
-        tokenA,
-        tokenB,
-        amountADesired,
-        amountBDesired,
-        amountAMin,
-        amountBMin,
-        to,
-        deadline,
-        bytes('')
-      ),
-      _custodian,
-      _assetRegistry,
-      _balanceTracking
+    // Calling exitWallet disables on-chain add liquidity initiation immediately on mining, in
+    // contrast to withdrawals, trades, and liquidity change executions which respect the Chain
+    // Propagation Period given by `effectiveBlockNumber` via `isWalletExitFinalized`
+    require(!_walletExits[msg.sender].exists, 'Wallet exited');
+
+    LiquidityAdditionDepositResult memory result =
+      _liquidityPools.addLiquidity(
+        LiquidityAddition(
+          Constants.signatureHashVersion,
+          LiquidityChangeOrigination.OnChain,
+          0,
+          msg.sender,
+          tokenA,
+          tokenB,
+          amountADesired,
+          amountBDesired,
+          amountAMin,
+          amountBMin,
+          to,
+          deadline,
+          bytes('')
+        ),
+        _custodian,
+        _assetRegistry,
+        _balanceTracking
+      );
+
+    emit Deposited(
+      ++_depositIndex,
+      msg.sender,
+      tokenA,
+      result.assetASymbol,
+      result.assetAQuantityInPips,
+      result.assetANewExchangeBalanceInPips,
+      result.assetANewExchangeBalanceInAssetUnits
     );
 
-    emit LiquidityAdded(
+    emit Deposited(
+      ++_depositIndex,
+      msg.sender,
+      tokenB,
+      result.assetBSymbol,
+      result.assetBQuantityInPips,
+      result.assetBNewExchangeBalanceInPips,
+      result.assetBNewExchangeBalanceInAssetUnits
+    );
+
+    emit LiquidityAdditionInitiated(
       msg.sender,
       tokenA,
       tokenB,
@@ -949,28 +1048,54 @@ contract Exchange is IExchange, Owned {
     address to,
     uint256 deadline
   ) external payable {
-    _liquidityPoolRegistry.addLiquidityETH(
-      LiquidityAddition(
-        Constants.signatureHashVersion,
-        LiquidityChangeOrigination.OnChain,
-        0,
-        msg.sender,
-        token,
-        address(0x0),
-        amountTokenDesired,
-        msg.value,
-        amountTokenMin,
-        amountETHMin,
-        to,
-        deadline,
-        bytes('')
-      ),
-      _custodian,
-      _assetRegistry,
-      _balanceTracking
+    // Calling exitWallet disables on-chain add liquidity initiation immediately on mining, in
+    // contrast to withdrawals, trades, and liquidity change executions which respect the Chain
+    // Propagation Period given by `effectiveBlockNumber` via `isWalletExitFinalized`
+    require(!_walletExits[msg.sender].exists, 'Wallet exited');
+
+    LiquidityAdditionDepositResult memory result =
+      _liquidityPools.addLiquidity(
+        LiquidityAddition(
+          Constants.signatureHashVersion,
+          LiquidityChangeOrigination.OnChain,
+          0,
+          msg.sender,
+          token,
+          address(0x0),
+          amountTokenDesired,
+          msg.value,
+          amountTokenMin,
+          amountETHMin,
+          to,
+          deadline,
+          bytes('')
+        ),
+        _custodian,
+        _assetRegistry,
+        _balanceTracking
+      );
+
+    emit Deposited(
+      ++_depositIndex,
+      msg.sender,
+      token,
+      result.assetASymbol,
+      result.assetAQuantityInPips,
+      result.assetANewExchangeBalanceInPips,
+      result.assetANewExchangeBalanceInAssetUnits
     );
 
-    emit LiquidityAdded(
+    emit Deposited(
+      ++_depositIndex,
+      msg.sender,
+      address(0x0),
+      result.assetBSymbol,
+      result.assetBQuantityInPips,
+      result.assetBNewExchangeBalanceInPips,
+      result.assetBNewExchangeBalanceInAssetUnits
+    );
+
+    emit LiquidityAdditionInitiated(
       msg.sender,
       token,
       address(0x0),
@@ -983,18 +1108,36 @@ contract Exchange is IExchange, Owned {
   }
 
   /**
-   * @notice Settles a liquidity addition by adjusting pool reserves and minting LP tokens
+   * @notice Settles a liquidity addition by transferring deposited assets from wallet balances to
+   * pool reserves and minting LP tokens
+   *
+   * @param addition A `LiquidityAddition` struct encoding the parameters of the addition requested
+   * by the user either on-chain via `addLiquidity` or `addLiquidityETH` or off-chain via
+   * ECDSA-signed API request
+   * @param execution A `LiquidityChangeExecution` struct encoding the parameters of this liquidity
+   * addition execution that meets the terms of the request
    */
   function executeAddLiquidity(
     LiquidityAddition calldata addition,
     LiquidityChangeExecution calldata execution
   ) external onlyDispatcher {
-    _liquidityPoolRegistry.executeAddLiquidity(
+    require(!isWalletExitFinalized(addition.wallet), 'Wallet exit finalized');
+
+    _liquidityPools.executeAddLiquidity(
       addition,
       execution,
       _feeWallet,
       address(_custodian),
       _balanceTracking
+    );
+
+    emit LiquidityAdditionExecuted(
+      addition.wallet,
+      execution.baseAssetAddress,
+      execution.quoteAssetAddress,
+      execution.grossBaseQuantityInPips,
+      execution.grossQuoteQuantityInPips,
+      execution.liquidityInPips
     );
   }
 
@@ -1021,28 +1164,43 @@ contract Exchange is IExchange, Owned {
     address to,
     uint256 deadline
   ) public {
-    _liquidityPoolRegistry.removeLiquidity(
-      // Use struct to avoid stack too deep
-      LiquidityRemoval(
-        Constants.signatureHashVersion,
-        LiquidityChangeOrigination.OnChain,
-        0,
-        msg.sender,
-        tokenA,
-        tokenB,
-        liquidity,
-        amountAMin,
-        amountBMin,
-        payable(to),
-        deadline,
-        bytes('')
-      ),
-      _custodian,
-      _assetRegistry,
-      _balanceTracking
+    // Calling exitWallet disables on-chain remove liquidity initiation immediately on mining, in
+    // contrast to withdrawals, trades, and liquidity change executions which respect the Chain
+    // Propagation Period given by `effectiveBlockNumber` via `isWalletExitFinalized`
+    require(!_walletExits[msg.sender].exists, 'Wallet exited');
+
+    LiquidityRemovalDepositResult memory result =
+      _liquidityPools.removeLiquidity(
+        LiquidityRemoval(
+          Constants.signatureHashVersion,
+          LiquidityChangeOrigination.OnChain,
+          0,
+          msg.sender,
+          tokenA,
+          tokenB,
+          liquidity,
+          amountAMin,
+          amountBMin,
+          payable(to),
+          deadline,
+          bytes('')
+        ),
+        _custodian,
+        _assetRegistry,
+        _balanceTracking
+      );
+
+    emit Deposited(
+      ++_depositIndex,
+      msg.sender,
+      result.assetAddress,
+      result.assetSymbol,
+      result.assetQuantityInPips,
+      result.assetNewExchangeBalanceInPips,
+      result.assetNewExchangeBalanceInAssetUnits
     );
 
-    emit LiquidityRemoved(
+    emit LiquidityRemovalInitiated(
       msg.sender,
       tokenA,
       tokenB,
@@ -1074,28 +1232,43 @@ contract Exchange is IExchange, Owned {
     address to,
     uint256 deadline
   ) external {
-    _liquidityPoolRegistry.removeLiquidity(
-      // Use struct to avoid stack too deep
-      LiquidityRemoval(
-        Constants.signatureHashVersion,
-        LiquidityChangeOrigination.OnChain,
-        0,
-        msg.sender,
-        token,
-        address(0x0),
-        liquidity,
-        amountTokenMin,
-        amountETHMin,
-        payable(to),
-        deadline,
-        bytes('')
-      ),
-      _custodian,
-      _assetRegistry,
-      _balanceTracking
+    // Calling exitWallet disables on-chain remove liquidity initiation immediately on mining, in
+    // contrast to withdrawals, trades, and liquidity change executions which respect the Chain
+    // Propagation Period given by `effectiveBlockNumber` via `isWalletExitFinalized`
+    require(!_walletExits[msg.sender].exists, 'Wallet exited');
+
+    LiquidityRemovalDepositResult memory result =
+      _liquidityPools.removeLiquidity(
+        LiquidityRemoval(
+          Constants.signatureHashVersion,
+          LiquidityChangeOrigination.OnChain,
+          0,
+          msg.sender,
+          token,
+          address(0x0),
+          liquidity,
+          amountTokenMin,
+          amountETHMin,
+          payable(to),
+          deadline,
+          bytes('')
+        ),
+        _custodian,
+        _assetRegistry,
+        _balanceTracking
+      );
+
+    emit Deposited(
+      ++_depositIndex,
+      msg.sender,
+      address(0x0),
+      result.assetSymbol,
+      result.assetQuantityInPips,
+      result.assetNewExchangeBalanceInPips,
+      result.assetNewExchangeBalanceInAssetUnits
     );
 
-    emit LiquidityRemoved(
+    emit LiquidityRemovalInitiated(
       msg.sender,
       token,
       address(0x0),
@@ -1107,22 +1280,47 @@ contract Exchange is IExchange, Owned {
   }
 
   /**
-   * @notice Settles a liquidity removal by adjusting pool reserves, burning LP tokens, and
-   * transferring output assets
+   * @notice Settles a liquidity removal by burning deposited LP tokens and transferring reserve
+   * assets from pool reserves to the recipient
+   *
+   * @param removal A `LiquidityRemoval` struct encoding the parameters of the removal requested
+   * by the user either 1) on-chain via `removeLiquidity` or `removeLiquidityETH`, 2) off-chain via
+   * ECDSA-signed API request, or 3) requested by the Dispatcher wallet itself in case the wallet
+   * has exited and its liquidity positions must be liquidated automatically
+   * @param execution A `LiquidityChangeExecution` struct encoding the parameters of this liquidity
+   * removal execution that meets the terms of the request
    */
   function executeRemoveLiquidity(
     LiquidityRemoval calldata removal,
     LiquidityChangeExecution calldata execution
   ) external onlyDispatcher {
-    _liquidityPoolRegistry.executeRemoveLiquidity(
+    _liquidityPools.executeRemoveLiquidity(
       removal,
       execution,
+      _walletExits[removal.wallet].exists,
       ICustodian(_custodian),
       _feeWallet,
       _balanceTracking
     );
+
+    emit LiquidityRemovalExecuted(
+      removal.wallet,
+      execution.baseAssetAddress,
+      execution.quoteAssetAddress,
+      execution.grossBaseQuantityInPips,
+      execution.grossQuoteQuantityInPips,
+      execution.liquidityInPips
+    );
   }
 
+  /**
+   * @notice Remove liquidity from a pool immediately without the need for Dispatcher wallet
+   * settlement. The wallet must be exited and the Chain Propagation Period must have already
+   * passed since calling `exitWallet`. The LP tokens must already be deposited in the Exchange
+   *
+   * @param baseAssetAddress The base asset address
+   * @param quoteAssetAddress The quote asset address
+   */
   function removeLiquidityExit(
     address baseAssetAddress,
     address quoteAssetAddress
@@ -1133,7 +1331,7 @@ contract Exchange is IExchange, Owned {
       uint64 outputBaseAssetQuantityInPips,
       uint64 outputQuoteAssetQuantityInPips
     ) =
-      _liquidityPoolRegistry.removeLiquidityExit(
+      _liquidityPools.removeLiquidityExit(
         baseAssetAddress,
         quoteAssetAddress,
         ICustodian(_custodian),
@@ -1152,8 +1350,9 @@ contract Exchange is IExchange, Owned {
   // Wallet exits //
 
   /**
-   * @notice Flags the sending wallet as exited, immediately disabling deposits upon mining. After
-   * the Chain Propagation Period passes trades and withdrawals are also disabled for the wallet,
+   * @notice Flags the sending wallet as exited, immediately disabling deposits and on-chain
+   * intitiation of liquidity changes upon mining. After the Chain Propagation Period passes
+   * trades, withdrawals, and liquidity change executions are also disabled for the wallet,
    * and assets may then be withdrawn one at a time via `withdrawExit`
    */
   function exitWallet() external {
@@ -1168,8 +1367,8 @@ contract Exchange is IExchange, Owned {
   }
 
   /**
-   * @notice Withdraw the entire balance of an asset for an exited wallet. The Chain Propagation Period must
-   * have already passed since calling `exitWallet` on `assetAddress`
+   * @notice Withdraw the entire balance of an asset for an exited wallet. The Chain Propagation
+   * Period must have already passed since calling `exitWallet`
    *
    * @param assetAddress The address of the asset to withdraw
    */
@@ -1178,28 +1377,17 @@ contract Exchange is IExchange, Owned {
 
     // Update wallet balance
     uint64 previousExchangeBalanceInPips =
-      _balanceTracking.updateForExit(msg.sender, assetAddress);
-
-    // Transfer asset from Custodian to wallet
-    Asset memory asset = _assetRegistry.loadAssetByAddress(assetAddress);
-    uint256 balanceInAssetUnits =
-      AssetUnitConversions.pipsToAssetUnits(
-        previousExchangeBalanceInPips,
-        asset.decimals
+      Withdrawing.withdrawExit(
+        assetAddress,
+        _custodian,
+        _assetRegistry,
+        _balanceTracking
       );
-    ICustodian(_custodian).withdraw(
-      payable(msg.sender),
-      assetAddress,
-      balanceInAssetUnits
-    );
 
     emit WalletExitWithdrawn(
       msg.sender,
       assetAddress,
-      asset.symbol,
-      previousExchangeBalanceInPips,
-      0,
-      0
+      previousExchangeBalanceInPips
     );
   }
 
@@ -1208,7 +1396,7 @@ contract Exchange is IExchange, Owned {
    * deposits, trades, and withdrawals by sending wallet
    */
   function clearWalletExit() external {
-    require(_walletExits[msg.sender].exists, 'Wallet not exited');
+    require(isWalletExitFinalized(msg.sender), 'Wallet exit not finalized');
 
     delete _walletExits[msg.sender];
 
@@ -1225,37 +1413,13 @@ contract Exchange is IExchange, Owned {
   /**
    * @notice Invalidate all order nonces with a timestampInMs lower than the one provided
    *
-   * @param nonce A Version 1 UUID. After calling and once the Chain Propagation Period has elapsed,
-   * `executeOrderBookTrade` will reject order nonces from this wallet with a timestampInMs component lower than
-   * the one provided
+   * @param nonce A Version 1 UUID. After calling and once the Chain Propagation Period has
+   * elapsed, `executeOrderBookTrade` will reject order nonces from this wallet with a
+   * timestampInMs component lower than the one provided
    */
   function invalidateOrderNonce(uint128 nonce) external {
-    uint64 timestampInMs = UUID.getTimestampInMsFromUuidV1(nonce);
-    // Enforce a maximum skew for invalidating nonce timestamps in the future so the user doesn't
-    // lock their wallet from trades indefinitely
-    require(
-      timestampInMs < getOneDayFromNowInMs(),
-      'Nonce timestamp too far in future'
-    );
-
-    if (_nonceInvalidations[msg.sender].exists) {
-      require(
-        _nonceInvalidations[msg.sender].timestampInMs < timestampInMs,
-        'Nonce timestamp already invalidated'
-      );
-      require(
-        _nonceInvalidations[msg.sender].effectiveBlockNumber <= block.number,
-        'Previous invalidation awaiting chain propagation'
-      );
-    }
-
-    // Changing the Chain Propagation Period will not affect the effectiveBlockNumber for this invalidation
-    uint256 effectiveBlockNumber = block.number + _chainPropagationPeriod;
-    _nonceInvalidations[msg.sender] = NonceInvalidation(
-      true,
-      timestampInMs,
-      effectiveBlockNumber
-    );
+    (uint64 timestampInMs, uint256 effectiveBlockNumber) =
+      _nonceInvalidations.invalidateOrderNonce(nonce, _chainPropagationPeriod);
 
     emit OrderNonceInvalidated(
       msg.sender,
@@ -1281,12 +1445,11 @@ contract Exchange is IExchange, Owned {
     uint8 decimals
   ) external onlyAdmin {
     _assetRegistry.registerToken(tokenAddress, symbol, decimals);
-    emit TokenRegistered(tokenAddress, symbol, decimals);
   }
 
   /**
-   * @notice Finalize registration process for a token asset. All parameters must exactly match a previous
-   * call to `registerToken`
+   * @notice Finalize registration process for a token asset. All parameters must exactly match a
+   * previous call to `registerToken`
    *
    * @param tokenAddress The address of the `IERC20` compliant token contract to add
    * @param symbol The symbol identifying the token asset
@@ -1298,13 +1461,13 @@ contract Exchange is IExchange, Owned {
     uint8 decimals
   ) external onlyAdmin {
     _assetRegistry.confirmTokenRegistration(tokenAddress, symbol, decimals);
-    emit TokenRegistrationConfirmed(tokenAddress, symbol, decimals);
   }
 
   /**
    * @notice Add a symbol to a token that has already been registered and confirmed
    *
-   * @param tokenAddress The address of the `IERC20` compliant token contract the symbol will identify
+   * @param tokenAddress The address of the `IERC20` compliant token contract the symbol will
+   * identify
    * @param symbol The symbol identifying the token asset
    */
   function addTokenSymbol(IERC20 tokenAddress, string calldata symbol)
@@ -1320,7 +1483,8 @@ contract Exchange is IExchange, Owned {
    *
    * @dev Since multiple token addresses can potentially share the same symbol (in case of a token
    * swap/contract upgrade) the provided `timestampInMs` is compared against each asset's
-   * `confirmedTimestampInMs` to uniquely determine the newest asset for the symbol at that point in time
+   * `confirmedTimestampInMs` to uniquely determine the newest asset for the symbol at that point
+   * in time
    *
    * @param assetSymbol The asset's symbol
    * @param timestampInMs Point in time used to disambiguate multiple tokens with same symbol
@@ -1342,7 +1506,8 @@ contract Exchange is IExchange, Owned {
    * `executeOrderBookTrade`, `executePoolTrade`, `executeHybridTrade`, `withdraw`,
    * `executeAddLiquidity`, and `executeRemoveLiquidity` functions
    *
-   * @param newDispatcherWallet The new whitelisted dispatcher wallet. Must be different from the current one
+   * @param newDispatcherWallet The new whitelisted dispatcher wallet. Must be different from the
+   * current one
    */
   function setDispatcher(address newDispatcherWallet) external onlyAdmin {
     require(newDispatcherWallet != address(0x0), 'Invalid wallet address');
@@ -1350,10 +1515,7 @@ contract Exchange is IExchange, Owned {
       newDispatcherWallet != _dispatcherWallet,
       'Must be different from current'
     );
-    address oldDispatcherWallet = _dispatcherWallet;
     _dispatcherWallet = newDispatcherWallet;
-
-    emit DispatcherChanged(oldDispatcherWallet, newDispatcherWallet);
   }
 
   /**
@@ -1363,7 +1525,6 @@ contract Exchange is IExchange, Owned {
    * `setDispatcher`
    */
   function removeDispatcher() external onlyAdmin {
-    emit DispatcherChanged(_dispatcherWallet, address(0x0));
     _dispatcherWallet = address(0x0);
   }
 
@@ -1375,7 +1536,7 @@ contract Exchange is IExchange, Owned {
   // Migrator whitelisting //
 
   modifier onlyMigrator() {
-    require(msg.sender == _migrator, 'Caller is not Migrator');
+    require(msg.sender == _liquidityMigrator, 'Caller is not Migrator');
     _;
   }
 
@@ -1386,33 +1547,7 @@ contract Exchange is IExchange, Owned {
    * `receive` function rejects ETH except when wrapping/unwrapping)
    */
   function skim(address tokenAddress) external onlyAdmin {
-    AssetRegistryAdmin.skim(tokenAddress, _feeWallet);
-  }
-
-  // Private methods - validations //
-
-  function validateOrderNonces(Order memory buy, Order memory sell)
-    private
-    view
-  {
-    require(
-      UUID.getTimestampInMsFromUuidV1(buy.nonce) >
-        getLastInvalidatedTimestamp(buy.walletAddress),
-      'Buy order nonce timestamp too low'
-    );
-    require(
-      UUID.getTimestampInMsFromUuidV1(sell.nonce) >
-        getLastInvalidatedTimestamp(sell.walletAddress),
-      'Sell order nonce timestamp too low'
-    );
-  }
-
-  function validateOrderNonce(Order memory order) private view {
-    require(
-      UUID.getTimestampInMsFromUuidV1(order.nonce) >
-        getLastInvalidatedTimestamp(order.walletAddress),
-      'Order nonce timestamp too low'
-    );
+    AssetRegistry.skim(tokenAddress, _feeWallet);
   }
 
   // Exchange upgrades //
@@ -1426,35 +1561,5 @@ contract Exchange is IExchange, Owned {
     require(msg.sender == currentExchange, 'Caller is not Exchange');
 
     delete _balanceTracking.balancesByWalletAssetPair[wallet][assetAddress];
-  }
-
-  // Private methods - utils //
-
-  function getCurrentTimestampInMs() private view returns (uint64) {
-    uint64 msInOneSecond = 1000;
-
-    return uint64(block.timestamp) * msInOneSecond;
-  }
-
-  function getLastInvalidatedTimestamp(address walletAddress)
-    private
-    view
-    returns (uint64)
-  {
-    if (
-      _nonceInvalidations[walletAddress].exists &&
-      _nonceInvalidations[walletAddress].effectiveBlockNumber <= block.number
-    ) {
-      return _nonceInvalidations[walletAddress].timestampInMs;
-    }
-
-    return 0;
-  }
-
-  function getOneDayFromNowInMs() private view returns (uint64) {
-    uint64 secondsInOneDay = 24 * 60 * 60; // 24 hours/day * 60 min/hour * 60 seconds/min
-    uint64 msInOneSecond = 1000;
-
-    return (uint64(block.timestamp) + secondsInOneDay) * msInOneSecond;
   }
 }

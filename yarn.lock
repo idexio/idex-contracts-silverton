@@ -1804,10 +1804,10 @@
     normalize-path "^2.0.1"
     through2 "^2.0.3"
 
-"@idexio/idex-farm@0.0.2":
-  version "0.0.2"
-  resolved "https://registry.yarnpkg.com/@idexio/idex-farm/-/idex-farm-0.0.2.tgz#fbb32dd888a751ab0a9e0d59f397e7066f8e38c8"
-  integrity sha512-AFUl1Z/sDOPZjq68Z6Y0D5ZYH7kINZAD/fKEzTewdGcSyFqgl0nNW3qTJ6A1fwMrXFiv0Zrei7b3nfkDPJZHpg==
+"@idexio/idex-farm@0.0.4":
+  version "0.0.4"
+  resolved "https://registry.yarnpkg.com/@idexio/idex-farm/-/idex-farm-0.0.4.tgz#0933d4180c93a77e8dfb79a74d7bd33f16bba388"
+  integrity sha512-sFxZy/DZiLz4xsyfUN/RoHDD5DID4KvuYUd13z5I8/UYotm73C/jcoGzliYW7+siR3d221Sod/Tnr0T+04/zig==
   dependencies:
     "@openzeppelin/contracts" "3.2.0"
     truffle "5.2.3"

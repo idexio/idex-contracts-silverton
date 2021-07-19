@@ -2,7 +2,7 @@
 
 pragma solidity 0.8.4;
 
-import { ILiquidityProviderToken } from './Interfaces.sol';
+import { ILiquidityProviderToken, IWETH9 } from './Interfaces.sol';
 import {
   LiquidityChangeOrigination,
   OrderSelfTradePrevention,
@@ -55,6 +55,31 @@ struct LiquidityAddition {
 }
 
 /**
+ * @notice Internally used struct, return type from `LiquidityPools.addLiquidity`
+ */
+struct LiquidityAdditionDepositResult {
+  string assetASymbol;
+  uint64 assetAQuantityInPips;
+  uint64 assetANewExchangeBalanceInPips;
+  uint256 assetANewExchangeBalanceInAssetUnits;
+  string assetBSymbol;
+  uint64 assetBQuantityInPips;
+  uint64 assetBNewExchangeBalanceInPips;
+  uint256 assetBNewExchangeBalanceInAssetUnits;
+}
+
+/**
+ * @notice Internally used struct, return type from `LiquidityPools.removeLiquidity`
+ */
+struct LiquidityRemovalDepositResult {
+  address assetAddress;
+  string assetSymbol;
+  uint64 assetQuantityInPips;
+  uint64 assetNewExchangeBalanceInPips;
+  uint256 assetNewExchangeBalanceInAssetUnits;
+}
+
+/**
  * @dev Internal struct capturing user-initiated liquidity removal request parameters
  */
 struct LiquidityRemoval {
@@ -89,6 +114,27 @@ struct LiquidityChangeExecution {
   uint64 netBaseQuantityInPips;
   // Net amount of quote asset sent to pool for additions or received by wallet for removals
   uint64 netQuoteQuantityInPips;
+}
+
+/**
+ * @notice Internally used struct, argument type to `LiquidityPoolAdmin.migrateLiquidityPool`
+ */
+struct LiquidityMigration {
+  address token0;
+  address token1;
+  bool isToken1Quote;
+  uint256 desiredLiquidity;
+  address to;
+  IWETH9 WETH;
+}
+
+/**
+ * @notice Internally used struct capturing wallet order nonce invalidations created via `invalidateOrderNonce`
+ */
+struct NonceInvalidation {
+  bool exists;
+  uint64 timestampInMs;
+  uint256 effectiveBlockNumber;
 }
 
 /**

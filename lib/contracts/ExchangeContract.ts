@@ -20,9 +20,11 @@ export default class ExchangeContract extends BaseContract<Exchange> {
   public static async deploy(
     args: Parameters<Exchange__factory['deploy']>,
     libraryAddresses: {
-      assetRegistryAdmin: string;
+      assetRegistry: string;
       depositing: string;
-      liquidityPoolRegistry: string;
+      liquidityPoolAdmin: string;
+      liquidityPools: string;
+      nonceInvalidations: string;
       trading: string;
       withdrawing: string;
     },
@@ -31,11 +33,13 @@ export default class ExchangeContract extends BaseContract<Exchange> {
     const linkLibraryAddresses: ConstructorParameters<
       typeof Exchange__factory
     >[0] = {
-      __AssetRegistryAdmin____________________:
-        libraryAddresses.assetRegistryAdmin,
+      __AssetRegistry_________________________: libraryAddresses.assetRegistry,
       __Depositing____________________________: libraryAddresses.depositing,
-      __LiquidityPoolRegistry_________________:
-        libraryAddresses.liquidityPoolRegistry,
+      __NonceInvalidations____________________:
+        libraryAddresses.nonceInvalidations,
+      __LiquidityPoolAdmin____________________:
+        libraryAddresses.liquidityPoolAdmin,
+      __LiquidityPools________________________: libraryAddresses.liquidityPools,
       __Trading_______________________________: libraryAddresses.trading,
       __Withdrawing___________________________: libraryAddresses.withdrawing,
     };

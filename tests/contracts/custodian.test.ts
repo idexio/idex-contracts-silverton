@@ -29,7 +29,6 @@ contract('Custodian', (accounts) => {
       (await BalanceMigrationSourceMock.new()).address,
       (await WETH.new()).address,
       nativeAssetSymbol,
-      (await WETH.new()).address,
     );
     governance = await Governance.new(10);
   });
@@ -131,7 +130,6 @@ contract('Custodian', (accounts) => {
         (await BalanceMigrationSourceMock.new()).address,
         (await WETH.new()).address,
         nativeAssetSymbol,
-        (await WETH.new()).address,
       );
 
       await governanceMock.setExchange(newExchange.address);
