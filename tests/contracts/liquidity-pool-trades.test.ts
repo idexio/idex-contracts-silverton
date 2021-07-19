@@ -884,6 +884,86 @@ contract(
         );
       });
 
+      it('should work for taker sell order with price correction', async () => {
+        const initialBaseReserve = '10000.00000000';
+        const initialQuoteReserve = '10.00000000';
+
+        const { exchange, token } = await deployContractsAndCreateHybridETHPool(
+          initialBaseReserve,
+          initialQuoteReserve,
+          ownerWallet,
+        );
+        await exchange.setDispatcher(ownerWallet);
+
+        await deposit(exchange, token, buyWallet, '0.00000000', '10.00000000');
+        await token.transfer(
+          sellWallet,
+          decimalToAssetUnits('5000.00000000', 18),
+        );
+        await deposit(
+          exchange,
+          token,
+          sellWallet,
+          '5000.00000000',
+          '0.00000000',
+        );
+
+        const { buyOrder, sellOrder, fill } = await generateOrdersAndFill(
+          token.address,
+          ethAddress,
+          buyWallet,
+          sellWallet,
+          '1111.11111235',
+          '0.00080999',
+          ethMarketSymbol,
+        );
+        sellOrder.price = '0.00080998';
+        const buySignature = await getSignature(
+          web3,
+          getOrderHash(buyOrder),
+          buyWallet,
+        );
+        const sellSignature = await getSignature(
+          web3,
+          getOrderHash(sellOrder),
+          sellWallet,
+        );
+        fill.makerSide = OrderSide.Buy;
+
+        const poolTrade: PoolTrade = {
+          baseAssetAddress: token.address,
+          quoteAssetAddress: ethAddress,
+          grossBaseQuantity: '0.00000001',
+          grossQuoteQuantity: '0.00000002',
+          netBaseQuantity: '0.00000001',
+          netQuoteQuantity: '0.00000000',
+          takerPoolFeeQuantity: '0.00000000',
+          takerProtocolFeeQuantity: '0.00000000',
+          takerGasFeeQuantity: '0.00000000',
+          takerPriceCorrectionFeeQuantity: '0.00000002',
+        };
+        fill.grossBaseQuantity = new BigNumber(fill.grossBaseQuantity)
+          .minus(new BigNumber(poolTrade.grossBaseQuantity))
+          .toFixed(8);
+        fill.netBaseQuantity = fill.grossBaseQuantity;
+        fill.grossQuoteQuantity = new BigNumber(fill.grossQuoteQuantity)
+          .minus(new BigNumber(poolTrade.grossQuoteQuantity))
+          .toFixed(8);
+        fill.netQuoteQuantity = fill.grossQuoteQuantity;
+
+        // https://github.com/microsoft/TypeScript/issues/28486
+        await (exchange.executeHybridTrade as any)(
+          ...getHybridTradeArguments(
+            buyOrder,
+            buySignature,
+            sellOrder,
+            sellSignature,
+            fill,
+            poolTrade,
+          ),
+        );
+      });
+
       it('should revert for quote out with price correction', async () => {
         const initialBaseReserve = '10000.00000000';
         const initialQuoteReserve = '10.00000000';

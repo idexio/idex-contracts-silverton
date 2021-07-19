@@ -46,7 +46,7 @@ library LiquidityPoolAdmin {
     LiquidityMigration memory migration,
     ICustodian custodian,
     AssetRegistry.Storage storage assetRegistry
-  ) public returns (address liquidityProviderToken, bool isPoolNewlyCreated) {
+  ) public returns (address liquidityProviderToken) {
     require(
       AssetUnitConversions.assetUnitsToPips(
         migration.desiredLiquidity,
@@ -65,7 +65,7 @@ library LiquidityPoolAdmin {
       ) = transferMigratedTokenReservesToCustodian(migration, custodian);
 
       LiquidityPool storage pool;
-      (pool, isPoolNewlyCreated) = loadOrCreateLiquidityPoolByAssetAddresses(
+      pool = loadOrCreateLiquidityPoolByAssetAddresses(
         self,
         baseAssetAddress,
         quoteAssetAddress,
@@ -140,7 +140,7 @@ library LiquidityPoolAdmin {
     address baseAssetAddress,
     address quoteAssetAddress,
     AssetRegistry.Storage storage assetRegistry
-  ) private returns (LiquidityPool storage pool, bool isPoolNewlyCreated) {
+  ) private returns (LiquidityPool storage pool) {
     pool = self.poolsByAddresses[baseAssetAddress][quoteAssetAddress];
 
     if (!pool.exists) {
@@ -150,7 +150,6 @@ library LiquidityPoolAdmin {
         quoteAssetAddress,
         assetRegistry
       );
-      isPoolNewlyCreated = true;
     }
   }
 

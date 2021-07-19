@@ -57,14 +57,6 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
         .minus(minimumLiquidity)
         .toString();
 
-      const events = await exchange.getPastEvents('LiquidityPoolCreated', {
-        fromBlock: 0,
-      });
-      expect(events).to.be.an('array');
-      expect(events.length).to.equal(1);
-      expect(events[0].returnValues.baseAssetAddress).to.equal(token.address);
-      expect(events[0].returnValues.quoteAssetAddress).to.equal(ethAddress);
-
       const tokenEvents = await token.getPastEvents('Transfer', {
         fromBlock: 0,
       });
@@ -117,14 +109,6 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
         weth.address === (await pair.token1()),
         weth.address,
       );
-
-      const events = await exchange.getPastEvents('LiquidityPoolCreated', {
-        fromBlock: 0,
-      });
-      expect(events).to.be.an('array');
-      expect(events.length).to.equal(1);
-      expect(events[0].returnValues.baseAssetAddress).to.equal(token.address);
-      expect(events[0].returnValues.quoteAssetAddress).to.equal(ethAddress);
     });
 
     it('should revert when not called by migrator', async () => {
@@ -184,6 +168,21 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
       }
       expect(error).to.not.be.undefined;
       expect(error.message).to.match(/revert/i);
+    });
+
+    it('should revert when liquidity too low', async () => {
+      let error;
+      try {
+        await deployContractsAndCreateHybridETHPool(
+          '0.00000001',
+          '0.00000001',
+          ownerWallet,
+        );
+      } catch (e) {
+        error = e;
+      }
+      expect(error).to.not.be.undefined;
+      expect(error.message).to.match(/desired liquidity too low/i);
     });
 
     it('should revert when base quantity too low', async () => {
@@ -1114,7 +1113,7 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
       expect(error.message).to.match(/asset address mismatch/i);
     });
 
-    it('should revert when minimum base', async () => {
+    it('should revert when minimum base not met', async () => {
       const depositQuantity = '1.00000000';
       const depositQuantityInAssetUnits = decimalToAssetUnits(
         depositQuantity,
@@ -1150,6 +1149,44 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
       }
       expect(error).to.not.be.undefined;
       expect(error.message).to.match(/min base quantity not met/i);
+    });
+
+    it('should revert when desired base exceeded', async () => {
+      const depositQuantity = '1.00000000';
+      const depositQuantityInAssetUnits = decimalToAssetUnits(
+        depositQuantity,
+        18,
+      );
+
+      const {
+        exchange,
+        token0,
+        token1,
+      } = await deployContractsAndCreateHybridPool(
+        depositQuantity,
+        depositQuantity,
+        ownerWallet,
+      );
+      await exchange.setDispatcher(ownerWallet);
+
+      const { addition, execution } = await generateOnChainLiquidityAddition(
+        exchange,
+        depositQuantityInAssetUnits,
+        ownerWallet,
+        token0,
+        token1,
+      );
+      execution.grossBaseQuantityInPips = decimalToPips('1.10000000');
+      execution.netBaseQuantityInPips = execution.grossBaseQuantityInPips;
+
+      let error;
+      try {
+        await exchange.executeAddLiquidity(addition, execution);
+      } catch (e) {
+        error = e;
+      }
+      expect(error).to.not.be.undefined;
+      expect(error.message).to.match(/desired base quantity exceeded/i);
     });
 
     it('should revert when minimum quote not met', async () => {
@@ -1188,6 +1225,44 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
       }
       expect(error).to.not.be.undefined;
       expect(error.message).to.match(/min quote quantity not met/i);
+    });
+
+    it('should revert when desired quote exceeded', async () => {
+      const depositQuantity = '1.00000000';
+      const depositQuantityInAssetUnits = decimalToAssetUnits(
+        depositQuantity,
+        18,
+      );
+
+      const {
+        exchange,
+        token0,
+        token1,
+      } = await deployContractsAndCreateHybridPool(
+        depositQuantity,
+        depositQuantity,
+        ownerWallet,
+      );
+      await exchange.setDispatcher(ownerWallet);
+
+      const { addition, execution } = await generateOnChainLiquidityAddition(
+        exchange,
+        depositQuantityInAssetUnits,
+        ownerWallet,
+        token0,
+        token1,
+      );
+      execution.grossQuoteQuantityInPips = decimalToPips('1.10000000');
+      execution.netQuoteQuantityInPips = execution.grossQuoteQuantityInPips;
+
+      let error;
+      try {
+        await exchange.executeAddLiquidity(addition, execution);
+      } catch (e) {
+        error = e;
+      }
+      expect(error).to.not.be.undefined;
+      expect(error.message).to.match(/desired quote quantity exceeded/i);
     });
 
     it('should revert for excessive base fee', async () => {
@@ -1883,6 +1958,66 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
       // https://github.com/microsoft/TypeScript/issues/28486
       await (exchange.executeRemoveLiquidity as any)(
         ...getRemoveLiquidityArguments(removal, signature, execution),
+        { from: ownerWallet },
+      );
+
+      const burnEvents = await lpToken.getPastEvents('Burn', {
+        fromBlock: 0,
+      });
+      expect(burnEvents).to.be.an('array');
+      expect(burnEvents.length).to.equal(1);
+      expect(burnEvents[0].returnValues.baseAssetQuantityInAssetUnits).to.equal(
+        pipsToAssetUnits(execution.grossBaseQuantityInPips, 18),
+      );
+      expect(
+        burnEvents[0].returnValues.quoteAssetQuantityInAssetUnits,
+      ).to.equal(pipsToAssetUnits(execution.grossQuoteQuantityInPips, 18));
+    });
+
+    it('should work without signature after wallet exit when initiated off-chain', async () => {
+      const depositQuantity = '1.00000000';
+      const depositQuantityInAssetUnits = decimalToAssetUnits(
+        depositQuantity,
+        18,
+      );
+
+      const {
+        exchange,
+        lpToken,
+        token0,
+        token1,
+      } = await deployContractsAndCreateHybridPool(
+        depositQuantity,
+        depositQuantity,
+        ownerWallet,
+      );
+      await exchange.setDispatcher(ownerWallet);
+      await addLiquidityAndExecute(
+        depositQuantity,
+        ownerWallet,
+        exchange,
+        token0,
+        token1,
+      );
+
+      const { removal, execution } = await generateOffChainLiquidityRemoval(
+        depositQuantityInAssetUnits,
+        ownerWallet,
+        exchange,
+        lpToken,
+        token0,
+        token1,
+      );
+
+      await exchange.exitWallet();
+
+      // https://github.com/microsoft/TypeScript/issues/28486
+      await (exchange.executeRemoveLiquidity as any)(
+        ...getRemoveLiquidityArguments(
+          removal,
+          web3.utils.bytesToHex([...Buffer.alloc(65)]),
+          execution,
+        ),
         { from: ownerWallet },
       );
 

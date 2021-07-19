@@ -40,6 +40,16 @@ contract('Exchange (liquidity provider token)', ([ownerWallet]) => {
 
       expect(await lpToken.name()).to.equal('IDEX LP: DIL-ETH');
       expect((await lpToken.decimals()).toString()).to.equal('18');
+
+      expect(await lpToken.baseAssetAddress()).to.equal(token.address);
+      expect(await lpToken.quoteAssetAddress()).to.equal(ethAddress);
+
+      const [expectedToken0, expectedToken1] = [
+        token.address,
+        ethAddress,
+      ].sort();
+      expect(await lpToken.token0()).to.equal(expectedToken0);
+      expect(await lpToken.token1()).to.equal(expectedToken1);
     });
 
     it('should revert for zero Custodian address', async () => {
@@ -60,6 +70,7 @@ contract('Exchange (liquidity provider token)', ([ownerWallet]) => {
       expect(error).to.not.be.undefined;
       expect(error.message).to.match(/revert/i);
     });
+
     it('should revert when base and quote address are the same', async () => {
       let error;
       try {

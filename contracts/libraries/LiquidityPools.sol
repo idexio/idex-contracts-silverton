@@ -36,6 +36,7 @@ import {
   LiquidityChangeExecution,
   LiquidityPool,
   LiquidityRemoval,
+  LiquidityRemovalDepositResult,
   PoolTrade
 } from './Structs.sol';
 
@@ -176,7 +177,7 @@ library LiquidityPools {
     ICustodian custodian,
     AssetRegistry.Storage storage assetRegistry,
     BalanceTracking.Storage storage balanceTracking
-  ) public {
+  ) public returns (LiquidityRemovalDepositResult memory) {
     require(removal.deadline >= block.timestamp, 'IDEX: EXPIRED');
 
     bytes32 hash = Hashing.getLiquidityRemovalHash(removal);
@@ -197,14 +198,15 @@ library LiquidityPools {
       );
 
     // Transfer LP tokens to Custodian and credit balances
-    Depositing.depositLiquidityTokens(
-      removal.wallet,
-      liquidityProviderToken,
-      removal.liquidity,
-      custodian,
-      assetRegistry,
-      balanceTracking
-    );
+    return
+      Depositing.depositLiquidityTokens(
+        removal.wallet,
+        liquidityProviderToken,
+        removal.liquidity,
+        custodian,
+        assetRegistry,
+        balanceTracking
+      );
   }
 
   function executeRemoveLiquidity(

@@ -33,6 +33,7 @@ import {
   LiquidityMigration,
   LiquidityPool,
   LiquidityRemoval,
+  LiquidityRemovalDepositResult,
   NonceInvalidation,
   Order,
   OrderBookTrade,
@@ -48,7 +49,6 @@ import {
  * to the latter
  */
 contract Exchange is IExchange, Owned {
-  using AssetRegistry for AssetRegistry.Storage;
   using AssetRegistry for AssetRegistry.Storage;
   using BalanceTracking for BalanceTracking.Storage;
   using LiquidityPools for LiquidityPools.Storage;
@@ -75,15 +75,6 @@ contract Exchange is IExchange, Owned {
     uint64 newExchangeBalanceInPips,
     uint256 newExchangeBalanceInAssetUnits
   );
-  /**
-   * @notice Emitted when an admin changes the Dispatch Wallet tunable parameter with
-   * `setDispatcher`
-   */
-  event DispatcherChanged(address previousValue, address newValue);
-  /**
-   * @notice Emitted when an admin changes the Fee Wallet tunable parameter with `setFeeWallet`
-   */
-  event FeeWalletChanged(address previousValue, address newValue);
   /**
    * @notice Emitted when the Dispatcher Wallet submits a hybrid trade for execution with
    * `executeHybridTrade`
@@ -169,9 +160,18 @@ contract Exchange is IExchange, Owned {
     uint64 liquidityInPips
   );
   /**
-   * @notice Emitted when an admin changes the Migrator tunable parameter with `setMigrator`
+   * @notice Emitted when the Dispatcher Wallet submits a trade for execution with
+   * `executeOrderBookTrade`
    */
-  event MigratorChanged(address previousValue, address newValue);
+  event OrderBookTradeExecuted(
+    address buyWallet,
+    address sellWallet,
+    string baseAssetSymbol,
+    string quoteAssetSymbol,
+    uint64 baseQuantityInPips,
+    uint64 quoteQuantityInPips,
+    OrderSide takerSide
+  );
   /**
    * @notice Emitted when a user invalidates an order nonce with `invalidateOrderNonce`
    */
@@ -194,40 +194,15 @@ contract Exchange is IExchange, Owned {
     OrderSide takerSide
   );
   /**
-   * @notice Emitted when an admin initiates the token registration process with `registerToken`
-   */
-  event TokenRegistered(
-    IERC20 assetAddress,
-    string assetSymbol,
-    uint8 decimals
-  );
-  /**
-   * @notice Emitted when an admin finalizes the token registration process with
-   * `confirmAssetRegistration`, after which it can be deposited, traded, or withdrawn
-   */
-  event TokenRegistrationConfirmed(
-    IERC20 assetAddress,
-    string assetSymbol,
-    uint8 decimals
-  );
-  /**
    * @notice Emitted when an admin adds a symbol to a previously registered and confirmed token
    * via `addTokenSymbol`
    */
   event TokenSymbolAdded(IERC20 assetAddress, string assetSymbol);
   /**
+   * @notice Emitted when the Dispatcher Wallet submits a trade for execution with `executeOrderBookTrade`
    * @notice Emitted when the Dispatcher Wallet submits a trade for execution with
    * `executeOrderBookTrade`
    */
-  event OrderBookTradeExecuted(
-    address buyWallet,
-    address sellWallet,
-    string baseAssetSymbol,
-    string quoteAssetSymbol,
-    uint64 baseQuantityInPips,
-    uint64 quoteQuantityInPips,
-    OrderSide takerSide
-  );
   /**
    * @notice Emitted when a user invokes the Exit Wallet mechanism with `exitWallet`
    */
@@ -413,10 +388,7 @@ contract Exchange is IExchange, Owned {
     require(newFeeWallet != address(0x0), 'Invalid wallet address');
     require(newFeeWallet != _feeWallet, 'Must be different from current');
 
-    address oldFeeWallet = _feeWallet;
     _feeWallet = newFeeWallet;
-
-    emit FeeWalletChanged(oldFeeWallet, newFeeWallet);
   }
 
   /**
@@ -431,10 +403,7 @@ contract Exchange is IExchange, Owned {
       'Must be different from current'
     );
 
-    address oldMigrator = _liquidityMigrator;
     _liquidityMigrator = newMigrator;
-
-    emit MigratorChanged(oldMigrator, newMigrator);
   }
 
   // Accessors //
@@ -646,7 +615,10 @@ contract Exchange is IExchange, Owned {
     uint256 quantityInAssetUnits
   ) external {
     Asset memory asset =
-      _assetRegistry.loadAssetBySymbol(assetSymbol, getCurrentTimestampInMs());
+      _assetRegistry.loadAssetBySymbol(
+        assetSymbol,
+        AssetRegistry.getCurrentTimestampInMs()
+      );
 
     require(address(asset.assetAddress) != address(0x0), 'Use depositEther');
 
@@ -890,17 +862,10 @@ contract Exchange is IExchange, Owned {
     address baseAssetAddress,
     address quoteAssetAddress
   ) external onlyAdmin {
-    address liquidityProviderToken =
-      _liquidityPools.createLiquidityPool(
-        baseAssetAddress,
-        quoteAssetAddress,
-        _assetRegistry
-      );
-
-    emit LiquidityPoolCreated(
+    _liquidityPools.createLiquidityPool(
       baseAssetAddress,
       quoteAssetAddress,
-      liquidityProviderToken
+      _assetRegistry
     );
   }
 
@@ -938,9 +903,7 @@ contract Exchange is IExchange, Owned {
     address to,
     address payable WETH
   ) external onlyMigrator returns (address liquidityProviderToken) {
-    bool isPoolNewlyCreated;
-    (liquidityProviderToken, isPoolNewlyCreated) = _liquidityPools
-      .migrateLiquidityPool(
+    liquidityProviderToken = _liquidityPools.migrateLiquidityPool(
       LiquidityMigration(
         token0,
         token1,
@@ -952,15 +915,6 @@ contract Exchange is IExchange, Owned {
       _custodian,
       _assetRegistry
     );
-
-    // Only emit event if pool was newly created
-    if (isPoolNewlyCreated) {
-      emit LiquidityPoolCreated(
-        ILiquidityProviderToken(liquidityProviderToken).baseAssetAddress(),
-        ILiquidityProviderToken(liquidityProviderToken).quoteAssetAddress(),
-        liquidityProviderToken
-      );
-    }
   }
 
   /**
@@ -1215,24 +1169,35 @@ contract Exchange is IExchange, Owned {
     // Propagation Period given by `effectiveBlockNumber` via `isWalletExitFinalized`
     require(!_walletExits[msg.sender].exists, 'Wallet exited');
 
-    _liquidityPools.removeLiquidity(
-      LiquidityRemoval(
-        Constants.signatureHashVersion,
-        LiquidityChangeOrigination.OnChain,
-        0,
-        msg.sender,
-        tokenA,
-        tokenB,
-        liquidity,
-        amountAMin,
-        amountBMin,
-        payable(to),
-        deadline,
-        bytes('')
-      ),
-      _custodian,
-      _assetRegistry,
-      _balanceTracking
+    LiquidityRemovalDepositResult memory result =
+      _liquidityPools.removeLiquidity(
+        LiquidityRemoval(
+          Constants.signatureHashVersion,
+          LiquidityChangeOrigination.OnChain,
+          0,
+          msg.sender,
+          tokenA,
+          tokenB,
+          liquidity,
+          amountAMin,
+          amountBMin,
+          payable(to),
+          deadline,
+          bytes('')
+        ),
+        _custodian,
+        _assetRegistry,
+        _balanceTracking
+      );
+
+    emit Deposited(
+      ++_depositIndex,
+      msg.sender,
+      result.assetAddress,
+      result.assetSymbol,
+      result.assetQuantityInPips,
+      result.assetNewExchangeBalanceInPips,
+      result.assetNewExchangeBalanceInAssetUnits
     );
 
     emit LiquidityRemovalInitiated(
@@ -1272,24 +1237,35 @@ contract Exchange is IExchange, Owned {
     // Propagation Period given by `effectiveBlockNumber` via `isWalletExitFinalized`
     require(!_walletExits[msg.sender].exists, 'Wallet exited');
 
-    _liquidityPools.removeLiquidity(
-      LiquidityRemoval(
-        Constants.signatureHashVersion,
-        LiquidityChangeOrigination.OnChain,
-        0,
-        msg.sender,
-        token,
-        address(0x0),
-        liquidity,
-        amountTokenMin,
-        amountETHMin,
-        payable(to),
-        deadline,
-        bytes('')
-      ),
-      _custodian,
-      _assetRegistry,
-      _balanceTracking
+    LiquidityRemovalDepositResult memory result =
+      _liquidityPools.removeLiquidity(
+        LiquidityRemoval(
+          Constants.signatureHashVersion,
+          LiquidityChangeOrigination.OnChain,
+          0,
+          msg.sender,
+          token,
+          address(0x0),
+          liquidity,
+          amountTokenMin,
+          amountETHMin,
+          payable(to),
+          deadline,
+          bytes('')
+        ),
+        _custodian,
+        _assetRegistry,
+        _balanceTracking
+      );
+
+    emit Deposited(
+      ++_depositIndex,
+      msg.sender,
+      address(0x0),
+      result.assetSymbol,
+      result.assetQuantityInPips,
+      result.assetNewExchangeBalanceInPips,
+      result.assetNewExchangeBalanceInAssetUnits
     );
 
     emit LiquidityRemovalInitiated(
@@ -1308,9 +1284,9 @@ contract Exchange is IExchange, Owned {
    * assets from pool reserves to the recipient
    *
    * @param removal A `LiquidityRemoval` struct encoding the parameters of the removal requested
-   * by the user either on-chain via `addLiquidity` or `addLiquidityETH` or off-chain via
-   * ECDSA-signed API request, or requested by the Dispatcher wallet itself in case the wallet has
-   * exited and its liquidity positions must be liquidated automatically
+   * by the user either 1) on-chain via `removeLiquidity` or `removeLiquidityETH`, 2) off-chain via
+   * ECDSA-signed API request, or 3) requested by the Dispatcher wallet itself in case the wallet
+   * has exited and its liquidity positions must be liquidated automatically
    * @param execution A `LiquidityChangeExecution` struct encoding the parameters of this liquidity
    * removal execution that meets the terms of the request
    */
@@ -1469,7 +1445,6 @@ contract Exchange is IExchange, Owned {
     uint8 decimals
   ) external onlyAdmin {
     _assetRegistry.registerToken(tokenAddress, symbol, decimals);
-    emit TokenRegistered(tokenAddress, symbol, decimals);
   }
 
   /**
@@ -1486,7 +1461,6 @@ contract Exchange is IExchange, Owned {
     uint8 decimals
   ) external onlyAdmin {
     _assetRegistry.confirmTokenRegistration(tokenAddress, symbol, decimals);
-    emit TokenRegistrationConfirmed(tokenAddress, symbol, decimals);
   }
 
   /**
@@ -1541,10 +1515,7 @@ contract Exchange is IExchange, Owned {
       newDispatcherWallet != _dispatcherWallet,
       'Must be different from current'
     );
-    address oldDispatcherWallet = _dispatcherWallet;
     _dispatcherWallet = newDispatcherWallet;
-
-    emit DispatcherChanged(oldDispatcherWallet, newDispatcherWallet);
   }
 
   /**
@@ -1554,7 +1525,6 @@ contract Exchange is IExchange, Owned {
    * `setDispatcher`
    */
   function removeDispatcher() external onlyAdmin {
-    emit DispatcherChanged(_dispatcherWallet, address(0x0));
     _dispatcherWallet = address(0x0);
   }
 
@@ -1591,13 +1561,5 @@ contract Exchange is IExchange, Owned {
     require(msg.sender == currentExchange, 'Caller is not Exchange');
 
     delete _balanceTracking.balancesByWalletAssetPair[wallet][assetAddress];
-  }
-
-  // Private methods - utils //
-
-  function getCurrentTimestampInMs() private view returns (uint64) {
-    uint64 msInOneSecond = 1000;
-
-    return uint64(block.timestamp) * msInOneSecond;
   }
 }
