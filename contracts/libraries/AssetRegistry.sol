@@ -114,8 +114,11 @@ library AssetRegistry {
     Asset memory asset = loadAssetByAddress(self, assetAddress);
     return
       AssetUnitConversions.pipsToAssetUnits(
-        balanceTracking.balancesByWalletAssetPair[wallet][assetAddress]
-          .balanceInPips,
+        loadBalanceInPipsFromMigrationSourceIfNeeded(
+          wallet,
+          assetAddress,
+          balanceTracking
+        ),
         asset.decimals
       );
   }
@@ -132,8 +135,11 @@ library AssetRegistry {
       loadAssetBySymbol(self, assetSymbol, getCurrentTimestampInMs());
     return
       AssetUnitConversions.pipsToAssetUnits(
-        balanceTracking.balancesByWalletAssetPair[wallet][asset.assetAddress]
-          .balanceInPips,
+        loadBalanceInPipsFromMigrationSourceIfNeeded(
+          wallet,
+          asset.assetAddress,
+          balanceTracking
+        ),
         asset.decimals
       );
   }
@@ -146,8 +152,11 @@ library AssetRegistry {
     require(wallet != address(0x0), 'Invalid wallet address');
 
     return
-      balanceTracking.balancesByWalletAssetPair[wallet][assetAddress]
-        .balanceInPips;
+      loadBalanceInPipsFromMigrationSourceIfNeeded(
+        wallet,
+        assetAddress,
+        balanceTracking
+      );
   }
 
   function loadBalanceInPipsBySymbol(
@@ -162,8 +171,33 @@ library AssetRegistry {
       loadAssetBySymbol(self, assetSymbol, getCurrentTimestampInMs())
         .assetAddress;
     return
-      balanceTracking.balancesByWalletAssetPair[wallet][assetAddress]
-        .balanceInPips;
+      loadBalanceInPipsFromMigrationSourceIfNeeded(
+        wallet,
+        assetAddress,
+        balanceTracking
+      );
+  }
+
+  function loadBalanceInPipsFromMigrationSourceIfNeeded(
+    address wallet,
+    address assetAddress,
+    BalanceTracking.Storage storage balanceTracking
+  ) private view returns (uint64) {
+    BalanceTracking.Balance memory balance =
+      balanceTracking.balancesByWalletAssetPair[wallet][assetAddress];
+
+    if (
+      !balance.isMigrated &&
+      address(balanceTracking.migrationSource) != address(0x0)
+    ) {
+      return
+        balanceTracking.migrationSource.loadBalanceInPipsByAddress(
+          wallet,
+          assetAddress
+        );
+    }
+
+    return balance.balanceInPips;
   }
 
   /**

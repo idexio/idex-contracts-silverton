@@ -160,6 +160,19 @@ contract Exchange is IExchange, Owned {
     uint64 liquidityInPips
   );
   /**
+   * @notice Emitted when the Dispatcher Wallet submits a trade for execution with
+   * `executeOrderBookTrade`
+   */
+  event OrderBookTradeExecuted(
+    address buyWallet,
+    address sellWallet,
+    string baseAssetSymbol,
+    string quoteAssetSymbol,
+    uint64 baseQuantityInPips,
+    uint64 quoteQuantityInPips,
+    OrderSide takerSide
+  );
+  /**
    * @notice Emitted when a user invalidates an order nonce with `invalidateOrderNonce`
    */
   event OrderNonceInvalidated(
@@ -181,18 +194,15 @@ contract Exchange is IExchange, Owned {
     OrderSide takerSide
   );
   /**
+   * @notice Emitted when an admin adds a symbol to a previously registered and confirmed token
+   * via `addTokenSymbol`
+   */
+  event TokenSymbolAdded(IERC20 assetAddress, string assetSymbol);
+  /**
+   * @notice Emitted when the Dispatcher Wallet submits a trade for execution with `executeOrderBookTrade`
    * @notice Emitted when the Dispatcher Wallet submits a trade for execution with
    * `executeOrderBookTrade`
    */
-  event OrderBookTradeExecuted(
-    address buyWallet,
-    address sellWallet,
-    string baseAssetSymbol,
-    string quoteAssetSymbol,
-    uint64 baseQuantityInPips,
-    uint64 quoteQuantityInPips,
-    OrderSide takerSide
-  );
   /**
    * @notice Emitted when a user invokes the Exit Wallet mechanism with `exitWallet`
    */
@@ -852,17 +862,10 @@ contract Exchange is IExchange, Owned {
     address baseAssetAddress,
     address quoteAssetAddress
   ) external onlyAdmin {
-    address liquidityProviderToken =
-      _liquidityPools.createLiquidityPool(
-        baseAssetAddress,
-        quoteAssetAddress,
-        _assetRegistry
-      );
-
-    emit LiquidityPoolCreated(
+    _liquidityPools.createLiquidityPool(
       baseAssetAddress,
       quoteAssetAddress,
-      liquidityProviderToken
+      _assetRegistry
     );
   }
 
@@ -900,9 +903,7 @@ contract Exchange is IExchange, Owned {
     address to,
     address payable WETH
   ) external onlyMigrator returns (address liquidityProviderToken) {
-    bool isPoolNewlyCreated;
-    (liquidityProviderToken, isPoolNewlyCreated) = _liquidityPools
-      .migrateLiquidityPool(
+    liquidityProviderToken = _liquidityPools.migrateLiquidityPool(
       LiquidityMigration(
         token0,
         token1,
@@ -914,15 +915,6 @@ contract Exchange is IExchange, Owned {
       _custodian,
       _assetRegistry
     );
-
-    // Only emit event if pool was newly created
-    if (isPoolNewlyCreated) {
-      emit LiquidityPoolCreated(
-        ILiquidityProviderToken(liquidityProviderToken).baseAssetAddress(),
-        ILiquidityProviderToken(liquidityProviderToken).quoteAssetAddress(),
-        liquidityProviderToken
-      );
-    }
   }
 
   /**
@@ -1245,24 +1237,35 @@ contract Exchange is IExchange, Owned {
     // Propagation Period given by `effectiveBlockNumber` via `isWalletExitFinalized`
     require(!_walletExits[msg.sender].exists, 'Wallet exited');
 
-    _liquidityPools.removeLiquidity(
-      LiquidityRemoval(
-        Constants.signatureHashVersion,
-        LiquidityChangeOrigination.OnChain,
-        0,
-        msg.sender,
-        token,
-        address(0x0),
-        liquidity,
-        amountTokenMin,
-        amountETHMin,
-        payable(to),
-        deadline,
-        bytes('')
-      ),
-      _custodian,
-      _assetRegistry,
-      _balanceTracking
+    LiquidityRemovalDepositResult memory result =
+      _liquidityPools.removeLiquidity(
+        LiquidityRemoval(
+          Constants.signatureHashVersion,
+          LiquidityChangeOrigination.OnChain,
+          0,
+          msg.sender,
+          token,
+          address(0x0),
+          liquidity,
+          amountTokenMin,
+          amountETHMin,
+          payable(to),
+          deadline,
+          bytes('')
+        ),
+        _custodian,
+        _assetRegistry,
+        _balanceTracking
+      );
+
+    emit Deposited(
+      ++_depositIndex,
+      msg.sender,
+      address(0x0),
+      result.assetSymbol,
+      result.assetQuantityInPips,
+      result.assetNewExchangeBalanceInPips,
+      result.assetNewExchangeBalanceInAssetUnits
     );
 
     emit LiquidityRemovalInitiated(
@@ -1472,6 +1475,7 @@ contract Exchange is IExchange, Owned {
     onlyAdmin
   {
     _assetRegistry.addTokenSymbol(tokenAddress, symbol);
+    emit TokenSymbolAdded(tokenAddress, symbol);
   }
 
   /**
