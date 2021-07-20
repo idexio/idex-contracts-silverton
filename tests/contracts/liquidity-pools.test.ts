@@ -937,12 +937,21 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
         token0,
         token1,
       );
+      addition.amountAMin = decimalToAssetUnits('0.90000000', 18);
       const signature = await getSignature(
         web3,
         getLiquidityAdditionHash(addition),
         ownerWallet,
       );
-      execution.grossBaseQuantityInPips = decimalToPips('0.50000000');
+      execution.netBaseQuantityInPips = decimalToPips('0.90000000');
+      execution.grossBaseQuantityInPips = decimalToPips('0.90000000');
+      execution.liquidityInPips = await getOutputLiquidityInPips(
+        exchange,
+        token0.address,
+        token1.address,
+        decimalToPips(depositQuantity),
+        decimalToPips('0.90000000'),
+      );
 
       let error;
       try {
