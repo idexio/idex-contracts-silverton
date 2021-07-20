@@ -214,6 +214,21 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
       expect(error).to.not.be.undefined;
       expect(error.message).to.match(/insufficient quote/i);
     });
+
+    it('should revert when max reserve ratio exceeded', async () => {
+      let error;
+      try {
+        await deployContractsAndCreateHybridETHPool(
+          '1000000000.00000000',
+          '1.00000000',
+          ownerWallet,
+        );
+      } catch (e) {
+        error = e;
+      }
+      expect(error).to.not.be.undefined;
+      expect(error.message).to.match(/exceeded max reserve ratio/i);
+    });
   });
 
   describe('createLiquidityPool', () => {

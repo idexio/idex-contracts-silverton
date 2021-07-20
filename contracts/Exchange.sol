@@ -691,10 +691,6 @@ contract Exchange is IExchange, Owned {
       !isWalletExitFinalized(sell.walletAddress),
       'Sell wallet exit finalized'
     );
-    require(
-      buy.walletAddress != sell.walletAddress,
-      'Self-trading not allowed'
-    );
 
     Trading.executeOrderBookTrade(
       buy,
