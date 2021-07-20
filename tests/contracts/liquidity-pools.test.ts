@@ -1827,7 +1827,7 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
       ).to.equal(pipsToAssetUnits(execution.grossQuoteQuantityInPips, 18));
     });
 
-    it.only('should work when price must be rounded up', async () => {
+    it('should work when price must be rounded up', async () => {
       const initialBaseReserve = '63164.51806209';
       const initialQuoteReserve = '56395014253.92162785';
       const liquidityToRemove = '31632449.13872196';
@@ -1876,7 +1876,6 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
         token0,
         token1,
       );
-      throw '';
     });
 
     it('should revert when wallet exited', async () => {
@@ -3408,25 +3407,20 @@ async function getOutputAssetQuantitiesInPips(
   );
   const baseQuantityInPips = new BigNumber(liquidityInPips)
     .multipliedBy(new BigNumber(pool.baseAssetReserveInPips.toString()))
-    .dividedBy(totalSupplyInPips);
+    .dividedBy(totalSupplyInPips)
+    .toFixed(0, BigNumber.ROUND_FLOOR);
   const quoteQuantityInPips = new BigNumber(
     pool.quoteAssetReserveInPips.toString(),
-  ).minus(
-    new BigNumber(pool.baseAssetReserveInPips.toString())
-      .minus(new BigNumber(baseQuantityInPips))
-      .multipliedBy(poolPrice),
-  );
-  console.log([
-    poolPrice.toString(),
-    liquidityInPips,
-    totalSupplyInPips.toString(),
-    pool.baseAssetReserveInPips.toString(),
-    pool.quoteAssetReserveInPips.toString(),
-  ]);
-  return [
-    baseQuantityInPips.toFixed(0, BigNumber.ROUND_FLOOR),
-    quoteQuantityInPips.toFixed(0, BigNumber.ROUND_UP),
-  ];
+  )
+    .minus(
+      new BigNumber(pool.baseAssetReserveInPips.toString())
+        .minus(new BigNumber(baseQuantityInPips))
+        .multipliedBy(poolPrice)
+        .toFixed(0, BigNumber.ROUND_CEIL),
+    )
+    .toString();
+
+  return [baseQuantityInPips, quoteQuantityInPips];
 }
 
 export async function getLpToken(
@@ -3480,7 +3474,6 @@ async function removeLiquidityAndExecute(
     token1.address,
     depositQuantityInPips,
   );
-  console.log([grossBaseQuantityInPips, grossQuoteQuantityInPips]);
 
   await lpToken.approve(exchange.address, depositQuantityInAssetUnits, {
     from: ownerWallet,
