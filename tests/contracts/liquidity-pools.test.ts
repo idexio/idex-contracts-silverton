@@ -912,6 +912,52 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
       expect(error.message).to.match(/not executable from off-chain/i);
     });
 
+    it('should revert when pool price changed', async () => {
+      const depositQuantity = '1.00000000';
+      const depositQuantityInAssetUnits = decimalToAssetUnits(
+        depositQuantity,
+        18,
+      );
+
+      const {
+        exchange,
+        token0,
+        token1,
+      } = await deployContractsAndCreateHybridPool(
+        depositQuantity,
+        depositQuantity,
+        ownerWallet,
+      );
+      await exchange.setDispatcher(ownerWallet);
+
+      const { addition, execution } = await generateOffChainLiquidityAddition(
+        depositQuantityInAssetUnits,
+        ownerWallet,
+        exchange,
+        token0,
+        token1,
+      );
+      const signature = await getSignature(
+        web3,
+        getLiquidityAdditionHash(addition),
+        ownerWallet,
+      );
+      execution.grossBaseQuantityInPips = decimalToPips('0.50000000');
+
+      let error;
+      try {
+        // https://github.com/microsoft/TypeScript/issues/28486
+        await (exchange.executeAddLiquidity as any)(
+          ...getAddLiquidityArguments(addition, signature, execution),
+          { from: ownerWallet },
+        );
+      } catch (e) {
+        error = e;
+      }
+      expect(error).to.not.be.undefined;
+      expect(error.message).to.match(/pool price cannot change/i);
+    });
+
     it('should revert when wallet exited', async () => {
       const depositQuantity = '1.00000000';
       const depositQuantityInAssetUnits = decimalToAssetUnits(
@@ -1779,6 +1825,58 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
       expect(
         burnEvents[0].returnValues.quoteAssetQuantityInAssetUnits,
       ).to.equal(pipsToAssetUnits(execution.grossQuoteQuantityInPips, 18));
+    });
+
+    it.only('should work when price must be rounded up', async () => {
+      const initialBaseReserve = '63164.51806209';
+      const initialQuoteReserve = '56395014253.92162785';
+      const liquidityToRemove = '31632449.13872196';
+
+      const { exchange } = await deployAndAssociateContracts();
+      const token0 = await deployAndRegisterToken(exchange, token0Symbol);
+      const token1 = await deployAndRegisterToken(exchange, token1Symbol);
+      await exchange.createLiquidityPool(token0.address, token1.address);
+      await exchange.setDispatcher(ownerWallet);
+
+      const LiquidityProviderToken = artifacts.require(
+        'LiquidityProviderToken',
+      );
+      const pool = await exchange.loadLiquidityPoolByAssetAddresses(
+        token0.address,
+        token1.address,
+      );
+      const lpToken = await LiquidityProviderToken.at(
+        pool.liquidityProviderToken,
+      );
+
+      await addLiquidityAndExecute(
+        '',
+        ownerWallet,
+        exchange,
+        token0,
+        token1,
+        false,
+        18,
+        decimalToAssetUnits(initialBaseReserve, 18),
+        decimalToAssetUnits(initialQuoteReserve, 18),
+      );
+
+      await lpToken.approve(
+        exchange.address,
+        decimalToAssetUnits(liquidityToRemove, 18),
+        {
+          from: ownerWallet,
+        },
+      );
+      const { execution } = await removeLiquidityAndExecute(
+        liquidityToRemove,
+        ownerWallet,
+        exchange,
+        lpToken,
+        token0,
+        token1,
+      );
+      throw '';
     });
 
     it('should revert when wallet exited', async () => {
@@ -3303,16 +3401,31 @@ async function getOutputAssetQuantitiesInPips(
     assetUnitsToPips((await lpToken.totalSupply()).toString(), 18),
   );
 
+  const poolPrice = new BigNumber(
+    new BigNumber(pool.quoteAssetReserveInPips.toString())
+      .dividedBy(new BigNumber(pool.baseAssetReserveInPips.toString()))
+      .toFixed(8),
+  );
+  const baseQuantityInPips = new BigNumber(liquidityInPips)
+    .multipliedBy(new BigNumber(pool.baseAssetReserveInPips.toString()))
+    .dividedBy(totalSupplyInPips);
+  const quoteQuantityInPips = new BigNumber(
+    pool.quoteAssetReserveInPips.toString(),
+  ).minus(
+    new BigNumber(pool.baseAssetReserveInPips.toString())
+      .minus(new BigNumber(baseQuantityInPips))
+      .multipliedBy(poolPrice),
+  );
+  console.log([
+    poolPrice.toString(),
+    liquidityInPips,
+    totalSupplyInPips.toString(),
+    pool.baseAssetReserveInPips.toString(),
+    pool.quoteAssetReserveInPips.toString(),
+  ]);
   return [
-    new BigNumber(liquidityInPips)
-      .multipliedBy(new BigNumber(pool.baseAssetReserveInPips.toString()))
-      .dividedBy(totalSupplyInPips),
-    new BigNumber(liquidityInPips)
-      .multipliedBy(new BigNumber(pool.quoteAssetReserveInPips.toString()))
-      .dividedBy(totalSupplyInPips),
-  ].map((quantity) => quantity.toFixed(0, BigNumber.ROUND_FLOOR)) as [
-    string,
-    string,
+    baseQuantityInPips.toFixed(0, BigNumber.ROUND_FLOOR),
+    quoteQuantityInPips.toFixed(0, BigNumber.ROUND_UP),
   ];
 }
 
@@ -3367,6 +3480,7 @@ async function removeLiquidityAndExecute(
     token1.address,
     depositQuantityInPips,
   );
+  console.log([grossBaseQuantityInPips, grossQuoteQuantityInPips]);
 
   await lpToken.approve(exchange.address, depositQuantityInAssetUnits, {
     from: ownerWallet,

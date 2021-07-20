@@ -58,7 +58,8 @@ library LiquidityPoolHelpers {
       Math.multiplyPipsByFraction(
         self.baseAssetReserveInPips - outputBaseAssetQuantityInPips,
         calculateCurrentPoolPriceInPips(self),
-        Constants.pipPriceMultiplier
+        Constants.pipPriceMultiplier,
+        true
       );
   }
 
@@ -75,7 +76,9 @@ library LiquidityPoolHelpers {
 
     // For initial deposit use geometric mean of reserve quantities
     if (totalSupplyInAssetUnits == 0) {
-      return Math.sqrt(baseQuantityInPips * quoteQuantityInPips);
+      // There is no need to check for uint64 overflow since sqrt(max * max) = max
+      return
+        uint64(Math.sqrt(uint256(baseQuantityInPips) * quoteQuantityInPips));
     }
 
     uint64 totalLiquidityInPips =

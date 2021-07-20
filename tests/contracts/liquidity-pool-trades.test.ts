@@ -147,6 +147,92 @@ contract(
         );
       });
 
+      it('should revert for base reserve below min', async () => {
+        const initialBaseReserve = '1.00000000';
+        const initialQuoteReserve = '0.10000000';
+
+        const { exchange, token } = await deployContractsAndCreateHybridETHPool(
+          initialBaseReserve,
+          initialQuoteReserve,
+          ownerWallet,
+        );
+        await exchange.setDispatcher(ownerWallet);
+
+        await deposit(exchange, token, buyWallet, '0.00000000', '1.00000000');
+
+        const { buyOrder, poolTrade } = await generateOrderAndPoolTrade(
+          token.address,
+          ethAddress,
+          buyWallet,
+          '0.10000000',
+          '1.00000000',
+        );
+        const buySignature = await getSignature(
+          web3,
+          getOrderHash(buyOrder),
+          buyWallet,
+        );
+
+        let error;
+        try {
+          // https://github.com/microsoft/TypeScript/issues/28486
+          await (exchange.executePoolTrade as any)(
+            ...getPoolTradeArguments(buyOrder, buySignature, poolTrade),
+          );
+        } catch (e) {
+          error = e;
+        }
+        expect(error).to.not.be.undefined;
+        expect(error.message).to.match(/base reserves below min/i);
+      });
+
+      it('should revert for quote reserve below min', async () => {
+        const initialBaseReserve = '10.00000000';
+        const initialQuoteReserve = '1.00000000';
+
+        const { exchange, token } = await deployContractsAndCreateHybridETHPool(
+          initialBaseReserve,
+          initialQuoteReserve,
+          ownerWallet,
+        );
+        await exchange.setDispatcher(ownerWallet);
+
+        await token.transfer(
+          sellWallet,
+          decimalToAssetUnits('5000.00000000', 18),
+        );
+        await deposit(exchange, token, sellWallet, '10.00000000', '0.00000000');
+
+        const {
+          buyOrder: sellOrder,
+          poolTrade,
+        } = await generateOrderAndPoolTrade(
+          token.address,
+          ethAddress,
+          sellWallet,
+          '1.00000000',
+          '0.01000000',
+        );
+        sellOrder.side = OrderSide.Sell;
+        const sellSignature = await getSignature(
+          web3,
+          getOrderHash(sellOrder),
+          sellWallet,
+        );
+
+        let error;
+        try {
+          // https://github.com/microsoft/TypeScript/issues/28486
+          await (exchange.executePoolTrade as any)(
+            ...getPoolTradeArguments(sellOrder, sellSignature, poolTrade),
+          );
+        } catch (e) {
+          error = e;
+        }
+        expect(error).to.not.be.undefined;
+        expect(error.message).to.match(/quote reserves below min/i);
+      });
+
       it('should revert for invalidated nonce', async () => {
         const initialBaseReserve = '10000.00000000';
         const initialQuoteReserve = '10.00000000';

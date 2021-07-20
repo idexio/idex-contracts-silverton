@@ -108,7 +108,8 @@ library Validations {
         ? (pool.baseAssetReserveInPips, pool.quoteAssetReserveInPips)
         : (pool.quoteAssetReserveInPips, pool.baseAssetReserveInPips);
     require(
-      sortedReserve0 * Constants.maxLiquidityPoolReserveRatio >= sortedReserve1,
+      uint256(sortedReserve0) * Constants.maxLiquidityPoolReserveRatio >=
+        sortedReserve1,
       'Exceeded max reserve ratio'
     );
   }
