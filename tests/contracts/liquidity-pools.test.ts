@@ -1836,57 +1836,6 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
       ).to.equal(pipsToAssetUnits(execution.grossQuoteQuantityInPips, 18));
     });
 
-    it('should work when price must be rounded up', async () => {
-      const initialBaseReserve = '63164.51806209';
-      const initialQuoteReserve = '56395014253.92162785';
-      const liquidityToRemove = '31632449.13872196';
-
-      const { exchange } = await deployAndAssociateContracts();
-      const token0 = await deployAndRegisterToken(exchange, token0Symbol);
-      const token1 = await deployAndRegisterToken(exchange, token1Symbol);
-      await exchange.createLiquidityPool(token0.address, token1.address);
-      await exchange.setDispatcher(ownerWallet);
-
-      const LiquidityProviderToken = artifacts.require(
-        'LiquidityProviderToken',
-      );
-      const pool = await exchange.loadLiquidityPoolByAssetAddresses(
-        token0.address,
-        token1.address,
-      );
-      const lpToken = await LiquidityProviderToken.at(
-        pool.liquidityProviderToken,
-      );
-
-      await addLiquidityAndExecute(
-        '',
-        ownerWallet,
-        exchange,
-        token0,
-        token1,
-        false,
-        18,
-        decimalToAssetUnits(initialBaseReserve, 18),
-        decimalToAssetUnits(initialQuoteReserve, 18),
-      );
-
-      await lpToken.approve(
-        exchange.address,
-        decimalToAssetUnits(liquidityToRemove, 18),
-        {
-          from: ownerWallet,
-        },
-      );
-      const { execution } = await removeLiquidityAndExecute(
-        liquidityToRemove,
-        ownerWallet,
-        exchange,
-        lpToken,
-        token0,
-        token1,
-      );
-    });
-
     it('should revert when wallet exited', async () => {
       const depositQuantity = '1.00000000';
       const { exchange, token } = await deployContractsAndCreateHybridETHPool(
@@ -2138,6 +2087,66 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
       expect(
         burnEvents[0].returnValues.quoteAssetQuantityInAssetUnits,
       ).to.equal(pipsToAssetUnits(execution.grossQuoteQuantityInPips, 18));
+    });
+
+    const fixtures = [
+      ['1007069999', '100706992', '31632449.13872196'],
+      ['63164.51806209', '56395014253.92162785', '300000'],
+      ['1900.00000000', '184467440737.09551606', '42000.00000000'],
+    ];
+    fixtures.forEach((fixture, i) => {
+      it(`should work for fixured dataset ${i + 1}`, async () => {
+        const [
+          initialBaseReserve,
+          initialQuoteReserve,
+          liquidityToRemove,
+        ] = fixture;
+
+        const { exchange } = await deployAndAssociateContracts();
+        const token0 = await deployAndRegisterToken(exchange, token0Symbol);
+        const token1 = await deployAndRegisterToken(exchange, token1Symbol);
+        await exchange.createLiquidityPool(token0.address, token1.address);
+        await exchange.setDispatcher(ownerWallet);
+
+        const LiquidityProviderToken = artifacts.require(
+          'LiquidityProviderToken',
+        );
+        const pool = await exchange.loadLiquidityPoolByAssetAddresses(
+          token0.address,
+          token1.address,
+        );
+        const lpToken = await LiquidityProviderToken.at(
+          pool.liquidityProviderToken,
+        );
+
+        await addLiquidityAndExecute(
+          '',
+          ownerWallet,
+          exchange,
+          token0,
+          token1,
+          false,
+          18,
+          decimalToAssetUnits(initialBaseReserve, 18),
+          decimalToAssetUnits(initialQuoteReserve, 18),
+        );
+
+        await lpToken.approve(
+          exchange.address,
+          decimalToAssetUnits(liquidityToRemove, 18),
+          {
+            from: ownerWallet,
+          },
+        );
+        await removeLiquidityAndExecute(
+          liquidityToRemove,
+          ownerWallet,
+          exchange,
+          lpToken,
+          token0,
+          token1,
+        );
+      });
     });
 
     it('should revert duplicate initiated off-chain', async () => {
