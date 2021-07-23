@@ -41,9 +41,11 @@ library PoolTradeHelpers {
     OrderSide orderSide
   ) internal pure returns (uint64) {
     return
-      orderSide == OrderSide.Buy
-        ? self.netBaseQuantityInPips
-        : self.netQuoteQuantityInPips;
+      (
+        orderSide == OrderSide.Buy
+          ? self.netBaseQuantityInPips
+          : self.netQuoteQuantityInPips
+      ) - self.takerGasFeeQuantityInPips;
   }
 
   /**
@@ -81,11 +83,10 @@ library PoolTradeHelpers {
     PoolTrade memory self,
     OrderSide orderSide
   ) internal pure returns (uint64) {
-    return
-      (
-        orderSide == OrderSide.Buy
-          ? self.netBaseQuantityInPips // Pool gives net base asset plus taker gas fee
-          : self.netQuoteQuantityInPips // Pool gives net quote asset plus taker gas fee
-      ) + self.takerGasFeeQuantityInPips;
+    return (
+      orderSide == OrderSide.Buy
+        ? self.netBaseQuantityInPips // Pool gives net base asset plus taker gas fee
+        : self.netQuoteQuantityInPips // Pool gives net quote asset plus taker gas fee
+    );
   }
 }

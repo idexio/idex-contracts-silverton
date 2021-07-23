@@ -134,11 +134,6 @@ library Validations {
       );
       // Net output plus fees will be less than gross for non-zero input fees since the pool output
       // is decreased commensurately to satisfy the constant product price formula
-      require(
-        poolTrade.netBaseQuantityInPips + poolTrade.takerGasFeeQuantityInPips <=
-          poolTrade.grossBaseQuantityInPips,
-        'Pool output fees unbalanced'
-      );
     } else {
       // Sell order sends base as pool input, receives quote as pool output
       require(
@@ -149,16 +144,7 @@ library Validations {
         'Pool input fees unbalanced'
       );
       // Net output plus fees will be less than gross for non-zero input fees since the pool output
-      // is decreased commensurately to satisfy the constant product price formula. Note that only
-      // one of takerGasFeeQuantityInPips or takerPriceCorrectionFeeQuantityInPips can be non-zero;
-      // HybridTradeValidations.validateFees enforces this so the below summation includes both
-      require(
-        poolTrade.netQuoteQuantityInPips +
-          poolTrade.takerGasFeeQuantityInPips +
-          poolTrade.takerPriceCorrectionFeeQuantityInPips <=
-          poolTrade.grossQuoteQuantityInPips,
-        'Pool output fees unbalanced'
-      );
+      // is decreased commensurately to satisfy the constant product price formula
     }
   }
 

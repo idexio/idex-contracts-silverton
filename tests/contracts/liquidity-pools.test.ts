@@ -1103,7 +1103,7 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
       await exchange.setDispatcher(ownerWallet);
 
       const addition = {
-        signatureHashVersion: 2,
+        signatureHashVersion,
         origination: 0,
         nonce: 0,
         wallet: ownerWallet,
@@ -2311,7 +2311,7 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
       );
 
       const removal = {
-        signatureHashVersion: 2,
+        signatureHashVersion,
         origination: 0,
         nonce: 0,
         wallet: ownerWallet,
@@ -3265,7 +3265,7 @@ async function addLiquidityAndExecute(
 
   await exchange.executeAddLiquidity(
     {
-      signatureHashVersion: 2,
+      signatureHashVersion,
       origination: 0,
       nonce: 0,
       wallet: ownerWallet,
@@ -3350,7 +3350,7 @@ async function addLiquidityETHAndExecute(
 
   await exchange.executeAddLiquidity(
     {
-      signatureHashVersion: 2,
+      signatureHashVersion,
       origination: 0,
       nonce: 0,
       wallet: ownerWallet,
@@ -3538,7 +3538,7 @@ async function removeLiquidityAndExecute(
 
   await exchange.executeRemoveLiquidity(
     {
-      signatureHashVersion: 2,
+      signatureHashVersion,
       origination: 0,
       nonce: 0,
       wallet: ownerWallet,
@@ -3623,7 +3623,7 @@ async function removeLiquidityETHAndExecute(
 
   await exchange.executeRemoveLiquidity(
     {
-      signatureHashVersion: 2,
+      signatureHashVersion,
       origination: 0,
       nonce: 0,
       wallet: ownerWallet,
@@ -3674,7 +3674,7 @@ async function generateOnChainLiquidityAddition(
   );
 
   const addition = {
-    signatureHashVersion: 2,
+    signatureHashVersion,
     origination: 0,
     nonce: 0,
     wallet: ownerWallet,
@@ -3738,7 +3738,7 @@ async function generateOnChainLiquidityRemoval(
   );
 
   const removal = {
-    signatureHashVersion: 2,
+    signatureHashVersion,
     origination: 0,
     nonce: 0,
     wallet: ownerWallet,

@@ -106,6 +106,11 @@ library HybridTradeValidations {
   }
 
   function validateFees(HybridTrade memory hybridTrade) private pure {
+    require(
+      hybridTrade.poolTrade.takerGasFeeQuantityInPips == 0,
+      'Non-zero pool gas fee'
+    );
+
     // Validate maker fee on orderbook trade
     uint64 grossQuantityInPips = hybridTrade.getMakerGrossQuantityInPips();
     require(
@@ -124,11 +129,6 @@ library HybridTradeValidations {
         grossQuantityInPips
       ),
       'Excessive taker fee'
-    );
-
-    require(
-      hybridTrade.poolTrade.takerGasFeeQuantityInPips == 0,
-      'Non-zero pool gas fee'
     );
 
     if (hybridTrade.poolTrade.takerPriceCorrectionFeeQuantityInPips > 0) {

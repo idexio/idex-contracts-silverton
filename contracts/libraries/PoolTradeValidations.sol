@@ -5,12 +5,14 @@ pragma solidity 0.8.4;
 import { AssetRegistry } from './AssetRegistry.sol';
 import { Constants } from './Constants.sol';
 import { OrderSide } from './Enums.sol';
+import { PoolTradeHelpers } from './PoolTradeHelpers.sol';
 import { UUID } from './UUID.sol';
 import { Validations } from './Validations.sol';
 import { Asset, Order, NonceInvalidation, PoolTrade } from './Structs.sol';
 
 library PoolTradeValidations {
   using AssetRegistry for AssetRegistry.Storage;
+  using PoolTradeHelpers for PoolTrade;
 
   function validatePoolTrade(
     Order memory order,
@@ -99,20 +101,30 @@ library PoolTradeValidations {
     internal
     pure
   {
+    uint64 takerNetBaseQuantityInPips =
+      orderSide == OrderSide.Buy
+        ? poolTrade.getOrderCreditQuantityInPips(orderSide)
+        : poolTrade.netBaseQuantityInPips;
     require(
       Validations.isFeeQuantityValid(
-        (poolTrade.grossBaseQuantityInPips - poolTrade.netBaseQuantityInPips),
+        poolTrade.grossBaseQuantityInPips - takerNetBaseQuantityInPips,
         poolTrade.grossBaseQuantityInPips
       ),
       'Excessive base fee'
     );
+
+    uint64 takerNetQuoteQuantityInPips =
+      orderSide == OrderSide.Sell
+        ? poolTrade.getOrderCreditQuantityInPips(orderSide)
+        : poolTrade.netQuoteQuantityInPips;
     require(
       Validations.isFeeQuantityValid(
-        (poolTrade.grossQuoteQuantityInPips - poolTrade.netQuoteQuantityInPips),
+        poolTrade.grossQuoteQuantityInPips - takerNetQuoteQuantityInPips,
         poolTrade.grossQuoteQuantityInPips
       ),
       'Excessive quote fee'
     );
+
     // Price correction only allowed for hybrid trades with a taker sell
     require(
       poolTrade.takerPriceCorrectionFeeQuantityInPips == 0,
