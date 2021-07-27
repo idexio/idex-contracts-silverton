@@ -38,7 +38,6 @@
     "build:typechain:truffle": "typechain --target=truffle-v5 'build/contracts/*.json'",
     "--- postbuild ---": "Some typechain files need to be copied manually. See https://github.com/ethereum-ts/TypeChain/issues/319",
     "postbuild": "cp types/ethers-contracts/*.d.ts build/types/ethers-contracts",
-    "lint:markdown": "markdownlint README.md",
     "prettier": "prettier --write **/*.sol",
     "test": "yarn test:contracts:dist",
     "test:contracts:dist": "multi='spec=- json=./coverage/mocha-summary.json' truffle test ./build/tests/contracts/*.test.js",
@@ -96,7 +95,7 @@
   "husky": {
     "hooks": {
       "commit-msg": "[[ -n $HUSKY_BYPASS ]] || commitlint -E HUSKY_GIT_PARAMS",
-      "pre-commit": "yarn lint:markdown && yarn build:clean && yarn build"
+      "pre-commit": "yarn build:clean && yarn build"
     }
   },
   "commitlint": {
