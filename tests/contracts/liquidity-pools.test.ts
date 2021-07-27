@@ -876,6 +876,54 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
       ).to.equal(decimalToAssetUnits(depositQuantity, 18));
     });
 
+    it('should revert without price check when reserves below minimum', async () => {
+      const depositQuantity = '0.10000000';
+      const depositQuantityInAssetUnits = decimalToAssetUnits(
+        depositQuantity,
+        18,
+      );
+
+      const {
+        exchange,
+        token0,
+        token1,
+      } = await deployContractsAndCreateHybridPool(
+        depositQuantity,
+        depositQuantity,
+        ownerWallet,
+      );
+      await exchange.setDispatcher(ownerWallet);
+
+      const { addition, execution } = await generateOffChainLiquidityAddition(
+        depositQuantityInAssetUnits,
+        ownerWallet,
+        exchange,
+        token0,
+        token1,
+      );
+      addition.amountAMin = decimalToAssetUnits('0.09000000', 18);
+      const signature = await getSignature(
+        web3,
+        getLiquidityAdditionHash(addition),
+        ownerWallet,
+      );
+      execution.netBaseQuantityInPips = decimalToPips('0.09000000');
+      execution.grossBaseQuantityInPips = decimalToPips('0.09000000');
+      execution.liquidityInPips = await getOutputLiquidityInPips(
+        exchange,
+        token0.address,
+        token1.address,
+        decimalToPips(depositQuantity),
+        decimalToPips('0.09000000'),
+      );
+
+      // https://github.com/microsoft/TypeScript/issues/28486
+      await (exchange.executeAddLiquidity as any)(
+        ...getAddLiquidityArguments(addition, signature, execution),
+        { from: ownerWallet },
+      );
+    });
+
     it('should revert duplicate initiated off-chain', async () => {
       const depositQuantity = '1.00000000';
       const depositQuantityInAssetUnits = decimalToAssetUnits(
@@ -2102,6 +2150,47 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
       expect(
         burnEvents[0].returnValues.quoteAssetQuantityInAssetUnits,
       ).to.equal(pipsToAssetUnits(execution.grossQuoteQuantityInPips, 18));
+    });
+
+    it('should work without price check when reserves below minimum', async () => {
+      const depositQuantity = '0.50000000';
+      const depositQuantityInAssetUnits = decimalToAssetUnits(
+        depositQuantity,
+        18,
+      );
+
+      const {
+        exchange,
+        lpToken,
+        token0,
+        token1,
+      } = await deployContractsAndCreateHybridPool(
+        depositQuantity,
+        depositQuantity,
+        ownerWallet,
+      );
+      await exchange.setDispatcher(ownerWallet);
+
+      await addLiquidityAndExecute(
+        depositQuantity,
+        ownerWallet,
+        exchange,
+        token0,
+        token1,
+      );
+
+      const { removal, execution } = await generateOnChainLiquidityRemoval(
+        exchange,
+        lpToken,
+        depositQuantityInAssetUnits,
+        ownerWallet,
+        token0,
+        token1,
+      );
+      execution.grossBaseQuantityInPips = decimalToPips('0.51000000');
+      execution.netBaseQuantityInPips = execution.grossBaseQuantityInPips;
+
+      await exchange.executeRemoveLiquidity(removal, execution);
     });
 
     const fixtures = [
