@@ -876,7 +876,7 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
       ).to.equal(decimalToAssetUnits(depositQuantity, 18));
     });
 
-    it('should revert without price check when reserves below minimum', async () => {
+    it('should work without price check when reserves below minimum', async () => {
       const depositQuantity = '0.10000000';
       const depositQuantityInAssetUnits = decimalToAssetUnits(
         depositQuantity,
@@ -2150,47 +2150,6 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
       expect(
         burnEvents[0].returnValues.quoteAssetQuantityInAssetUnits,
       ).to.equal(pipsToAssetUnits(execution.grossQuoteQuantityInPips, 18));
-    });
-
-    it('should work without price check when reserves below minimum', async () => {
-      const depositQuantity = '0.50000000';
-      const depositQuantityInAssetUnits = decimalToAssetUnits(
-        depositQuantity,
-        18,
-      );
-
-      const {
-        exchange,
-        lpToken,
-        token0,
-        token1,
-      } = await deployContractsAndCreateHybridPool(
-        depositQuantity,
-        depositQuantity,
-        ownerWallet,
-      );
-      await exchange.setDispatcher(ownerWallet);
-
-      await addLiquidityAndExecute(
-        depositQuantity,
-        ownerWallet,
-        exchange,
-        token0,
-        token1,
-      );
-
-      const { removal, execution } = await generateOnChainLiquidityRemoval(
-        exchange,
-        lpToken,
-        depositQuantityInAssetUnits,
-        ownerWallet,
-        token0,
-        token1,
-      );
-      execution.grossBaseQuantityInPips = decimalToPips('0.51000000');
-      execution.netBaseQuantityInPips = execution.grossBaseQuantityInPips;
-
-      await exchange.executeRemoveLiquidity(removal, execution);
     });
 
     const fixtures = [

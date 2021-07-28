@@ -156,26 +156,19 @@ library LiquidityChangeExecutionValidations {
       'Invalid liquidity burned'
     );
 
-    // Require pool price to remain constant on removal. Skip this validation if either reserve is
-    // below the minimum as prices can no longer be represented with full pip precision
-    if (
-      pool.baseAssetReserveInPips >= Constants.minLiquidityPoolReserveInPips &&
-      pool.quoteAssetReserveInPips >= Constants.minLiquidityPoolReserveInPips
-    ) {
-      (
-        uint256 expectedBaseAssetQuantityInPips,
-        uint256 expectedQuoteAssetQuantityInPips
-      ) = pool.calculateOutputAssetQuantitiesInPips(execution.liquidityInPips);
+    (
+      uint256 expectedBaseAssetQuantityInPips,
+      uint256 expectedQuoteAssetQuantityInPips
+    ) = pool.calculateOutputAssetQuantitiesInPips(execution.liquidityInPips);
 
-      require(
-        execution.grossBaseQuantityInPips == expectedBaseAssetQuantityInPips,
-        'Invalid base quantity'
-      );
-      require(
-        execution.grossQuoteQuantityInPips == expectedQuoteAssetQuantityInPips,
-        'Invalid quote quantity'
-      );
-    }
+    require(
+      execution.grossBaseQuantityInPips == expectedBaseAssetQuantityInPips,
+      'Invalid base quantity'
+    );
+    require(
+      execution.grossQuoteQuantityInPips == expectedQuoteAssetQuantityInPips,
+      'Invalid quote quantity'
+    );
 
     validateLiquidityChangeExecutionFees(execution);
   }
