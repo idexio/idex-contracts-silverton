@@ -24,7 +24,9 @@ library Validations {
   using AssetRegistry for AssetRegistry.Storage;
 
   /**
-   * @dev Perform fee validations common to both orderbook-only and hybrid trades
+   * @dev Perform fee validations common to both orderbook-only and hybrid trades. Does not
+   * validate if fees are excessive as taker fee structure differs between these trade types
+   *
    */
   function validateOrderBookTradeFees(OrderBookTrade memory trade)
     internal
@@ -117,35 +119,32 @@ library Validations {
   /**
    * @dev Perform fee validations common to both pool-only and hybrid trades
    */
-  function validatePoolTradeFees(
+  function validatePoolTradeInputFees(
     OrderSide orderSide,
     PoolTrade memory poolTrade
   ) internal pure {
-    // The quantity received by the wallet is determined by the pool's constant product formula
-    // and enforced in `LiquidityPools.updateReservesForPoolTrade`
-    if (orderSide == OrderSide.Buy) {
-      // Buy order sends quote as pool input, receives base as pool output
-      require(
-        poolTrade.netQuoteQuantityInPips +
-          poolTrade.takerPoolFeeQuantityInPips +
-          poolTrade.takerProtocolFeeQuantityInPips ==
-          poolTrade.grossQuoteQuantityInPips,
-        'Pool input fees unbalanced'
-      );
-      // Net output plus fees will be less than gross for non-zero input fees since the pool output
-      // is decreased commensurately to satisfy the constant product price formula
-    } else {
-      // Sell order sends base as pool input, receives quote as pool output
-      require(
-        poolTrade.netBaseQuantityInPips +
-          poolTrade.takerPoolFeeQuantityInPips +
-          poolTrade.takerProtocolFeeQuantityInPips ==
-          poolTrade.grossBaseQuantityInPips,
-        'Pool input fees unbalanced'
-      );
-      // Net output plus fees will be less than gross for non-zero input fees since the pool output
-      // is decreased commensurately to satisfy the constant product price formula
-    }
+    // Buy order sends quote as pool input, receives base as pool output; sell order sends base as
+    // pool input, receives quote as pool output
+    (uint64 netInputQuantityInPips, uint64 grossInputQuantityInPips) =
+      orderSide == OrderSide.Buy
+        ? (poolTrade.netQuoteQuantityInPips, poolTrade.grossQuoteQuantityInPips)
+        : (poolTrade.netBaseQuantityInPips, poolTrade.grossBaseQuantityInPips);
+
+    require(
+      netInputQuantityInPips +
+        poolTrade.takerPoolFeeQuantityInPips +
+        poolTrade.takerProtocolFeeQuantityInPips ==
+        grossInputQuantityInPips,
+      'Pool input fees unbalanced'
+    );
+    require(
+      Validations.isFeeQuantityValid(
+        grossInputQuantityInPips - netInputQuantityInPips,
+        grossInputQuantityInPips,
+        Constants.maxPoolInputFeeBasisPoints
+      ),
+      'Excessive pool input fee'
+    );
   }
 
   function validateWithdrawalSignature(Withdrawal memory withdrawal)
@@ -195,13 +194,13 @@ library Validations {
     return 0;
   }
 
-  function isFeeQuantityValid(uint64 fee, uint64 total)
-    internal
-    pure
-    returns (bool)
-  {
+  function isFeeQuantityValid(
+    uint64 fee,
+    uint64 total,
+    uint64 max
+  ) internal pure returns (bool) {
     uint64 feeBasisPoints = (fee * Constants.basisPointsInTotal) / total;
-    return feeBasisPoints <= Constants.maxFeeBasisPoints;
+    return feeBasisPoints <= max;
   }
 
   function isLimitOrderType(OrderType orderType) internal pure returns (bool) {

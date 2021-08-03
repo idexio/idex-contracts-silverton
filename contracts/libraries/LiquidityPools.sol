@@ -401,7 +401,7 @@ library LiquidityPools {
     uint128 updatedProduct;
 
     if (orderSide == OrderSide.Buy) {
-      pool.baseAssetReserveInPips -= poolTrade.calculatePoolDebitQuantityInPips(
+      pool.baseAssetReserveInPips -= poolTrade.getPoolDebitQuantityInPips(
         orderSide
       );
       pool.quoteAssetReserveInPips += poolTrade
@@ -420,8 +420,9 @@ library LiquidityPools {
         pool.quoteAssetReserveInPips += poolTrade
           .takerPriceCorrectionFeeQuantityInPips;
       } else {
-        pool.quoteAssetReserveInPips -= poolTrade
-          .calculatePoolDebitQuantityInPips(orderSide);
+        pool.quoteAssetReserveInPips -= poolTrade.getPoolDebitQuantityInPips(
+          orderSide
+        );
       }
 
       updatedProduct =

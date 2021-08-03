@@ -179,14 +179,16 @@ library LiquidityChangeExecutionValidations {
     require(
       Validations.isFeeQuantityValid(
         execution.calculateBaseFeeQuantityInPips(),
-        execution.grossBaseQuantityInPips
+        execution.grossBaseQuantityInPips,
+        Constants.maxFeeBasisPoints
       ),
       'Excessive base fee'
     );
     require(
       Validations.isFeeQuantityValid(
         execution.calculateQuoteFeeQuantityInPips(),
-        execution.grossQuoteQuantityInPips
+        execution.grossQuoteQuantityInPips,
+        Constants.maxFeeBasisPoints
       ),
       'Excessive quote fee'
     );

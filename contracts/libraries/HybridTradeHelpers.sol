@@ -23,7 +23,7 @@ library HybridTradeHelpers {
   /**
    * @dev Gross quantity received by taker
    */
-  function calculateTakerGrossQuantityInPips(HybridTrade memory self)
+  function calculateTakerGrossReceivedQuantityInPips(HybridTrade memory self)
     internal
     pure
     returns (uint64)
@@ -51,24 +51,5 @@ library HybridTradeHelpers {
         self.orderBookTrade.baseAssetAddress
         ? self.orderBookTrade.netQuoteQuantityInPips
         : self.orderBookTrade.netBaseQuantityInPips;
-  }
-
-  /**
-   * @dev Net quantity received by taker
-   */
-  function calculateTakerNetQuantityInPips(HybridTrade memory self)
-    internal
-    pure
-    returns (uint64)
-  {
-    return
-      (
-        self.orderBookTrade.takerFeeAssetAddress ==
-          self.orderBookTrade.baseAssetAddress
-          ? self.orderBookTrade.netBaseQuantityInPips +
-            self.poolTrade.netBaseQuantityInPips
-          : self.orderBookTrade.netQuoteQuantityInPips +
-            self.poolTrade.netQuoteQuantityInPips
-      ) - self.takerGasFeeQuantityInPips;
   }
 }

@@ -22,6 +22,15 @@ library Constants {
   // Pool reserve balance below which prices can no longer be represented with full pip precision
   uint64 public constant minLiquidityPoolReserveInPips = 10**8;
 
+  // 1%
+  uint64 public constant maxPoolInputFeeBasisPoints = 1 * 100;
+
+  // 5%
+  uint64 public constant maxPoolOutputAdjustmentBasisPoints = 5 * 100;
+
+  // 1%
+  uint64 public constant maxPoolPriceCorrectionBasisPoints = 1 * 100;
+
   // To convert integer pips to a fractional price shift decimal left by the pip precision of 8
   // decimals places
   uint64 public constant pipPriceMultiplier = 10**8;

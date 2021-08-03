@@ -98,31 +98,25 @@ library PoolTradeValidations {
   }
 
   function validateFees(OrderSide orderSide, PoolTrade memory poolTrade)
-    internal
+    private
     pure
   {
-    uint64 takerNetBaseQuantityInPips =
-      orderSide == OrderSide.Buy
-        ? poolTrade.getOrderCreditQuantityInPips(orderSide)
-        : poolTrade.netBaseQuantityInPips;
     require(
       Validations.isFeeQuantityValid(
-        poolTrade.grossBaseQuantityInPips - takerNetBaseQuantityInPips,
-        poolTrade.grossBaseQuantityInPips
+        poolTrade.calculatePoolOutputAdjustment(orderSide),
+        poolTrade.getOrderGrossReceivedQuantityInPips(orderSide),
+        Constants.maxPoolOutputAdjustmentBasisPoints
       ),
-      'Excessive base fee'
+      'Excessive pool output adjustment'
     );
 
-    uint64 takerNetQuoteQuantityInPips =
-      orderSide == OrderSide.Sell
-        ? poolTrade.getOrderCreditQuantityInPips(orderSide)
-        : poolTrade.netQuoteQuantityInPips;
     require(
       Validations.isFeeQuantityValid(
-        poolTrade.grossQuoteQuantityInPips - takerNetQuoteQuantityInPips,
-        poolTrade.grossQuoteQuantityInPips
+        poolTrade.takerGasFeeQuantityInPips,
+        poolTrade.getOrderGrossReceivedQuantityInPips(orderSide),
+        Constants.maxPoolOutputAdjustmentBasisPoints
       ),
-      'Excessive quote fee'
+      'Excessive gas fee'
     );
 
     // Price correction only allowed for hybrid trades with a taker sell
@@ -131,6 +125,6 @@ library PoolTradeValidations {
       'Price correction not allowed'
     );
 
-    Validations.validatePoolTradeFees(orderSide, poolTrade);
+    Validations.validatePoolTradeInputFees(orderSide, poolTrade);
   }
 }
