@@ -23,7 +23,7 @@ library Constants {
   uint64 public constant minLiquidityPoolReserveInPips = 10**8;
 
   // 1%
-  uint64 public constant maxPoolInputFeeBasisPoints = 1 * 100;
+  uint64 public constant maxPoolInputFeeBasisPoints = 2 * 100;
 
   // 5%
   uint64 public constant maxPoolOutputAdjustmentBasisPoints = 5 * 100;
