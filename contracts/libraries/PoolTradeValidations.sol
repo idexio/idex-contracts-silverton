@@ -114,7 +114,7 @@ library PoolTradeValidations {
       Validations.isFeeQuantityValid(
         poolTrade.takerGasFeeQuantityInPips,
         poolTrade.getOrderGrossReceivedQuantityInPips(orderSide),
-        Constants.maxPoolOutputAdjustmentBasisPoints
+        Constants.maxFeeBasisPoints
       ),
       'Excessive gas fee'
     );

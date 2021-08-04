@@ -1546,7 +1546,7 @@ contract(
         expect(error.message).to.match(/excessive pool output adjustment/i);
       });
 
-      it('should revert for excessive gas fee', async () => {
+      it('should revert for excessive taker fee', async () => {
         const initialBaseReserve = '10000.00000000';
         const initialQuoteReserve = '10.00000000';
 
@@ -1587,7 +1587,7 @@ contract(
           error = e;
         }
         expect(error).to.not.be.undefined;
-        expect(error.message).to.match(/excessive gas fee/i);
+        expect(error.message).to.match(/excessive taker fee/i);
       });
 
       it('should revert for taker sell order with excessive price correction', async () => {

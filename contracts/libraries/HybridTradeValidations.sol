@@ -142,11 +142,11 @@ library HybridTradeValidations {
     );
     require(
       Validations.isFeeQuantityValid(
-        hybridTrade.takerGasFeeQuantityInPips,
+        hybridTrade.calculateTakerFeeQuantityInPips(),
         grossQuantityInPips,
         Constants.maxFeeBasisPoints
       ),
-      'Excessive gas fee'
+      'Excessive taker fee'
     );
 
     // Validate price correction, if present

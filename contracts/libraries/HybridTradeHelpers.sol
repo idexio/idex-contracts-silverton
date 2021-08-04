@@ -6,18 +6,17 @@ import { HybridTrade } from './Structs.sol';
 
 library HybridTradeHelpers {
   /**
-   * @dev Gross quantity received by maker
+   * @dev Total fees paid by taker from received asset across orderbook and pool trades. Does not
+   * include pool input fees nor pool output adjustment
    */
-  function getMakerGrossQuantityInPips(HybridTrade memory self)
+  function calculateTakerFeeQuantityInPips(HybridTrade memory self)
     internal
     pure
     returns (uint64)
   {
     return
-      self.orderBookTrade.takerFeeAssetAddress ==
-        self.orderBookTrade.baseAssetAddress
-        ? self.orderBookTrade.grossQuoteQuantityInPips
-        : self.orderBookTrade.grossBaseQuantityInPips;
+      self.takerGasFeeQuantityInPips +
+      self.orderBookTrade.takerFeeQuantityInPips;
   }
 
   /**
@@ -36,6 +35,21 @@ library HybridTradeHelpers {
         : self.orderBookTrade.grossQuoteQuantityInPips +
           self.poolTrade.grossQuoteQuantityInPips
     );
+  }
+
+  /**
+   * @dev Gross quantity received by maker
+   */
+  function getMakerGrossQuantityInPips(HybridTrade memory self)
+    internal
+    pure
+    returns (uint64)
+  {
+    return
+      self.orderBookTrade.takerFeeAssetAddress ==
+        self.orderBookTrade.baseAssetAddress
+        ? self.orderBookTrade.grossQuoteQuantityInPips
+        : self.orderBookTrade.grossBaseQuantityInPips;
   }
 
   /**
