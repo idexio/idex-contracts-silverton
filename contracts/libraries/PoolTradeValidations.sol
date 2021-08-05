@@ -89,7 +89,7 @@ library PoolTradeValidations {
     ) {
       require(
         Validations.calculateImpliedQuoteQuantityInPips(
-          poolTrade.grossBaseQuantityInPips,
+          poolTrade.grossBaseQuantityInPips - 1,
           order.limitPriceInPips
         ) <= poolTrade.grossQuoteQuantityInPips,
         'Sell order limit price exceeded'
