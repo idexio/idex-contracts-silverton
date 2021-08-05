@@ -124,7 +124,7 @@ library HybridTradeValidations {
       'Excessive maker fee'
     );
 
-    OrderSide poolOrderSide =
+    OrderSide takerOrderSide =
       hybridTrade.orderBookTrade.makerSide == OrderSide.Buy
         ? OrderSide.Sell
         : OrderSide.Buy;
@@ -134,7 +134,7 @@ library HybridTradeValidations {
       .calculateTakerGrossReceivedQuantityInPips();
     require(
       Validations.isFeeQuantityValid(
-        hybridTrade.poolTrade.calculatePoolOutputAdjustment(poolOrderSide),
+        hybridTrade.poolTrade.calculatePoolOutputAdjustment(takerOrderSide),
         grossQuantityInPips,
         Constants.maxPoolOutputAdjustmentBasisPoints
       ),
@@ -166,7 +166,7 @@ library HybridTradeValidations {
 
       grossQuantityInPips = hybridTrade
         .poolTrade
-        .getOrderGrossReceivedQuantityInPips(poolOrderSide);
+        .getOrderGrossReceivedQuantityInPips(takerOrderSide);
       if (
         hybridTrade.poolTrade.takerPriceCorrectionFeeQuantityInPips >
         grossQuantityInPips
@@ -184,7 +184,7 @@ library HybridTradeValidations {
     }
 
     Validations.validatePoolTradeInputFees(
-      poolOrderSide,
+      takerOrderSide,
       hybridTrade.poolTrade
     );
     Validations.validateOrderBookTradeFees(hybridTrade.orderBookTrade);

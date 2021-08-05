@@ -2,6 +2,10 @@
 
 pragma solidity 0.8.4;
 
+/**
+ * @dev See GOVERNANCE.md for descriptions of fixed parameters and fees
+ */
+
 library Constants {
   // 100 basis points/percent * 100 percent/total
   uint64 public constant basisPointsInTotal = 100 * 100;
@@ -22,7 +26,7 @@ library Constants {
   // Pool reserve balance below which prices can no longer be represented with full pip precision
   uint64 public constant minLiquidityPoolReserveInPips = 10**8;
 
-  // 1%
+  // 2%
   uint64 public constant maxPoolInputFeeBasisPoints = 2 * 100;
 
   // 5%
