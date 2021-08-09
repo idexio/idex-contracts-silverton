@@ -242,11 +242,11 @@ struct PoolTrade {
   uint64 grossBaseQuantityInPips;
   // Gross amount including fees of quote asset executed
   uint64 grossQuoteQuantityInPips;
-  // If wallet is buy side, net amount of base asset received by wallet after fees; otherwise,
-  // net amount of base asset received by pool exclusive of pool fees
+  // If wallet is buy side, net amount of quote input to pool used to calculate output; otherwise,
+  // net amount of base asset leaving pool
   uint64 netBaseQuantityInPips;
-  // If wallet is sell side, net amount of quote asset received by wallet after fees; otherwise,
-  // net amount of quote asset received by pool exclusive of pool fees
+  // If wallet is buy side, net amount of base input to pool used to calculate output; otherwise,
+  // net amount of quote asset leaving pool
   uint64 netQuoteQuantityInPips;
   // Fee paid by liquidity taker to pool from sent asset
   uint64 takerPoolFeeQuantityInPips;

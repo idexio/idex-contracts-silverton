@@ -7,6 +7,7 @@ import { Constants } from './Constants.sol';
 import { HybridTradeHelpers } from './HybridTradeHelpers.sol';
 import { OrderBookTradeValidations } from './OrderBookTradeValidations.sol';
 import { OrderSide } from './Enums.sol';
+import { PoolTradeHelpers } from './PoolTradeHelpers.sol';
 import { PoolTradeValidations } from './PoolTradeValidations.sol';
 import { Validations } from './Validations.sol';
 import {
@@ -21,6 +22,7 @@ import {
 library HybridTradeValidations {
   using AssetRegistry for AssetRegistry.Storage;
   using HybridTradeHelpers for HybridTrade;
+  using PoolTradeHelpers for PoolTrade;
 
   function validateHybridTrade(
     Order memory buy,
@@ -106,31 +108,48 @@ library HybridTradeValidations {
   }
 
   function validateFees(HybridTrade memory hybridTrade) private pure {
-    // Validate maker fee on orderbook trade
-    uint64 grossQuantityInPips = hybridTrade.getMakerGrossQuantityInPips();
-    require(
-      Validations.isFeeQuantityValid(
-        (grossQuantityInPips - hybridTrade.getMakerNetQuantityInPips()),
-        grossQuantityInPips
-      ),
-      'Excessive maker fee'
-    );
-
-    // Validate taker fee across orderbook and pool trades
-    grossQuantityInPips = hybridTrade.calculateTakerGrossQuantityInPips();
-    require(
-      Validations.isFeeQuantityValid(
-        (grossQuantityInPips - hybridTrade.calculateTakerNetQuantityInPips()),
-        grossQuantityInPips
-      ),
-      'Excessive taker fee'
-    );
-
     require(
       hybridTrade.poolTrade.takerGasFeeQuantityInPips == 0,
       'Non-zero pool gas fee'
     );
 
+    // Validate maker fee on orderbook trade
+    uint64 grossQuantityInPips = hybridTrade.getMakerGrossQuantityInPips();
+    require(
+      Validations.isFeeQuantityValid(
+        (grossQuantityInPips - hybridTrade.getMakerNetQuantityInPips()),
+        grossQuantityInPips,
+        Constants.maxFeeBasisPoints
+      ),
+      'Excessive maker fee'
+    );
+
+    OrderSide takerOrderSide =
+      hybridTrade.orderBookTrade.makerSide == OrderSide.Buy
+        ? OrderSide.Sell
+        : OrderSide.Buy;
+
+    // Validate taker fees across orderbook and pool trades
+    grossQuantityInPips = hybridTrade
+      .calculateTakerGrossReceivedQuantityInPips();
+    require(
+      Validations.isFeeQuantityValid(
+        hybridTrade.poolTrade.calculatePoolOutputAdjustment(takerOrderSide),
+        grossQuantityInPips,
+        Constants.maxPoolOutputAdjustmentBasisPoints
+      ),
+      'Excessive pool output adjustment'
+    );
+    require(
+      Validations.isFeeQuantityValid(
+        hybridTrade.calculateTakerFeeQuantityInPips(),
+        grossQuantityInPips,
+        Constants.maxFeeBasisPoints
+      ),
+      'Excessive taker fee'
+    );
+
+    // Validate price correction, if present
     if (hybridTrade.poolTrade.takerPriceCorrectionFeeQuantityInPips > 0) {
       // Price correction only allowed for hybrid trades with a taker sell
       require(
@@ -138,18 +157,36 @@ library HybridTradeValidations {
         'Price correction not allowed'
       );
 
+      // Do not allow quote output with a price correction as the latter is effectively a negative
+      // net quote output
       require(
         hybridTrade.poolTrade.netQuoteQuantityInPips == 0,
         'Quote out not allowed with price correction'
       );
+
+      grossQuantityInPips = hybridTrade
+        .poolTrade
+        .getOrderGrossReceivedQuantityInPips(takerOrderSide);
+      if (
+        hybridTrade.poolTrade.takerPriceCorrectionFeeQuantityInPips >
+        grossQuantityInPips
+      ) {
+        require(
+          Validations.isFeeQuantityValid(
+            hybridTrade.poolTrade.takerPriceCorrectionFeeQuantityInPips -
+              grossQuantityInPips,
+            grossQuantityInPips,
+            Constants.maxPoolPriceCorrectionBasisPoints
+          ),
+          'Excessive price correction'
+        );
+      }
     }
 
-    OrderSide poolOrderSide =
-      hybridTrade.orderBookTrade.makerSide == OrderSide.Buy
-        ? OrderSide.Sell
-        : OrderSide.Buy;
-
-    Validations.validatePoolTradeFees(poolOrderSide, hybridTrade.poolTrade);
+    Validations.validatePoolTradeInputFees(
+      takerOrderSide,
+      hybridTrade.poolTrade
+    );
     Validations.validateOrderBookTradeFees(hybridTrade.orderBookTrade);
   }
 }

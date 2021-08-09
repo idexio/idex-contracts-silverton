@@ -132,7 +132,9 @@ library BalanceTracking {
       order.walletAddress,
       poolTrade.getOrderCreditAssetAddress(order.side)
     );
-    balance.balanceInPips += poolTrade.getOrderCreditQuantityInPips(order.side);
+    balance.balanceInPips += poolTrade.calculateOrderCreditQuantityInPips(
+      order.side
+    );
 
     // Fee wallet receives protocol fee from asset debited from order wallet
     balance = loadBalanceAndMigrateIfNeeded(

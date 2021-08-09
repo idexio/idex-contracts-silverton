@@ -214,6 +214,21 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
       expect(error).to.not.be.undefined;
       expect(error.message).to.match(/insufficient quote/i);
     });
+
+    it('should revert when max reserve ratio exceeded', async () => {
+      let error;
+      try {
+        await deployContractsAndCreateHybridETHPool(
+          '1000000000.00000000',
+          '1.00000000',
+          ownerWallet,
+        );
+      } catch (e) {
+        error = e;
+      }
+      expect(error).to.not.be.undefined;
+      expect(error.message).to.match(/exceeded max reserve ratio/i);
+    });
   });
 
   describe('createLiquidityPool', () => {
@@ -861,6 +876,54 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
       ).to.equal(decimalToAssetUnits(depositQuantity, 18));
     });
 
+    it('should work without price check when reserves below minimum', async () => {
+      const depositQuantity = '0.10000000';
+      const depositQuantityInAssetUnits = decimalToAssetUnits(
+        depositQuantity,
+        18,
+      );
+
+      const {
+        exchange,
+        token0,
+        token1,
+      } = await deployContractsAndCreateHybridPool(
+        depositQuantity,
+        depositQuantity,
+        ownerWallet,
+      );
+      await exchange.setDispatcher(ownerWallet);
+
+      const { addition, execution } = await generateOffChainLiquidityAddition(
+        depositQuantityInAssetUnits,
+        ownerWallet,
+        exchange,
+        token0,
+        token1,
+      );
+      addition.amountAMin = decimalToAssetUnits('0.09000000', 18);
+      const signature = await getSignature(
+        web3,
+        getLiquidityAdditionHash(addition),
+        ownerWallet,
+      );
+      execution.netBaseQuantityInPips = decimalToPips('0.09000000');
+      execution.grossBaseQuantityInPips = decimalToPips('0.09000000');
+      execution.liquidityInPips = await getOutputLiquidityInPips(
+        exchange,
+        token0.address,
+        token1.address,
+        decimalToPips(depositQuantity),
+        decimalToPips('0.09000000'),
+      );
+
+      // https://github.com/microsoft/TypeScript/issues/28486
+      await (exchange.executeAddLiquidity as any)(
+        ...getAddLiquidityArguments(addition, signature, execution),
+        { from: ownerWallet },
+      );
+    });
+
     it('should revert duplicate initiated off-chain', async () => {
       const depositQuantity = '1.00000000';
       const depositQuantityInAssetUnits = decimalToAssetUnits(
@@ -910,6 +973,61 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
       }
       expect(error).to.not.be.undefined;
       expect(error.message).to.match(/not executable from off-chain/i);
+    });
+
+    it('should revert when pool price changed', async () => {
+      const depositQuantity = '1.00000000';
+      const depositQuantityInAssetUnits = decimalToAssetUnits(
+        depositQuantity,
+        18,
+      );
+
+      const {
+        exchange,
+        token0,
+        token1,
+      } = await deployContractsAndCreateHybridPool(
+        depositQuantity,
+        depositQuantity,
+        ownerWallet,
+      );
+      await exchange.setDispatcher(ownerWallet);
+
+      const { addition, execution } = await generateOffChainLiquidityAddition(
+        depositQuantityInAssetUnits,
+        ownerWallet,
+        exchange,
+        token0,
+        token1,
+      );
+      addition.amountAMin = decimalToAssetUnits('0.90000000', 18);
+      const signature = await getSignature(
+        web3,
+        getLiquidityAdditionHash(addition),
+        ownerWallet,
+      );
+      execution.netBaseQuantityInPips = decimalToPips('0.90000000');
+      execution.grossBaseQuantityInPips = decimalToPips('0.90000000');
+      execution.liquidityInPips = await getOutputLiquidityInPips(
+        exchange,
+        token0.address,
+        token1.address,
+        decimalToPips(depositQuantity),
+        decimalToPips('0.90000000'),
+      );
+
+      let error;
+      try {
+        // https://github.com/microsoft/TypeScript/issues/28486
+        await (exchange.executeAddLiquidity as any)(
+          ...getAddLiquidityArguments(addition, signature, execution),
+          { from: ownerWallet },
+        );
+      } catch (e) {
+        error = e;
+      }
+      expect(error).to.not.be.undefined;
+      expect(error.message).to.match(/pool price cannot change/i);
     });
 
     it('should revert when wallet exited', async () => {
@@ -1033,7 +1151,7 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
       await exchange.setDispatcher(ownerWallet);
 
       const addition = {
-        signatureHashVersion: 2,
+        signatureHashVersion,
         origination: 0,
         nonce: 0,
         wallet: ownerWallet,
@@ -2034,6 +2152,68 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
       ).to.equal(pipsToAssetUnits(execution.grossQuoteQuantityInPips, 18));
     });
 
+    const fixtures = [
+      ['1007069999', '100706992', '31632449.13872196'],
+      ['63164.51806209', '56395014253.92162785', '300000'],
+      ['1900.00000000', '184467440737.09551606', '42000.00000000'],
+      ['1000.00000000', '1000.00000000', '1000.00000000'],
+      ['193.28562918', '190874.09195647', '6073.97884075'],
+    ];
+    fixtures.forEach((fixture, i) => {
+      it(`should work for fixured dataset ${i + 1}`, async () => {
+        const [
+          initialBaseReserve,
+          initialQuoteReserve,
+          liquidityToRemove,
+        ] = fixture;
+
+        const { exchange } = await deployAndAssociateContracts();
+        const token0 = await deployAndRegisterToken(exchange, token0Symbol);
+        const token1 = await deployAndRegisterToken(exchange, token1Symbol);
+        await exchange.createLiquidityPool(token0.address, token1.address);
+        await exchange.setDispatcher(ownerWallet);
+
+        const LiquidityProviderToken = artifacts.require(
+          'LiquidityProviderToken',
+        );
+        const pool = await exchange.loadLiquidityPoolByAssetAddresses(
+          token0.address,
+          token1.address,
+        );
+        const lpToken = await LiquidityProviderToken.at(
+          pool.liquidityProviderToken,
+        );
+
+        await addLiquidityAndExecute(
+          '',
+          ownerWallet,
+          exchange,
+          token0,
+          token1,
+          false,
+          18,
+          decimalToAssetUnits(initialBaseReserve, 18),
+          decimalToAssetUnits(initialQuoteReserve, 18),
+        );
+
+        await lpToken.approve(
+          exchange.address,
+          decimalToAssetUnits(liquidityToRemove, 18),
+          {
+            from: ownerWallet,
+          },
+        );
+        await removeLiquidityAndExecute(
+          liquidityToRemove,
+          ownerWallet,
+          exchange,
+          lpToken,
+          token0,
+          token1,
+        );
+      });
+    });
+
     it('should revert duplicate initiated off-chain', async () => {
       const depositQuantity = '1.00000000';
       const depositQuantityInAssetUnits = decimalToAssetUnits(
@@ -2181,7 +2361,7 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
       );
 
       const removal = {
-        signatureHashVersion: 2,
+        signatureHashVersion,
         origination: 0,
         nonce: 0,
         wallet: ownerWallet,
@@ -3135,7 +3315,7 @@ async function addLiquidityAndExecute(
 
   await exchange.executeAddLiquidity(
     {
-      signatureHashVersion: 2,
+      signatureHashVersion,
       origination: 0,
       nonce: 0,
       wallet: ownerWallet,
@@ -3220,7 +3400,7 @@ async function addLiquidityETHAndExecute(
 
   await exchange.executeAddLiquidity(
     {
-      signatureHashVersion: 2,
+      signatureHashVersion,
       origination: 0,
       nonce: 0,
       wallet: ownerWallet,
@@ -3303,17 +3483,27 @@ async function getOutputAssetQuantitiesInPips(
     assetUnitsToPips((await lpToken.totalSupply()).toString(), 18),
   );
 
-  return [
-    new BigNumber(liquidityInPips)
-      .multipliedBy(new BigNumber(pool.baseAssetReserveInPips.toString()))
-      .dividedBy(totalSupplyInPips),
-    new BigNumber(liquidityInPips)
-      .multipliedBy(new BigNumber(pool.quoteAssetReserveInPips.toString()))
-      .dividedBy(totalSupplyInPips),
-  ].map((quantity) => quantity.toFixed(0, BigNumber.ROUND_FLOOR)) as [
-    string,
-    string,
-  ];
+  const poolPrice = new BigNumber(
+    new BigNumber(pool.quoteAssetReserveInPips.toString())
+      .dividedBy(new BigNumber(pool.baseAssetReserveInPips.toString()))
+      .toFixed(8),
+  );
+  const baseQuantityInPips = new BigNumber(liquidityInPips)
+    .multipliedBy(new BigNumber(pool.baseAssetReserveInPips.toString()))
+    .dividedBy(totalSupplyInPips)
+    .toFixed(0, BigNumber.ROUND_FLOOR);
+  const quoteQuantityInPips = new BigNumber(
+    pool.quoteAssetReserveInPips.toString(),
+  )
+    .minus(
+      new BigNumber(pool.baseAssetReserveInPips.toString())
+        .minus(new BigNumber(baseQuantityInPips))
+        .multipliedBy(poolPrice)
+        .toFixed(0, BigNumber.ROUND_CEIL),
+    )
+    .toString();
+
+  return [baseQuantityInPips, quoteQuantityInPips];
 }
 
 export async function getLpToken(
@@ -3398,7 +3588,7 @@ async function removeLiquidityAndExecute(
 
   await exchange.executeRemoveLiquidity(
     {
-      signatureHashVersion: 2,
+      signatureHashVersion,
       origination: 0,
       nonce: 0,
       wallet: ownerWallet,
@@ -3483,7 +3673,7 @@ async function removeLiquidityETHAndExecute(
 
   await exchange.executeRemoveLiquidity(
     {
-      signatureHashVersion: 2,
+      signatureHashVersion,
       origination: 0,
       nonce: 0,
       wallet: ownerWallet,
@@ -3534,7 +3724,7 @@ async function generateOnChainLiquidityAddition(
   );
 
   const addition = {
-    signatureHashVersion: 2,
+    signatureHashVersion,
     origination: 0,
     nonce: 0,
     wallet: ownerWallet,
@@ -3598,7 +3788,7 @@ async function generateOnChainLiquidityRemoval(
   );
 
   const removal = {
-    signatureHashVersion: 2,
+    signatureHashVersion,
     origination: 0,
     nonce: 0,
     wallet: ownerWallet,

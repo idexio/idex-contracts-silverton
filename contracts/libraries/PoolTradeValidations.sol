@@ -5,12 +5,14 @@ pragma solidity 0.8.4;
 import { AssetRegistry } from './AssetRegistry.sol';
 import { Constants } from './Constants.sol';
 import { OrderSide } from './Enums.sol';
+import { PoolTradeHelpers } from './PoolTradeHelpers.sol';
 import { UUID } from './UUID.sol';
 import { Validations } from './Validations.sol';
 import { Asset, Order, NonceInvalidation, PoolTrade } from './Structs.sol';
 
 library PoolTradeValidations {
   using AssetRegistry for AssetRegistry.Storage;
+  using PoolTradeHelpers for PoolTrade;
 
   function validatePoolTrade(
     Order memory order,
@@ -87,7 +89,7 @@ library PoolTradeValidations {
     ) {
       require(
         Validations.calculateImpliedQuoteQuantityInPips(
-          poolTrade.grossBaseQuantityInPips,
+          poolTrade.grossBaseQuantityInPips - 1,
           order.limitPriceInPips
         ) <= poolTrade.grossQuoteQuantityInPips,
         'Sell order limit price exceeded'
@@ -96,29 +98,33 @@ library PoolTradeValidations {
   }
 
   function validateFees(OrderSide orderSide, PoolTrade memory poolTrade)
-    internal
+    private
     pure
   {
     require(
       Validations.isFeeQuantityValid(
-        (poolTrade.grossBaseQuantityInPips - poolTrade.netBaseQuantityInPips),
-        poolTrade.grossBaseQuantityInPips
+        poolTrade.calculatePoolOutputAdjustment(orderSide),
+        poolTrade.getOrderGrossReceivedQuantityInPips(orderSide),
+        Constants.maxPoolOutputAdjustmentBasisPoints
       ),
-      'Excessive base fee'
+      'Excessive pool output adjustment'
     );
+
     require(
       Validations.isFeeQuantityValid(
-        (poolTrade.grossQuoteQuantityInPips - poolTrade.netQuoteQuantityInPips),
-        poolTrade.grossQuoteQuantityInPips
+        poolTrade.takerGasFeeQuantityInPips,
+        poolTrade.getOrderGrossReceivedQuantityInPips(orderSide),
+        Constants.maxFeeBasisPoints
       ),
-      'Excessive quote fee'
+      'Excessive gas fee'
     );
+
     // Price correction only allowed for hybrid trades with a taker sell
     require(
       poolTrade.takerPriceCorrectionFeeQuantityInPips == 0,
       'Price correction not allowed'
     );
 
-    Validations.validatePoolTradeFees(orderSide, poolTrade);
+    Validations.validatePoolTradeInputFees(orderSide, poolTrade);
   }
 }

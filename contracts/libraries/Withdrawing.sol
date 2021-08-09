@@ -41,7 +41,8 @@ library Withdrawing {
     require(
       Validations.isFeeQuantityValid(
         withdrawal.gasFeeInPips,
-        withdrawal.grossQuantityInPips
+        withdrawal.grossQuantityInPips,
+        Constants.maxFeeBasisPoints
       ),
       'Excessive withdrawal fee'
     );

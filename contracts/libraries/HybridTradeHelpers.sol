@@ -6,24 +6,23 @@ import { HybridTrade } from './Structs.sol';
 
 library HybridTradeHelpers {
   /**
-   * @dev Gross quantity received by maker
+   * @dev Total fees paid by taker from received asset across orderbook and pool trades. Does not
+   * include pool input fees nor pool output adjustment
    */
-  function getMakerGrossQuantityInPips(HybridTrade memory self)
+  function calculateTakerFeeQuantityInPips(HybridTrade memory self)
     internal
     pure
     returns (uint64)
   {
     return
-      self.orderBookTrade.takerFeeAssetAddress ==
-        self.orderBookTrade.baseAssetAddress
-        ? self.orderBookTrade.grossQuoteQuantityInPips
-        : self.orderBookTrade.grossBaseQuantityInPips;
+      self.takerGasFeeQuantityInPips +
+      self.orderBookTrade.takerFeeQuantityInPips;
   }
 
   /**
    * @dev Gross quantity received by taker
    */
-  function calculateTakerGrossQuantityInPips(HybridTrade memory self)
+  function calculateTakerGrossReceivedQuantityInPips(HybridTrade memory self)
     internal
     pure
     returns (uint64)
@@ -39,6 +38,21 @@ library HybridTradeHelpers {
   }
 
   /**
+   * @dev Gross quantity received by maker
+   */
+  function getMakerGrossQuantityInPips(HybridTrade memory self)
+    internal
+    pure
+    returns (uint64)
+  {
+    return
+      self.orderBookTrade.takerFeeAssetAddress ==
+        self.orderBookTrade.baseAssetAddress
+        ? self.orderBookTrade.grossQuoteQuantityInPips
+        : self.orderBookTrade.grossBaseQuantityInPips;
+  }
+
+  /**
    * @dev Net quantity received by maker
    */
   function getMakerNetQuantityInPips(HybridTrade memory self)
@@ -51,24 +65,5 @@ library HybridTradeHelpers {
         self.orderBookTrade.baseAssetAddress
         ? self.orderBookTrade.netQuoteQuantityInPips
         : self.orderBookTrade.netBaseQuantityInPips;
-  }
-
-  /**
-   * @dev Net quantity received by taker
-   */
-  function calculateTakerNetQuantityInPips(HybridTrade memory self)
-    internal
-    pure
-    returns (uint64)
-  {
-    return
-      (
-        self.orderBookTrade.takerFeeAssetAddress ==
-          self.orderBookTrade.baseAssetAddress
-          ? self.orderBookTrade.netBaseQuantityInPips +
-            self.poolTrade.netBaseQuantityInPips
-          : self.orderBookTrade.netQuoteQuantityInPips +
-            self.poolTrade.netQuoteQuantityInPips
-      ) - self.takerGasFeeQuantityInPips;
   }
 }

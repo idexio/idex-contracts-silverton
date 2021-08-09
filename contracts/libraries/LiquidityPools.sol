@@ -401,7 +401,7 @@ library LiquidityPools {
     uint128 updatedProduct;
 
     if (orderSide == OrderSide.Buy) {
-      pool.baseAssetReserveInPips -= poolTrade.calculatePoolDebitQuantityInPips(
+      pool.baseAssetReserveInPips -= poolTrade.getPoolDebitQuantityInPips(
         orderSide
       );
       pool.quoteAssetReserveInPips += poolTrade
@@ -420,8 +420,9 @@ library LiquidityPools {
         pool.quoteAssetReserveInPips += poolTrade
           .takerPriceCorrectionFeeQuantityInPips;
       } else {
-        pool.quoteAssetReserveInPips -= poolTrade
-          .calculatePoolDebitQuantityInPips(orderSide);
+        pool.quoteAssetReserveInPips -= poolTrade.getPoolDebitQuantityInPips(
+          orderSide
+        );
       }
 
       updatedProduct =
@@ -437,7 +438,8 @@ library LiquidityPools {
       'Constant product cannot decrease'
     );
 
-    // Trades cannot drive either reserve ratio below the minimum
+    // Disallow either ratio to dip below the minimum as prices can no longer be represented with
+    // full pip precision
     require(
       pool.baseAssetReserveInPips >= Constants.minLiquidityPoolReserveInPips,
       'Base reserves below min'
@@ -486,12 +488,15 @@ library LiquidityPools {
     pool.baseAssetReserveInPips += execution.netBaseQuantityInPips;
     pool.quoteAssetReserveInPips += execution.netQuoteQuantityInPips;
 
+    // Require pool price to remain constant on addition. Skip this validation if either reserve is
+    // below the minimum as prices can no longer be represented with full pip precision
     if (initialPrice == 0) {
-      // First liquidity addition to empty pool establishes price which must be valid ratio
+      // First liquidity addition to empty pool establishes price which must within max ratio
       Validations.validatePoolReserveRatio(pool);
-    } else {
-      // Liquidity addition to existing pool must maintain same pool price which will already be
-      // a valid ratio as checked above and in `updateReservesForPoolTrade`
+    } else if (
+      pool.baseAssetReserveInPips >= Constants.minLiquidityPoolReserveInPips &&
+      pool.quoteAssetReserveInPips >= Constants.minLiquidityPoolReserveInPips
+    ) {
       uint64 updatedPrice = pool.calculateCurrentPoolPriceInPips();
       require(initialPrice == updatedPrice, 'Pool price cannot change');
     }

@@ -73,8 +73,11 @@ additions and removals and 2) subsequently allow the user to directly withdraw a
   - An exited wallet can be reinstated for trading by calling the `clearWalletExit` function on the Exchange.
 - The admin can change the Chain Propagation Period with no delay, subject to the Minimum Chain Propagation Period and
 Maximum Chain Propagation Period limits.
-- Fee maximums are enforced by the Exchange and specified by a Maximum Fee Rate. The Maximum Fee Rate is defined as a percentage
-ans is not changeable.
+- Fee maximums are enforced by the Exchange and specified by several parameters as percentages, none of which are changeable.
+  - The Maximum Fee Rate applies to most fees: order book trade maker and taker fees, hybrid trade maker fees, withdrawal fees, and liquidity addition and removal fees. The Maximum Fee Rate also applies to the gas fee associated with pool trades and hybrid trades.
+  - The Maximum Pool Input Fee Rate applies to the asset sent to a pool by the trade taker. Gas fees are deducted from the asset received by the taker; the taker pool fee and taker protocol fee of a pool trade are deducted from the asset sent by the taker. These input fees are collectively limited to the Maximum Pool Input Fee Rate.
+  - The Maximum Pool Output Adjustment Fee Rate applies to the difference between the gross and net quantities of the asset received by the taker in a pool trade before the gas fee. In most cases the difference between gross and net pool outputs in percentage terms is equivalent to the sum of the input taker pool fee and taker protocol fee. Due to precision and rounding concerns in extreme cases, however, the difference between output gross and net can exceed the input fee percentages requiring a higher Maximum Pool Output Adjustment Fee Rate. In hybrid trades, this maximum is applied to the difference between pool output gross and net as a percentage of the overall hybrid trade gross taker quantity.
+  - The Maximum Pool Price Correction Fee Rate applies to specific conditions under which the pool trade component of hybrid trades has a nonzero `takerPriceCorrectionFeeQuantityInPips` parameter. In this case, the taker price correction fee may not exceed the taker pool gross quantity value by more than the Maximum Pool Price Correction Fee Rate.
 
 ### Fixed Parameter Settings
 
@@ -87,6 +90,9 @@ These settings have been pre-determined and may be hard-coded or implicit in the
 - Maximum Chain Propagation Period: 1 week
 - Chain Propagation Change Period: immediate
 - Maximum Fee Rate: 20%
+- Maximum Pool Input Fee Rate: 2%
+- Maximum Pool Output Adjustment Fee Rate: 5%
+- Maximum Pool Price Correction Fee Rate: 1%
 
 ### Changable Parameters
 

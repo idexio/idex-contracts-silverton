@@ -22,6 +22,7 @@ import {
   OrderType,
   nativeAssetSymbol,
   Trade,
+  signatureHashVersion,
   uuidToHexString,
 } from '../../lib';
 
@@ -1666,7 +1667,7 @@ export const generateOrdersAndFill = async (
     .toFixed(8, BigNumber.ROUND_DOWN);
 
   const sellOrder: Order = {
-    signatureHashVersion: 2,
+    signatureHashVersion,
     nonce: uuidv1(),
     wallet: sellWallet,
     market,
@@ -1678,7 +1679,7 @@ export const generateOrdersAndFill = async (
   };
 
   const buyOrder: Order = {
-    signatureHashVersion: 2,
+    signatureHashVersion,
     nonce: uuidv1(),
     wallet: buyWallet,
     market,

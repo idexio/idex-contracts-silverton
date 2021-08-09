@@ -104,7 +104,8 @@ contract Exchange is IExchange, Owned {
     uint256 amountBDesired,
     uint256 amountAMin,
     uint256 amountBMin,
-    address to
+    address to,
+    uint256 deadline
   );
   /**
    * @notice Emitted when the Dispatcher Wallet submits a liquidity addition for execution with
@@ -145,7 +146,8 @@ contract Exchange is IExchange, Owned {
     uint256 liquidity,
     uint256 amountAMin,
     uint256 amountBMin,
-    address to
+    address to,
+    uint256 deadline
   );
   /**
    * @notice Emitted when the Dispatcher Wallet submits a liquidity removal for execution with
@@ -689,10 +691,6 @@ contract Exchange is IExchange, Owned {
       !isWalletExitFinalized(sell.walletAddress),
       'Sell wallet exit finalized'
     );
-    require(
-      buy.walletAddress != sell.walletAddress,
-      'Self-trading not allowed'
-    );
 
     Trading.executeOrderBookTrade(
       buy,
@@ -1019,7 +1017,8 @@ contract Exchange is IExchange, Owned {
       amountBDesired,
       amountAMin,
       amountBMin,
-      to
+      to,
+      deadline
     );
   }
 
@@ -1103,7 +1102,8 @@ contract Exchange is IExchange, Owned {
       msg.value,
       amountTokenMin,
       amountETHMin,
-      to
+      to,
+      deadline
     );
   }
 
@@ -1207,7 +1207,8 @@ contract Exchange is IExchange, Owned {
       liquidity,
       amountAMin,
       amountBMin,
-      to
+      to,
+      deadline
     );
   }
 
@@ -1275,7 +1276,8 @@ contract Exchange is IExchange, Owned {
       liquidity,
       amountTokenMin,
       amountETHMin,
-      payable(to)
+      payable(to),
+      deadline
     );
   }
 

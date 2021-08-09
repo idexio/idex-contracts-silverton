@@ -164,7 +164,8 @@ library OrderBookTradeValidations {
     require(
       Validations.isFeeQuantityValid(
         trade.makerFeeQuantityInPips,
-        makerTotalQuantityInPips
+        makerTotalQuantityInPips,
+        Constants.maxFeeBasisPoints
       ),
       'Excessive maker fee'
     );
@@ -176,7 +177,8 @@ library OrderBookTradeValidations {
     require(
       Validations.isFeeQuantityValid(
         trade.takerFeeQuantityInPips,
-        takerTotalQuantityInPips
+        takerTotalQuantityInPips,
+        Constants.maxFeeBasisPoints
       ),
       'Excessive taker fee'
     );
