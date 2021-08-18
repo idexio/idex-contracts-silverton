@@ -132,6 +132,8 @@ export interface Withdrawal {
 
 export const ethAddress = '0x0000000000000000000000000000000000000000';
 
+export const liquidityProviderTokenDecimals = 18;
+
 export const getLiquidityAdditionHash = (addition: LiquidityAddition): string =>
   solidityHashOfParams([
     ['uint8', addition.signatureHashVersion], // Signature hash version - only version 2 supported

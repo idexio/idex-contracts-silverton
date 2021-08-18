@@ -268,9 +268,9 @@ contract Exchange is IExchange, Owned {
   // Custodian
   ICustodian _custodian;
   // Deposit index
-  uint64 _depositIndex;
+  uint64 public _depositIndex;
   // Exits
-  mapping(address => WalletExit) _walletExits;
+  mapping(address => WalletExit) public _walletExits;
   // Liquidity pools
   address _liquidityMigrator;
   LiquidityPools.Storage _liquidityPools;
