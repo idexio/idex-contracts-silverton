@@ -101,7 +101,7 @@ library HybridTradeValidations {
           // Allow 1 pip buffer for integer rounding
         ) +
           1 >=
-          quoteAssetReserveInPips - 1,
+          quoteAssetReserveInPips,
         'Pool marginal sell price exceeded'
       );
     }
