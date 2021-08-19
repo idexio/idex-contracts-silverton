@@ -1155,6 +1155,7 @@ contract Exchange is IExchange, Owned {
    * @param to Recipient of the underlying assets
    * @param deadline Unix timestamp in seconds after which the transaction will revert
    */
+
   function removeLiquidity(
     address tokenA,
     address tokenB,
@@ -1262,7 +1263,7 @@ contract Exchange is IExchange, Owned {
     emit Deposited(
       ++_depositIndex,
       msg.sender,
-      address(0x0),
+      result.assetAddress,
       result.assetSymbol,
       result.assetQuantityInPips,
       result.assetNewExchangeBalanceInPips,
