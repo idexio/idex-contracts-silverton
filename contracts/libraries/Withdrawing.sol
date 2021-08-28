@@ -124,11 +124,12 @@ library Withdrawing {
     ICustodian custodian,
     address feeWallet,
     ILiquidityProviderToken liquidityProviderToken,
+    AssetRegistry.Storage storage assetRegistry,
     BalanceTracking.Storage storage balanceTracking
   ) internal {
     (
-      uint256 outputBaseAssetQuantityInAssetUnits,
-      uint256 outputQuoteAssetQuantityInAssetUnits
+      uint64 outputBaseAssetQuantityInPips,
+      uint64 outputQuoteAssetQuantityInPips
     ) =
       balanceTracking.updateForRemoveLiquidity(
         removal,
@@ -138,18 +139,27 @@ library Withdrawing {
         liquidityProviderToken
       );
 
-    if (outputBaseAssetQuantityInAssetUnits > 0) {
+    Asset memory asset;
+    if (outputBaseAssetQuantityInPips > 0) {
+      asset = assetRegistry.loadAssetByAddress(execution.baseAssetAddress);
       custodian.withdraw(
         removal.to,
         execution.baseAssetAddress,
-        outputBaseAssetQuantityInAssetUnits
+        AssetUnitConversions.pipsToAssetUnits(
+          outputBaseAssetQuantityInPips,
+          asset.decimals
+        )
       );
     }
-    if (outputQuoteAssetQuantityInAssetUnits > 0) {
+    if (outputQuoteAssetQuantityInPips > 0) {
+      asset = assetRegistry.loadAssetByAddress(execution.quoteAssetAddress);
       custodian.withdraw(
         removal.to,
         execution.quoteAssetAddress,
-        outputQuoteAssetQuantityInAssetUnits
+        AssetUnitConversions.pipsToAssetUnits(
+          outputQuoteAssetQuantityInPips,
+          asset.decimals
+        )
       );
     }
   }

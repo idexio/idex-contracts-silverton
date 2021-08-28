@@ -1303,6 +1303,7 @@ contract Exchange is IExchange, Owned {
       _walletExits[removal.wallet].exists,
       ICustodian(_custodian),
       _feeWallet,
+      _assetRegistry,
       _balanceTracking
     );
 
