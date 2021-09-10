@@ -5,7 +5,7 @@
     "type": "git",
     "url": "git+https://github.com/idexio/idex-contracts-silverton.git"
   },
-  "version": "0.1.6",
+  "version": "0.1.6-sandbox",
   "description": "Collects source code, tests, and documentation for the IDEX Silverton release Ethereum contracts",
   "homepage": "https://github.com/idexio/idex-contracts-silverton",
   "main": "build/lib/index.js",

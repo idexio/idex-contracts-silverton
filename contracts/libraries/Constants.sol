@@ -39,5 +39,5 @@ library Constants {
   // decimals places
   uint64 public constant pipPriceMultiplier = 10**8;
 
-  uint8 public constant signatureHashVersion = 3;
+  uint8 public constant signatureHashVersion = 103;
 }
