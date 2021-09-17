@@ -8,6 +8,7 @@ import ExchangeContract from './ExchangeContract';
 import IERC20Contract from './IERC20Contract';
 import FactoryContract from './FactoryContract';
 import FarmContract from './FarmContract';
+import FaucetTokenContract from './FaucetTokenContract';
 import MigratorContract from './MigratorContract';
 import PairContract from './PairContract';
 import WETHContract from './WETHContract';
@@ -18,6 +19,7 @@ export {
   IERC20Contract,
   FactoryContract,
   FarmContract,
+  FaucetTokenContract,
   MigratorContract,
   PairContract,
   WETHContract,
