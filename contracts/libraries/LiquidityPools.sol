@@ -216,6 +216,7 @@ library LiquidityPools {
     bool isWalletExited,
     ICustodian custodian,
     address feeWallet,
+    AssetRegistry.Storage storage assetRegistry,
     BalanceTracking.Storage storage balanceTracking
   ) public {
     ILiquidityProviderToken liquidityProviderToken =
@@ -232,6 +233,7 @@ library LiquidityPools {
       custodian,
       feeWallet,
       liquidityProviderToken,
+      assetRegistry,
       balanceTracking
     );
   }

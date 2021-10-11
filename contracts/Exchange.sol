@@ -268,9 +268,9 @@ contract Exchange is IExchange, Owned {
   // Custodian
   ICustodian _custodian;
   // Deposit index
-  uint64 _depositIndex;
+  uint64 public _depositIndex;
   // Exits
-  mapping(address => WalletExit) _walletExits;
+  mapping(address => WalletExit) public _walletExits;
   // Liquidity pools
   address _liquidityMigrator;
   LiquidityPools.Storage _liquidityPools;
@@ -1155,6 +1155,7 @@ contract Exchange is IExchange, Owned {
    * @param to Recipient of the underlying assets
    * @param deadline Unix timestamp in seconds after which the transaction will revert
    */
+
   function removeLiquidity(
     address tokenA,
     address tokenB,
@@ -1262,7 +1263,7 @@ contract Exchange is IExchange, Owned {
     emit Deposited(
       ++_depositIndex,
       msg.sender,
-      address(0x0),
+      result.assetAddress,
       result.assetSymbol,
       result.assetQuantityInPips,
       result.assetNewExchangeBalanceInPips,
@@ -1302,6 +1303,7 @@ contract Exchange is IExchange, Owned {
       _walletExits[removal.wallet].exists,
       ICustodian(_custodian),
       _feeWallet,
+      _assetRegistry,
       _balanceTracking
     );
 

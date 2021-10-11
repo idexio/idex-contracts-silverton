@@ -5,7 +5,7 @@
     "type": "git",
     "url": "git+https://github.com/idexio/idex-contracts-silverton.git"
   },
-  "version": "0.0.11",
+  "version": "0.1.8",
   "description": "Collects source code, tests, and documentation for the IDEX Silverton release Ethereum contracts",
   "homepage": "https://github.com/idexio/idex-contracts-silverton",
   "main": "build/lib/index.js",
@@ -41,6 +41,7 @@
     "prettier": "prettier --write **/*.sol",
     "test": "yarn test:contracts:dist",
     "test:contracts:dist": "multi='spec=- json=./coverage/mocha-summary.json' truffle test ./build/tests/contracts/*.test.js",
+    "test:lib:dist": "mocha ./build/tests/lib/*.test.js",
     "test:contracts:coverage": "multi='spec=- json=./coverage/mocha-summary.json' truffle run coverage --network coverage --file=\"./build/tests/contracts/*.test.js\" && node bin/get-badges.js",
     "verify": "truffle run verify"
   },

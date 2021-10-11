@@ -132,6 +132,8 @@ export interface Withdrawal {
 
 export const ethAddress = '0x0000000000000000000000000000000000000000';
 
+export const liquidityProviderTokenDecimals = 18;
+
 export const getLiquidityAdditionHash = (addition: LiquidityAddition): string =>
   solidityHashOfParams([
     ['uint8', addition.signatureHashVersion], // Signature hash version - only version 2 supported
@@ -424,7 +426,7 @@ export const assetUnitsToPips = (
   new BigNumber(assetUnits)
     .shiftedBy(8 - decimals) // This is still correct when decimals > 8
     .integerValue(BigNumber.ROUND_DOWN)
-    .toString();
+    .toFixed(0);
 
 export const decimalToAssetUnits = (
   decimal: string,
