@@ -1576,6 +1576,33 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
       expect(
         burnEvents[0].returnValues.quoteAssetQuantityInAssetUnits,
       ).to.equal(pipsToAssetUnits(execution.grossQuoteQuantityInPips, 18));
+
+      const [baseToken, quoteToken] =
+        token0.address === execution.baseAssetAddress
+          ? [token0, token1]
+          : [token1, token0];
+
+      const baseTokenTransferEvents = await baseToken.getPastEvents(
+        'Transfer',
+        {
+          fromBlock: 0,
+        },
+      );
+      expect(baseTokenTransferEvents.length).to.equal(6);
+      expect(baseTokenTransferEvents[5].returnValues.value).to.equal(
+        pipsToAssetUnits(execution.netBaseQuantityInPips, 18),
+      );
+
+      const quoteTokenTransferEvents = await quoteToken.getPastEvents(
+        'Transfer',
+        {
+          fromBlock: 0,
+        },
+      );
+      expect(quoteTokenTransferEvents.length).to.equal(6);
+      expect(quoteTokenTransferEvents[5].returnValues.value).to.equal(
+        pipsToAssetUnits(execution.netQuoteQuantityInPips, 18),
+      );
     });
 
     it('should work with fees', async () => {
@@ -1856,6 +1883,14 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
       expect(
         burnEvents[0].returnValues.quoteAssetQuantityInAssetUnits,
       ).to.equal(pipsToAssetUnits(execution.grossQuoteQuantityInPips, 18));
+
+      const depositEvents = await exchange.getPastEvents('Deposited', {
+        fromBlock: 0,
+      });
+      const lastDepositEvent = depositEvents[depositEvents.length - 1];
+      expect(lastDepositEvent.returnValues.assetAddress).to.equal(
+        lpToken.address,
+      );
     });
 
     it('should work with fees', async () => {
@@ -3046,7 +3081,6 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
       const tokenEvents = await token.getPastEvents('Transfer', {
         fromBlock: 0,
       });
-      expect(tokenEvents).to.be.an('array');
       expect(tokenEvents).to.be.an('array');
       expect(tokenEvents.length).to.equal(6);
       expect(tokenEvents[5].returnValues.value).to.equal(

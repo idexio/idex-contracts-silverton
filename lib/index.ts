@@ -426,7 +426,7 @@ export const assetUnitsToPips = (
   new BigNumber(assetUnits)
     .shiftedBy(8 - decimals) // This is still correct when decimals > 8
     .integerValue(BigNumber.ROUND_DOWN)
-    .toString();
+    .toFixed(0);
 
 export const decimalToAssetUnits = (
   decimal: string,
