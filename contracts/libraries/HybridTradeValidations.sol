@@ -98,10 +98,10 @@ library HybridTradeValidations {
         Validations.calculateImpliedQuoteQuantityInPips(
           baseAssetReserveInPips,
           makerOrder.limitPriceInPips
-          // Allow 1 pip buffer for integer rounding
+          // Allow additional pip buffers for integer rounding
         ) +
           1 >=
-          quoteAssetReserveInPips,
+          quoteAssetReserveInPips - 1,
         'Pool marginal sell price exceeded'
       );
     }
