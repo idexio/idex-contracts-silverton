@@ -201,11 +201,6 @@ contract Exchange is IExchange, Owned {
    */
   event TokenSymbolAdded(IERC20 assetAddress, string assetSymbol);
   /**
-   * @notice Emitted when the Dispatcher Wallet submits a trade for execution with `executeOrderBookTrade`
-   * @notice Emitted when the Dispatcher Wallet submits a trade for execution with
-   * `executeOrderBookTrade`
-   */
-  /**
    * @notice Emitted when a user invokes the Exit Wallet mechanism with `exitWallet`
    */
   event WalletExited(address wallet, uint256 effectiveBlockNumber);

@@ -98,7 +98,7 @@ library HybridTradeValidations {
         Validations.calculateImpliedQuoteQuantityInPips(
           baseAssetReserveInPips,
           makerOrder.limitPriceInPips
-          // Allow 1 pip buffer for integer rounding
+          // Allow additional pip buffers for integer rounding
         ) +
           1 >=
           quoteAssetReserveInPips - 1,

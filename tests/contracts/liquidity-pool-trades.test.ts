@@ -255,7 +255,6 @@ contract(
         );
         poolTrade.netQuoteQuantity = '0.05000000';
         poolTrade.takerPoolFeeQuantity = '0.05000000';
-        console.log(poolTrade);
 
         let error;
         try {
