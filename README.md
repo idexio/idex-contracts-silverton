@@ -1,5 +1,5 @@
 <!-- markdownlint-disable MD033 -->
-# <img src="assets/logo.png" alt="IDEX" height="36px" valign="top"> Silverton Smart Contracts
+# <img src="assets/logo-v3.png" alt="IDEX" height="37px" valign="top"> Silverton Smart Contracts
 
 ![Tests](./assets/tests.svg)
 ![Lines](./assets/coverage-lines.svg)
