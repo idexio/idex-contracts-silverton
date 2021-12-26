@@ -1,13 +1,13 @@
 {
-  "name": "@idexio/idex-contracts-silverton-2",
+  "name": "@idexio/idex-contracts-silverton",
   "license": "UNLICENSED",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/idexio/idex-contracts-silverton-2.git"
+    "url": "git+https://github.com/idexio/idex-contracts-silverton.git"
   },
-  "version": "0.2.1-sandbox",
+  "version": "0.3.0",
   "description": "Collects source code, tests, and documentation for the IDEX Silverton release Ethereum contracts",
-  "homepage": "https://github.com/idexio/idex-contracts-silverton-2",
+  "homepage": "https://github.com/idexio/idex-contracts-silverton",
   "main": "build/lib/index.js",
   "types": "build/lib/index.d.ts",
   "directories": {
