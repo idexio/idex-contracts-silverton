@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 
-pragma solidity 0.8.4;
+pragma solidity 0.8.10;
 
 import { AssetUnitConversions } from './AssetUnitConversions.sol';
 import { Constants } from './Constants.sol';
@@ -156,18 +156,16 @@ library LiquidityChangeExecutionValidations {
       'Invalid liquidity burned'
     );
 
-    (
-      uint256 expectedBaseAssetQuantityInPips,
-      uint256 expectedQuoteAssetQuantityInPips
-    ) = pool.calculateOutputAssetQuantitiesInPips(execution.liquidityInPips);
+    (uint256 expectedBaseAssetQuantityInPips, ) =
+      pool.calculateOutputAssetQuantitiesInPips(execution.liquidityInPips);
 
+    // To allow for integer rounding precision loss, only validate exact output quantity for the
+    // base asset, and allow the invariant price check performed in
+    // validateAndUpdateForLiquidityRemoval to indirectly validate the output quantity of the quote
+    // asset
     require(
       execution.grossBaseQuantityInPips == expectedBaseAssetQuantityInPips,
       'Invalid base quantity'
-    );
-    require(
-      execution.grossQuoteQuantityInPips == expectedQuoteAssetQuantityInPips,
-      'Invalid quote quantity'
     );
 
     validateLiquidityChangeExecutionFees(execution);

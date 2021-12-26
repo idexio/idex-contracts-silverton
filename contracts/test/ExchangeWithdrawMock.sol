@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 
-pragma solidity 0.8.4;
+pragma solidity 0.8.10;
 
 // The following imports are purely to generate Truffle artifacts and typings for test code
 import {

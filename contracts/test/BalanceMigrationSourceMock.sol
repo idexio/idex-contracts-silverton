@@ -1,13 +1,19 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 
-pragma solidity 0.8.4;
+pragma solidity 0.8.10;
 
 import { AssetTransfers } from '../libraries/AssetTransfers.sol';
+import { ILiquidityProviderToken } from '../libraries/Interfaces.sol';
+import { LiquidityPool } from '../libraries/Structs.sol';
+import { LiquidityPools } from '../libraries/LiquidityPools.sol';
 
 contract BalanceMigrationSourceMock {
   mapping(address => mapping(address => uint64)) _balancesInPips;
+  uint64 public _depositIndex;
 
-  constructor() {}
+  constructor(uint64 depositIndex) {
+    _depositIndex = depositIndex;
+  }
 
   function setBalanceInPipsByAddress(
     address wallet,

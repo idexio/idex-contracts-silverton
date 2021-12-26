@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 
-pragma solidity 0.8.4;
+pragma solidity 0.8.10;
 
 import { Address } from '@openzeppelin/contracts/utils/Address.sol';
 import { ERC20 } from '@openzeppelin/contracts/token/ERC20/ERC20.sol';

@@ -2,7 +2,7 @@ import BigNumber from 'bignumber.js';
 import { v1 as uuidv1 } from 'uuid';
 
 import type {
-  ExchangeInstance,
+  ExchangeV31Instance,
   TestTokenInstance,
 } from '../../types/truffle-contracts';
 
@@ -1552,7 +1552,7 @@ contract('Exchange (trades)', (accounts) => {
 });
 
 export const deposit = async (
-  exchange: ExchangeInstance,
+  exchange: ExchangeV31Instance,
   token: TestTokenInstance,
   buyWallet: string,
   sellWallet: string,
@@ -1585,7 +1585,7 @@ export const deposit = async (
 };
 
 export const depositTokenPair = async (
-  exchange: ExchangeInstance,
+  exchange: ExchangeV31Instance,
   baseToken: TestTokenInstance,
   quoteToken: TestTokenInstance,
   buyWallet: string,
@@ -1629,7 +1629,7 @@ export const depositTokenPair = async (
 };
 
 export const executeOrderBookTrade = async (
-  exchange: ExchangeInstance,
+  exchange: ExchangeV31Instance,
   buyWallet: string,
   sellWallet: string,
   buyOrder: Order,
@@ -1709,7 +1709,7 @@ export const generateOrdersAndFill = async (
 };
 
 const depositAndTrade = async (
-  exchange: ExchangeInstance,
+  exchange: ExchangeV31Instance,
   token: TestTokenInstance,
   buyWallet: string,
   sellWallet: string,
@@ -1719,7 +1719,7 @@ const depositAndTrade = async (
 };
 
 const generateAndExecuteTrade = async (
-  exchange: ExchangeInstance,
+  exchange: ExchangeV31Instance,
   token: TestTokenInstance,
   buyWallet: string,
   sellWallet: string,
