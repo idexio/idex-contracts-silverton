@@ -1,8 +1,13 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 
-pragma solidity 0.8.4;
+pragma solidity 0.8.10;
 
-import { Order, OrderBookTrade, Withdrawal } from './Structs.sol';
+import {
+  LiquidityPool,
+  Order,
+  OrderBookTrade,
+  Withdrawal
+} from './Structs.sol';
 
 /**
  * @notice Interface of the ERC20 standard as defined in the EIP, but with no return values for
@@ -169,6 +174,25 @@ interface IExchange {
    * @return The address of the Custodian contract
    */
   function loadCustodian() external view returns (ICustodian);
+
+  /**
+   * @notice Load the internally-tracked liquidity pool descriptor for a base-quote asset pair
+   *
+   * @return A `LiquidityPool` struct encapsulating the current state of the internally-tracked
+   * liquidity pool for the given base-quote asset pair. Reverts if no such pool exists
+   */
+  function loadLiquidityPoolByAssetAddresses(
+    address baseAssetAddress,
+    address quoteAssetAddress
+  ) external view returns (LiquidityPool memory);
+
+  /**
+   * @notice Load the number of deposits made to the contract, for use when upgrading to a new
+   * Exchange via Governance
+   *
+   * @return The number of deposits successfully made to the Exchange
+   */
+  function _depositIndex() external view returns (uint64);
 }
 
 interface ILiquidityProviderToken {

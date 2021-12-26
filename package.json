@@ -5,7 +5,7 @@
     "type": "git",
     "url": "git+https://github.com/idexio/idex-contracts-silverton.git"
   },
-  "version": "0.1.8-sandbox",
+  "version": "0.3.0-sandbox",
   "description": "Collects source code, tests, and documentation for the IDEX Silverton release Ethereum contracts",
   "homepage": "https://github.com/idexio/idex-contracts-silverton",
   "main": "build/lib/index.js",
@@ -84,7 +84,7 @@
     "prettier-eslint-cli": "5.0.0",
     "prettier-plugin-solidity": "1.0.0-beta.3",
     "solidity-coverage": "0.7.16",
-    "truffle": "^5.3.8",
+    "truffle": "^5.4.25",
     "ts-node": "9.1.1",
     "ts-node-dev": "1.1.1",
     "typechain": "4.0.3",

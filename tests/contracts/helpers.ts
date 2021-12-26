@@ -1,7 +1,7 @@
 import type {
   BalanceMigrationSourceMockInstance,
   CustodianInstance,
-  ExchangeInstance,
+  ExchangeV31Instance,
   FarmInstance,
   GovernanceInstance,
   TestTokenInstance,
@@ -28,7 +28,7 @@ export const deployAndAssociateContracts = async (
 ): Promise<{
   balanceMigrationSource: BalanceMigrationSourceMockInstance;
   custodian: CustodianInstance;
-  exchange: ExchangeInstance;
+  exchange: ExchangeV31Instance;
   farm: FarmInstance;
   governance: GovernanceInstance;
   weth: WETHInstance;
@@ -37,7 +37,7 @@ export const deployAndAssociateContracts = async (
     'BalanceMigrationSourceMock',
   );
   const Custodian = artifacts.require('Custodian');
-  const Exchange = artifacts.require('Exchange');
+  const Exchange = artifacts.require('Exchange_v3_1');
   const Governance = artifacts.require('Governance');
 
   const WETH = artifacts.require('WETH');
@@ -50,7 +50,7 @@ export const deployAndAssociateContracts = async (
 
   const balanceMigrationSource = await (balanceMigrationSourceAddress
     ? BalanceMigrationSourceMock.at(balanceMigrationSourceAddress)
-    : BalanceMigrationSourceMock.new());
+    : BalanceMigrationSourceMock.new(0));
 
   const [exchange, governance] = await Promise.all([
     Exchange.new(
@@ -63,7 +63,7 @@ export const deployAndAssociateContracts = async (
   const custodian = await Custodian.new(exchange.address, governance.address);
   await exchange.setCustodian(custodian.address);
   await governance.setCustodian(custodian.address);
-  await exchange.setDepositIndex(1);
+  await exchange.setDepositIndex();
 
   return {
     balanceMigrationSource,
@@ -76,7 +76,7 @@ export const deployAndAssociateContracts = async (
 };
 
 export const deployAndRegisterToken = async (
-  exchange: ExchangeInstance,
+  exchange: ExchangeV31Instance,
   tokenSymbol: string,
   decimals = 18,
 ): Promise<TestTokenInstance> => {
@@ -107,7 +107,7 @@ export const getSignature = async (
 
 export const withdraw = async (
   web3: Web3,
-  exchange: ExchangeInstance,
+  exchange: ExchangeV31Instance,
   withdrawal: Withdrawal,
   wallet: string,
   gasFee = '0.00000000',

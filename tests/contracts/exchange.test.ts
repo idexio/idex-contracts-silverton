@@ -7,7 +7,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
     'BalanceMigrationSourceMock',
   );
   const CleanupExchange = artifacts.require('CleanupExchange');
-  const Exchange = artifacts.require('Exchange');
+  const Exchange = artifacts.require('Exchange_v3_1');
   const WETH = artifacts.require('WETH');
 
   const ethAddress = web3.utils.bytesToHex([...Buffer.alloc(20)]);
@@ -15,7 +15,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
   describe('constructor', () => {
     it('should work', async () => {
       await Exchange.new(
-        (await BalanceMigrationSourceMock.new()).address,
+        (await BalanceMigrationSourceMock.new(0)).address,
         (await WETH.new()).address,
         nativeAssetSymbol,
       );
@@ -40,7 +40,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
 
   it('should revert when receiving ETH directly', async () => {
     const exchange = await Exchange.new(
-      (await BalanceMigrationSourceMock.new()).address,
+      (await BalanceMigrationSourceMock.new(0)).address,
       (await WETH.new()).address,
       nativeAssetSymbol,
     );
@@ -185,7 +185,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
   describe('setAdmin', async () => {
     it('should work for valid address', async () => {
       const exchange = await Exchange.new(
-        (await BalanceMigrationSourceMock.new()).address,
+        (await BalanceMigrationSourceMock.new(0)).address,
         (await WETH.new()).address,
         nativeAssetSymbol,
       );
@@ -195,7 +195,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
 
     it('should revert for empty address', async () => {
       const exchange = await Exchange.new(
-        (await BalanceMigrationSourceMock.new()).address,
+        (await BalanceMigrationSourceMock.new(0)).address,
         (await WETH.new()).address,
         nativeAssetSymbol,
       );
@@ -227,7 +227,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
 
     it('should revert when not called by owner', async () => {
       const exchange = await Exchange.new(
-        (await BalanceMigrationSourceMock.new()).address,
+        (await BalanceMigrationSourceMock.new(0)).address,
         (await WETH.new()).address,
         nativeAssetSymbol,
       );
@@ -259,7 +259,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
 
     it('should revert for empty address', async () => {
       const exchange = await Exchange.new(
-        (await BalanceMigrationSourceMock.new()).address,
+        (await BalanceMigrationSourceMock.new(0)).address,
         (await WETH.new()).address,
         nativeAssetSymbol,
       );
@@ -335,7 +335,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
 
     it('should revert for empty address', async () => {
       const exchange = await Exchange.new(
-        (await BalanceMigrationSourceMock.new()).address,
+        (await BalanceMigrationSourceMock.new(0)).address,
         (await WETH.new()).address,
         nativeAssetSymbol,
       );
@@ -403,7 +403,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
 
     it('should revert for empty address', async () => {
       const exchange = await Exchange.new(
-        (await BalanceMigrationSourceMock.new()).address,
+        (await BalanceMigrationSourceMock.new(0)).address,
         (await WETH.new()).address,
         nativeAssetSymbol,
       );
@@ -450,7 +450,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
 
     it('should revert for invalid address', async () => {
       const exchange = await Exchange.new(
-        (await BalanceMigrationSourceMock.new()).address,
+        (await BalanceMigrationSourceMock.new(0)).address,
         (await WETH.new()).address,
         nativeAssetSymbol,
       );

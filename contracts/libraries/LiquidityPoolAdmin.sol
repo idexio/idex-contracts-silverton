@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 
-pragma solidity 0.8.4;
+pragma solidity 0.8.10;
 
 import { AssetRegistry } from './AssetRegistry.sol';
 import { AssetTransfers } from './AssetTransfers.sol';
@@ -12,6 +12,7 @@ import { Validations } from './Validations.sol';
 import {
   ICustodian,
   IERC20,
+  IExchange,
   ILiquidityProviderToken,
   IWETH9
 } from './Interfaces.sol';
@@ -21,23 +22,85 @@ import { Asset, LiquidityMigration, LiquidityPool } from './Structs.sol';
 library LiquidityPoolAdmin {
   using AssetRegistry for AssetRegistry.Storage;
 
+  function upgradeLiquidityPool(
+    LiquidityPools.Storage storage self,
+    address baseAssetAddress,
+    address quoteAssetAddress,
+    AssetRegistry.Storage storage assetRegistry,
+    IExchange balanceMigrationSource,
+    ICustodian custodian
+  ) public {
+    require(
+      custodian.loadExchange() == address(this),
+      'Can only be set on Exchange whitelisted with Custodian'
+    );
+
+    // Use bidirectional mapping to require uniqueness of pools by asset pair regardless of
+    // base-quote positions
+    require(
+      address(
+        self.liquidityProviderTokensByAddress[baseAssetAddress][
+          quoteAssetAddress
+        ]
+      ) == address(0x0),
+      'Pool already exists'
+    );
+
+    // loadLiquidityPoolByAssetAddresses will revert if the pool does not exist
+    LiquidityPool memory migrationSourcePool =
+      balanceMigrationSource.loadLiquidityPoolByAssetAddresses(
+        baseAssetAddress,
+        quoteAssetAddress
+      );
+
+    // Create internally-tracked liquidity pool
+    self.poolsByAddresses[baseAssetAddress][
+      quoteAssetAddress
+    ] = migrationSourcePool;
+
+    // Store LP token address in both pair directions to allow lookup by unordered asset pairs
+    // during on-chain initiated liquidity removals
+    self.liquidityProviderTokensByAddress[baseAssetAddress][
+      quoteAssetAddress
+    ] = ILiquidityProviderToken(migrationSourcePool.liquidityProviderToken);
+    self.liquidityProviderTokensByAddress[quoteAssetAddress][
+      baseAssetAddress
+    ] = ILiquidityProviderToken(migrationSourcePool.liquidityProviderToken);
+
+    // Build an asset descriptor for the LP token and add it to the registry.
+    Asset memory lpTokenAsset =
+      Asset({
+        exists: true,
+        assetAddress: address(migrationSourcePool.liquidityProviderToken),
+        symbol: string(
+          abi.encodePacked(
+            'ILP-',
+            migrationSourcePool.liquidityProviderToken.baseAssetSymbol(),
+            '-',
+            migrationSourcePool.liquidityProviderToken.quoteAssetSymbol()
+          )
+        ),
+        decimals: Constants.liquidityProviderTokenDecimals,
+        isConfirmed: true,
+        confirmedTimestampInMs: uint64(block.timestamp * 1000) // Block timestamp is in seconds, store ms
+      });
+    assetRegistry.assetsByAddress[lpTokenAsset.assetAddress] = lpTokenAsset;
+    assetRegistry.assetsBySymbol[lpTokenAsset.symbol].push(lpTokenAsset);
+  }
+
   function createLiquidityPool(
     LiquidityPools.Storage storage self,
     address baseAssetAddress,
     address quoteAssetAddress,
     AssetRegistry.Storage storage assetRegistry
-  ) public returns (address liquidityProviderToken) {
+  ) public {
     {
-      return
-        address(
-          createLiquidityPoolByAssetAddresses(
-            self,
-            baseAssetAddress,
-            quoteAssetAddress,
-            assetRegistry
-          )
-            .liquidityProviderToken
-        );
+      createLiquidityPoolByAssetAddresses(
+        self,
+        baseAssetAddress,
+        quoteAssetAddress,
+        assetRegistry
+      );
     }
   }
 

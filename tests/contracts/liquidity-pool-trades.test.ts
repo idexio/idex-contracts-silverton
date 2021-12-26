@@ -20,7 +20,7 @@ import {
 import { deployContractsAndCreateHybridETHPool } from './liquidity-pools.test';
 import { getSignature } from './helpers';
 
-import { ExchangeInstance } from '../../types/truffle-contracts/Exchange';
+import { ExchangeV31Instance } from '../../types/truffle-contracts/ExchangeV31';
 import { TestTokenInstance } from '../../types/truffle-contracts/TestToken';
 
 const token0Symbol = 'DIL';
@@ -255,7 +255,6 @@ contract(
         );
         poolTrade.netQuoteQuantity = '0.05000000';
         poolTrade.takerPoolFeeQuantity = '0.05000000';
-        console.log(poolTrade);
 
         let error;
         try {
@@ -1983,7 +1982,7 @@ contract(
 );
 
 const deposit = async (
-  exchange: ExchangeInstance,
+  exchange: ExchangeV31Instance,
   token: TestTokenInstance,
   wallet: string,
   tokenQuantity: string,
@@ -2103,7 +2102,7 @@ const generateHybridTrade = async (
 };
 
 const generateAndExecuteHybridTrade = async (
-  exchange: ExchangeInstance,
+  exchange: ExchangeV31Instance,
   token: TestTokenInstance,
   buyWallet: string,
   sellWallet: string,

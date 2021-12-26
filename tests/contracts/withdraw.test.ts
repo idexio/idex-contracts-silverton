@@ -1,7 +1,7 @@
 import BigNumber from 'bignumber.js';
 import { v1 as uuidv1 } from 'uuid';
 
-import type { ExchangeInstance } from '../../types/truffle-contracts';
+import type { ExchangeV31Instance } from '../../types/truffle-contracts';
 
 import {
   ethAddress,
@@ -468,7 +468,7 @@ contract('Exchange (withdrawals)', (accounts) => {
   });
 
   const assertWithdrawnEvent = async (
-    exchange: ExchangeInstance,
+    exchange: ExchangeV31Instance,
     walletAddress: string,
     assetAddress: string,
     assetSymbol: string,

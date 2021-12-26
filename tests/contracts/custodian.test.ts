@@ -3,7 +3,7 @@ import BigNumber from 'bignumber.js';
 import { ethAddress, nativeAssetSymbol } from '../../lib';
 import {
   CustodianInstance,
-  ExchangeInstance,
+  ExchangeV31Instance,
   ExchangeWithdrawMockInstance,
   GovernanceInstance,
   GovernanceMockInstance,
@@ -15,18 +15,18 @@ contract('Custodian', (accounts) => {
   );
 
   const Custodian = artifacts.require('Custodian');
-  const Exchange = artifacts.require('Exchange');
+  const Exchange = artifacts.require('Exchange_v3_1');
   const Governance = artifacts.require('Governance');
   const GovernanceMock = artifacts.require('GovernanceMock');
   const ExchangeWithdrawMock = artifacts.require('ExchangeWithdrawMock');
   const Token = artifacts.require('TestToken');
   const WETH = artifacts.require('WETH');
 
-  let exchange: ExchangeInstance;
+  let exchange: ExchangeV31Instance;
   let governance: GovernanceInstance;
   beforeEach(async () => {
     exchange = await Exchange.new(
-      (await BalanceMigrationSourceMock.new()).address,
+      (await BalanceMigrationSourceMock.new(0)).address,
       (await WETH.new()).address,
       nativeAssetSymbol,
     );
@@ -127,7 +127,7 @@ contract('Custodian', (accounts) => {
 
     it('should work when sent from governance address', async () => {
       const newExchange = await Exchange.new(
-        (await BalanceMigrationSourceMock.new()).address,
+        (await BalanceMigrationSourceMock.new(0)).address,
         (await WETH.new()).address,
         nativeAssetSymbol,
       );

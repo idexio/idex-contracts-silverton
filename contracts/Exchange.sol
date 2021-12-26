@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 
-pragma solidity 0.8.4;
+pragma solidity 0.8.10;
 
 import { Address } from '@openzeppelin/contracts/utils/Address.sol';
 
@@ -48,7 +48,7 @@ import {
  * @dev The term `asset` refers collectively to ETH and ERC-20 tokens, the term `token` refers only
  * to the latter
  */
-contract Exchange is IExchange, Owned {
+contract Exchange_v3_1 is IExchange, Owned {
   using AssetRegistry for AssetRegistry.Storage;
   using BalanceTracking for BalanceTracking.Storage;
   using LiquidityPools for LiquidityPools.Storage;
@@ -118,14 +118,6 @@ contract Exchange is IExchange, Owned {
     uint64 baseQuantityInPips,
     uint64 quoteQuantityInPips,
     uint64 liquidityInPips
-  );
-  /**
-   * @notice Emitted when a
-   */
-  event LiquidityPoolCreated(
-    address baseAssetAddress,
-    address quoteAssetAddress,
-    address liquidityProviderToken
   );
   /**
    * @notice Emitted when an Admin switches liquidity pool asset direction via
@@ -200,11 +192,6 @@ contract Exchange is IExchange, Owned {
    * via `addTokenSymbol`
    */
   event TokenSymbolAdded(IERC20 assetAddress, string assetSymbol);
-  /**
-   * @notice Emitted when the Dispatcher Wallet submits a trade for execution with `executeOrderBookTrade`
-   * @notice Emitted when the Dispatcher Wallet submits a trade for execution with
-   * `executeOrderBookTrade`
-   */
   /**
    * @notice Emitted when a user invokes the Exit Wallet mechanism with `exitWallet`
    */
@@ -284,7 +271,7 @@ contract Exchange is IExchange, Owned {
   /**
    * @notice Instantiate a new `Exchange` contract
    *
-   * @dev Sets `_balanceMigrationSource` to first argument, and `_owner` and `_admin` to
+   * @dev Sets `_balanceTracking.migrationSource` to first argument, and `_owner` and `_admin` to
    * `msg.sender`
    */
   constructor(
@@ -330,25 +317,18 @@ contract Exchange is IExchange, Owned {
 
   /**
    * @notice Enable depositing assets into the Exchange by setting the current deposit index from
-   * the old Exchange contract's value
+   * the old Exchange contract's value. This function can only be called once
    *
-   * @dev The Whistler Exchange does not expose its `_depositIndex` making this manual migration
-   * necessary. If this Exchange is not upgraded from Whistler, call this function with
-   * `newDepositIndex` set to 0. This value cannot be changed again once set
-   *
-   * @param newDepositIndex The value of `_depositIndex` currently set on the old Exchange contract
    */
-  function setDepositIndex(uint64 newDepositIndex) external onlyAdmin {
+  function setDepositIndex() external onlyAdmin {
     require(
       _depositIndex == Constants.depositIndexNotSet,
       'Can only be set once'
     );
-    require(
-      newDepositIndex != Constants.depositIndexNotSet,
-      'Invalid deposit index'
-    );
 
-    _depositIndex = newDepositIndex;
+    _depositIndex = address(_balanceTracking.migrationSource) == address(0x0)
+      ? 0
+      : _balanceTracking.migrationSource._depositIndex();
   }
 
   /*** Tunable parameters ***/
@@ -523,7 +503,7 @@ contract Exchange is IExchange, Owned {
   function loadLiquidityPoolByAssetAddresses(
     address baseAssetAddress,
     address quoteAssetAddress
-  ) external view returns (LiquidityPool memory) {
+  ) external view override returns (LiquidityPool memory) {
     return
       _liquidityPools.loadLiquidityPoolByAssetAddresses(
         baseAssetAddress,
@@ -849,6 +829,25 @@ contract Exchange is IExchange, Owned {
   }
 
   // Liquidity pools //
+
+  /**
+   * @notice Create a new internally tracked liquidity pool copied from a previous Exchange contract
+   *
+   * @param baseAssetAddress The base asset address
+   * @param quoteAssetAddress The quote asset address
+   */
+  function upgradeLiquidityPool(
+    address baseAssetAddress,
+    address quoteAssetAddress
+  ) external onlyAdmin {
+    _liquidityPools.upgradeLiquidityPool(
+      baseAssetAddress,
+      quoteAssetAddress,
+      _assetRegistry,
+      _balanceTracking.migrationSource,
+      _custodian
+    );
+  }
 
   /**
    * @notice Create a new internally tracked liquidity pool and associated LP token
