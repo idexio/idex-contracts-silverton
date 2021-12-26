@@ -1,4 +1,4 @@
-const Exchange = artifacts.require('Exchange');
+const Exchange = artifacts.require('Exchange_v3_1');
 
 const AssetRegistry = artifacts.require('AssetRegistry');
 const Depositing = artifacts.require('Depositing');

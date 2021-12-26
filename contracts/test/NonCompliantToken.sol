@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 
-pragma solidity 0.8.4;
+pragma solidity 0.8.10;
 
 contract NonCompliantToken {
   event Transfer(address indexed _from, address indexed _to, uint256 _value);

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 
-pragma solidity 0.8.4;
+pragma solidity 0.8.10;
 
 import { AssetRegistry } from './AssetRegistry.sol';
 import { AssetTransfers } from './AssetTransfers.sol';
@@ -287,9 +287,23 @@ library LiquidityPools {
       pool
     );
 
+    uint64 initialPrice = pool.calculateCurrentPoolPriceInPips();
+
     // Debit pool reserves
     pool.baseAssetReserveInPips -= execution.grossBaseQuantityInPips;
     pool.quoteAssetReserveInPips -= execution.grossQuoteQuantityInPips;
+
+    uint64 updatedPrice = pool.calculateCurrentPoolPriceInPips();
+    // Skip price validation if 1) emptying a pool of all liquidity since the price can validly
+    // change to zero or 2) either reserve is below the minimum as prices can no longer be
+    // represented with full pip precision
+    if (
+      updatedPrice > 0 &&
+      pool.baseAssetReserveInPips >= Constants.minLiquidityPoolReserveInPips &&
+      pool.quoteAssetReserveInPips >= Constants.minLiquidityPoolReserveInPips
+    ) {
+      require(initialPrice == updatedPrice, 'Pool price cannot change');
+    }
 
     liquidityProviderToken.burn(
       removal.wallet,
@@ -493,7 +507,7 @@ library LiquidityPools {
     // Require pool price to remain constant on addition. Skip this validation if either reserve is
     // below the minimum as prices can no longer be represented with full pip precision
     if (initialPrice == 0) {
-      // First liquidity addition to empty pool establishes price which must within max ratio
+      // First liquidity addition to empty pool establishes price which must be within max ratio
       Validations.validatePoolReserveRatio(pool);
     } else if (
       pool.baseAssetReserveInPips >= Constants.minLiquidityPoolReserveInPips &&

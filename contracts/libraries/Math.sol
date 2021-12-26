@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 
-pragma solidity 0.8.4;
+pragma solidity 0.8.10;
 
 library Math {
   function multiplyPipsByFraction(
@@ -8,26 +8,9 @@ library Math {
     uint64 fractionDividend,
     uint64 fractionDivisor
   ) internal pure returns (uint64) {
-    return
-      multiplyPipsByFraction(
-        multiplicand,
-        fractionDividend,
-        fractionDivisor,
-        false
-      );
-  }
-
-  function multiplyPipsByFraction(
-    uint64 multiplicand,
-    uint64 fractionDividend,
-    uint64 fractionDivisor,
-    bool roundUp
-  ) internal pure returns (uint64) {
     uint256 dividend = uint256(multiplicand) * fractionDividend;
     uint256 result = dividend / fractionDivisor;
-    if (roundUp && dividend % fractionDivisor > 0) {
-      result += 1;
-    }
+
     require(result < 2**64, 'Pip quantity overflows uint64');
 
     return uint64(result);

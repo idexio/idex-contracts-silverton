@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 
-pragma solidity 0.8.4;
+pragma solidity 0.8.10;
+
+import { SafeCast } from '@openzeppelin/contracts/utils/math/SafeCast.sol';
 
 import { AssetUnitConversions } from './AssetUnitConversions.sol';
 import { Constants } from './Constants.sol';
@@ -28,6 +30,7 @@ library LiquidityPoolHelpers {
 
   /**
    * @dev Calculate reserve asset quantities to remove from a pool for a given liquidity amount
+   * @dev This function will revert if the base reserve is zero
    */
   function calculateOutputAssetQuantitiesInPips(
     LiquidityPool memory self,
@@ -52,15 +55,21 @@ library LiquidityPoolHelpers {
       liquidityToBurnInPips,
       totalLiquidityInPips
     );
-    // Calculate quote amount out that maintains the current pool price given above base amount out
+
+    // Calculate quote amount out that maintains the current pool price given above base amount out.
+    // Use double pip precision to avoid precision loss for very high prices
+    uint256 poolPriceInDoublePips =
+      (uint256(self.quoteAssetReserveInPips) *
+        Constants.doublePipPriceMultiplier) / self.baseAssetReserveInPips;
+    uint64 targetQuoteAssetReserveInPips =
+      SafeCast.toUint64(
+        (uint256(self.baseAssetReserveInPips - outputBaseAssetQuantityInPips) *
+          poolPriceInDoublePips) / Constants.doublePipPriceMultiplier
+      );
+
     outputQuoteAssetQuantityInPips =
       self.quoteAssetReserveInPips -
-      Math.multiplyPipsByFraction(
-        self.baseAssetReserveInPips - outputBaseAssetQuantityInPips,
-        calculateCurrentPoolPriceInPips(self),
-        Constants.pipPriceMultiplier,
-        true
-      );
+      targetQuoteAssetReserveInPips;
   }
 
   /**

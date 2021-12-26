@@ -17,13 +17,14 @@ import {
 } from '../../lib';
 import {
   CustodianInstance,
-  ExchangeInstance,
+  ExchangeV31Instance,
   IPancakePairInstance,
   FactoryInstance,
   LiquidityProviderTokenInstance,
   TestTokenInstance,
   WETHInstance,
   FarmInstance,
+  GovernanceInstance,
 } from '../../types/truffle-contracts';
 import {
   deployAndAssociateContracts,
@@ -37,6 +38,192 @@ export const token0Symbol = 'DIL';
 export const token1Symbol = 'JUR';
 
 contract('Exchange (liquidity pools)', ([ownerWallet]) => {
+  describe('upgradeLiquidityPool', () => {
+    it('should work', async () => {
+      const Exchange = artifacts.require('Exchange_v3_1');
+
+      const depositQuantity = '1.00000000';
+      const {
+        exchange,
+        custodian,
+        governance,
+        lpToken,
+        token0,
+        token1,
+      } = await deployContractsAndCreateHybridPool(
+        depositQuantity,
+        depositQuantity,
+        ownerWallet,
+      );
+      await exchange.setDispatcher(ownerWallet);
+      await addLiquidityAndExecute(
+        depositQuantity,
+        ownerWallet,
+        exchange,
+        token0,
+        token1,
+      );
+      const pool = await exchange.loadLiquidityPoolByAssetAddresses(
+        token0.address,
+        token1.address,
+      );
+
+      const newExchange = await Exchange.new(
+        exchange.address,
+        '0xFee8FD4413136fA2A76D15202A544a795F32808e',
+        'MATIC',
+      );
+      await newExchange.setCustodian(custodian.address);
+      await newExchange.setDispatcher(ownerWallet);
+      await newExchange.registerToken(token0.address, token0Symbol, 18);
+      await newExchange.confirmTokenRegistration(
+        token0.address,
+        token0Symbol,
+        18,
+      );
+      await newExchange.registerToken(token1.address, token1Symbol, 18);
+      await newExchange.confirmTokenRegistration(
+        token1.address,
+        token1Symbol,
+        18,
+      );
+
+      await governance.initiateExchangeUpgrade(newExchange.address);
+      await governance.finalizeExchangeUpgrade(newExchange.address);
+
+      await newExchange.setDepositIndex();
+
+      await newExchange.upgradeLiquidityPool(token0.address, token1.address);
+      const migratedPool = await exchange.loadLiquidityPoolByAssetAddresses(
+        token0.address,
+        token1.address,
+      );
+
+      expect(migratedPool.baseAssetReserveInPips).to.equal(
+        pool.baseAssetReserveInPips,
+      );
+      expect(migratedPool.baseAssetDecimals).to.equal(pool.baseAssetDecimals);
+      expect(migratedPool.quoteAssetReserveInPips).to.equal(
+        pool.quoteAssetReserveInPips,
+      );
+      expect(migratedPool.quoteAssetDecimals).to.equal(pool.quoteAssetDecimals);
+      expect(migratedPool.liquidityProviderToken.toLowerCase()).to.equal(
+        lpToken.address.toLowerCase(),
+      );
+
+      await removeLiquidityAndExecute(
+        depositQuantity,
+        ownerWallet,
+        newExchange,
+        lpToken,
+        token0,
+        token1,
+      );
+
+      const events = await newExchange.getPastEvents('Deposited', {
+        fromBlock: 0,
+      });
+      expect(events).to.be.an('array');
+      expect(events.length).to.equal(1);
+      expect(events[0].returnValues.assetSymbol).to.equal(
+        `ILP-${token0Symbol}-${token1Symbol}`,
+      );
+    });
+
+    it('should revert when Exchange is not whitelisted in Custodian', async () => {
+      const BalanceMigrationSourceMock = artifacts.require(
+        'BalanceMigrationSourceMock',
+      );
+      const Exchange = artifacts.require('Exchange_v3_1');
+
+      const { custodian } = await deployAndAssociateContracts();
+      const exchange = await Exchange.new(
+        (await BalanceMigrationSourceMock.new(0)).address,
+        '0xA7EeDDDbc51fa82C8BD2c5e7b07878Fc30B0f19f',
+        'MATIC',
+      );
+      await exchange.setCustodian(custodian.address);
+
+      const baseAssetAddress = '0xe44ffc50ed6673d6a1c385b76152e1551a6c14a3';
+      const quoteAssetAddress = '0x3073a02460d7be1a1c9afc60a059ad8d788a4502';
+
+      let error;
+      try {
+        await exchange.upgradeLiquidityPool(
+          baseAssetAddress,
+          quoteAssetAddress,
+        );
+      } catch (e) {
+        error = e;
+      }
+      expect(error).to.not.be.undefined;
+      expect(error.message).to.match(
+        /can only be set on Exchange whitelisted with Custodian/i,
+      );
+    });
+
+    it('should revert when pool already exists', async () => {
+      const Exchange = artifacts.require('Exchange_v3_1');
+
+      const depositQuantity = '1.00000000';
+      const {
+        exchange,
+        custodian,
+        governance,
+        token0,
+        token1,
+      } = await deployContractsAndCreateHybridPool(
+        depositQuantity,
+        depositQuantity,
+        ownerWallet,
+      );
+      await exchange.setDispatcher(ownerWallet);
+      await addLiquidityAndExecute(
+        depositQuantity,
+        ownerWallet,
+        exchange,
+        token0,
+        token1,
+      );
+
+      const newExchange = await Exchange.new(
+        exchange.address,
+        '0xFee8FD4413136fA2A76D15202A544a795F32808e',
+        'MATIC',
+      );
+      await newExchange.setCustodian(custodian.address);
+      await newExchange.setDispatcher(ownerWallet);
+      await newExchange.registerToken(token0.address, token0Symbol, 18);
+      await newExchange.confirmTokenRegistration(
+        token0.address,
+        token0Symbol,
+        18,
+      );
+      await newExchange.registerToken(token1.address, token1Symbol, 18);
+      await newExchange.confirmTokenRegistration(
+        token1.address,
+        token1Symbol,
+        18,
+      );
+
+      await governance.initiateExchangeUpgrade(newExchange.address);
+      await governance.finalizeExchangeUpgrade(newExchange.address);
+
+      await newExchange.setDepositIndex();
+
+      await newExchange.upgradeLiquidityPool(token0.address, token1.address);
+
+      let error;
+      try {
+        await newExchange.upgradeLiquidityPool(token0.address, token1.address);
+      } catch (e) {
+        error = e;
+      }
+      expect(error).to.not.be.undefined;
+      expect(error.message).to.match(/pool already exists/i);
+    });
+  });
+
   describe('migrateLiquidityPool', () => {
     it('should work', async () => {
       const depositQuantity = '1.00000000';
@@ -2193,6 +2380,8 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
       ['1900.00000000', '184467440737.09551606', '42000.00000000'],
       ['1000.00000000', '1000.00000000', '1000.00000000'],
       ['193.28562918', '190874.09195647', '6073.97884075'],
+      ['3899568.21749324', '299.75972301', '1.49326947'],
+      ['3447652.77419645', '252.43556389', '5.61652682'],
     ];
     fixtures.forEach((fixture, i) => {
       it(`should work for fixured dataset ${i + 1}`, async () => {
@@ -2879,12 +3068,8 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
       expect(error.message).to.match(/invalid base quantity/i);
     });
 
-    it('should revert on invalid quote amount', async () => {
-      const depositQuantity = '1.00000000';
-      const depositQuantityInAssetUnits = decimalToAssetUnits(
-        depositQuantity,
-        18,
-      );
+    it('should revert on pool price change', async () => {
+      const depositQuantity = '5.00000000';
 
       const {
         exchange,
@@ -2909,7 +3094,7 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
       const { removal, execution } = await generateOnChainLiquidityRemoval(
         exchange,
         lpToken,
-        depositQuantityInAssetUnits,
+        decimalToAssetUnits('1.00000000', 18),
         ownerWallet,
         token0,
         token1,
@@ -2924,7 +3109,7 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/invalid quote quantity/i);
+      expect(error.message).to.match(/pool price cannot change/i);
     });
 
     it('should revert for invalid signatureHashVersion', async () => {
@@ -2976,67 +3161,90 @@ contract('Exchange (liquidity pools)', ([ownerWallet]) => {
   });
 
   describe('removeLiquidityExit', () => {
-    it('should work', async () => {
-      const depositQuantity = '1.00000000';
-      const depositQuantityInAssetUnits = decimalToAssetUnits(
-        depositQuantity,
-        18,
-      );
-      const depositQuantityInPips = assetUnitsToPips(
-        depositQuantityInAssetUnits,
-        18,
-      );
-
-      const {
-        exchange,
-        lpToken,
-        token,
-      } = await deployContractsAndCreateHybridETHPool(
-        depositQuantity,
-        depositQuantity,
-        ownerWallet,
-      );
-      await exchange.setDispatcher(ownerWallet);
-      await addLiquidityETHAndExecute(
-        depositQuantity,
-        ownerWallet,
-        exchange,
-        token,
-      );
-
-      await lpToken.approve(exchange.address, depositQuantityInAssetUnits, {
-        from: ownerWallet,
-      });
-      await exchange.depositTokenByAddress(
-        lpToken.address,
-        depositQuantityInAssetUnits,
-      );
-
-      await exchange.exitWallet();
-
+    const fixtures = [
+      // ['1007069999', '100706992', '31632449.13872196'],
+      ['63164.51806209', '56395014253.92162785', '300000'],
+      ['1900.00000000', '184467440737.09551606', '42000.00000000'],
+      ['1000.00000000', '1000.00000000', '1000.00000000'],
+      ['193.28562918', '190874.09195647', '6073.97884075'],
+      ['3899568.21749324', '299.75972301', '1.49326947'],
+      ['3447652.77419645', '252.43556389', '5.61652682'],
+    ];
+    fixtures.forEach((fixture, i) => {
       const [
-        grossBaseQuantityInPips,
-        grossQuoteQuantityInPips,
-      ] = await getOutputAssetQuantitiesInPips(
-        exchange,
-        token.address,
-        ethAddress,
-        depositQuantityInPips,
-      );
+        initialBaseReserve,
+        initialQuoteReserve,
+        liquidityToRemove,
+      ] = fixture;
 
-      await exchange.removeLiquidityExit(token.address, ethAddress);
+      it(`should work for fixured dataset ${i + 1}`, async () => {
+        const { exchange } = await deployAndAssociateContracts();
+        const token0 = await deployAndRegisterToken(exchange, token0Symbol);
+        const token1 = await deployAndRegisterToken(exchange, token1Symbol);
+        await exchange.createLiquidityPool(token0.address, token1.address);
+        await exchange.setDispatcher(ownerWallet);
 
-      const burnEvents = await lpToken.getPastEvents('Burn', {
-        fromBlock: 0,
+        const LiquidityProviderToken = artifacts.require(
+          'LiquidityProviderToken',
+        );
+        const pool = await exchange.loadLiquidityPoolByAssetAddresses(
+          token0.address,
+          token1.address,
+        );
+        const lpToken = await LiquidityProviderToken.at(
+          pool.liquidityProviderToken,
+        );
+
+        await addLiquidityAndExecute(
+          '',
+          ownerWallet,
+          exchange,
+          token0,
+          token1,
+          false,
+          18,
+          decimalToAssetUnits(initialBaseReserve, 18),
+          decimalToAssetUnits(initialQuoteReserve, 18),
+        );
+
+        await lpToken.approve(
+          exchange.address,
+          decimalToAssetUnits(liquidityToRemove, 18),
+          {
+            from: ownerWallet,
+          },
+        );
+        await exchange.depositTokenByAddress(
+          lpToken.address,
+          decimalToAssetUnits(liquidityToRemove, 18),
+        );
+
+        await exchange.exitWallet();
+
+        const [
+          grossBaseQuantityInPips,
+          grossQuoteQuantityInPips,
+        ] = await getOutputAssetQuantitiesInPips(
+          exchange,
+          token0.address,
+          token1.address,
+          decimalToPips(liquidityToRemove),
+        );
+
+        await exchange.removeLiquidityExit(token0.address, token1.address);
+
+        const burnEvents = await lpToken.getPastEvents('Burn', {
+          fromBlock: 0,
+        });
+        expect(burnEvents).to.be.an('array');
+        expect(burnEvents.length).to.equal(1);
+        expect(
+          burnEvents[0].returnValues.baseAssetQuantityInAssetUnits,
+        ).to.equal(pipsToAssetUnits(grossBaseQuantityInPips, 18));
+        expect(
+          burnEvents[0].returnValues.quoteAssetQuantityInAssetUnits,
+        ).to.equal(pipsToAssetUnits(grossQuoteQuantityInPips, 18));
       });
-      expect(burnEvents).to.be.an('array');
-      expect(burnEvents.length).to.equal(1);
-      expect(burnEvents[0].returnValues.baseAssetQuantityInAssetUnits).to.equal(
-        pipsToAssetUnits(grossBaseQuantityInPips, 18),
-      );
-      expect(
-        burnEvents[0].returnValues.quoteAssetQuantityInAssetUnits,
-      ).to.equal(pipsToAssetUnits(grossQuoteQuantityInPips, 18));
     });
 
     it('should revert when wallet exit not finalized', async () => {
@@ -3158,13 +3366,19 @@ export async function deployContractsAndCreateHybridPool(
   feeWallet = ownerWallet,
 ): Promise<{
   custodian: CustodianInstance;
-  exchange: ExchangeInstance;
+  exchange: ExchangeV31Instance;
+  governance: GovernanceInstance;
   lpToken: LiquidityProviderTokenInstance;
   pair: IPancakePairInstance;
   token0: TestTokenInstance;
   token1: TestTokenInstance;
 }> {
-  const { custodian, exchange, farm } = await deployAndAssociateContracts();
+  const {
+    custodian,
+    exchange,
+    governance,
+    farm,
+  } = await deployAndAssociateContracts();
   const token0 = await deployAndRegisterToken(exchange, token0Symbol);
   const token1 = await deployAndRegisterToken(exchange, token1Symbol);
   const { pair } = await deployPancakeCoreAndCreatePool(
@@ -3204,7 +3418,7 @@ export async function deployContractsAndCreateHybridPool(
   const LiquidityProviderToken = artifacts.require('LiquidityProviderToken');
   const lpToken = await LiquidityProviderToken.at((await farm.poolInfo(0))[0]);
 
-  return { custodian, exchange, lpToken, pair, token0, token1 };
+  return { custodian, exchange, governance, lpToken, pair, token0, token1 };
 }
 
 export async function deployContractsAndCreateHybridETHPool(
@@ -3215,7 +3429,7 @@ export async function deployContractsAndCreateHybridETHPool(
   performMigration = true,
 ): Promise<{
   custodian: CustodianInstance;
-  exchange: ExchangeInstance;
+  exchange: ExchangeV31Instance;
   farm: FarmInstance;
   pair: IPancakePairInstance;
   lpToken: LiquidityProviderTokenInstance;
@@ -3278,7 +3492,7 @@ export async function deployContractsAndCreateHybridETHPool(
 async function addLiquidityAndExecute(
   depositQuantity: string,
   ownerWallet: string,
-  exchange: ExchangeInstance,
+  exchange: ExchangeV31Instance,
   token0: TestTokenInstance,
   token1: TestTokenInstance,
   includeFee = false,
@@ -3287,7 +3501,7 @@ async function addLiquidityAndExecute(
   token1Override?: string,
   liquidityOverride?: string,
 ): Promise<{
-  execution: ExchangeInstance['executeAddLiquidity']['arguments'][1];
+  execution: ExchangeV31Instance['executeAddLiquidity']['arguments'][1];
 }> {
   const depositQuantityInAssetUnits = decimalToAssetUnits(
     depositQuantity,
@@ -3373,13 +3587,13 @@ async function addLiquidityAndExecute(
 async function addLiquidityETHAndExecute(
   depositQuantity: string,
   ownerWallet: string,
-  exchange: ExchangeInstance,
+  exchange: ExchangeV31Instance,
   token: TestTokenInstance,
   includeFee = false,
   to = ownerWallet,
   decimals = 18,
 ): Promise<{
-  execution: ExchangeInstance['executeAddLiquidity']['arguments'][1];
+  execution: ExchangeV31Instance['executeAddLiquidity']['arguments'][1];
 }> {
   const depositQuantityInAssetUnits = decimalToAssetUnits(
     depositQuantity,
@@ -3456,7 +3670,7 @@ async function addLiquidityETHAndExecute(
 }
 
 async function getOutputLiquidityInPips(
-  exchange: ExchangeInstance,
+  exchange: ExchangeV31Instance,
   baseAssetAddress: string,
   quoteAssetAddress: string,
   baseQuantityInPips: string,
@@ -3499,7 +3713,7 @@ async function getOutputLiquidityInPips(
 }
 
 async function getOutputAssetQuantitiesInPips(
-  exchange: ExchangeInstance,
+  exchange: ExchangeV31Instance,
   baseAssetAddress: string,
   quoteAssetAddress: string,
   liquidityInPips: string,
@@ -3517,15 +3731,16 @@ async function getOutputAssetQuantitiesInPips(
     assetUnitsToPips((await lpToken.totalSupply()).toString(), 18),
   );
 
-  const poolPrice = new BigNumber(
-    new BigNumber(pool.quoteAssetReserveInPips.toString())
-      .dividedBy(new BigNumber(pool.baseAssetReserveInPips.toString()))
-      .toFixed(8),
-  );
   const baseQuantityInPips = new BigNumber(liquidityInPips)
     .multipliedBy(new BigNumber(pool.baseAssetReserveInPips.toString()))
     .dividedBy(totalSupplyInPips)
     .toFixed(0, BigNumber.ROUND_FLOOR);
+
+  const poolPrice = new BigNumber(
+    new BigNumber(pool.quoteAssetReserveInPips.toString())
+      .dividedBy(new BigNumber(pool.baseAssetReserveInPips.toString()))
+      .toFixed(16),
+  );
   const quoteQuantityInPips = new BigNumber(
     pool.quoteAssetReserveInPips.toString(),
   )
@@ -3533,7 +3748,7 @@ async function getOutputAssetQuantitiesInPips(
       new BigNumber(pool.baseAssetReserveInPips.toString())
         .minus(new BigNumber(baseQuantityInPips))
         .multipliedBy(poolPrice)
-        .toFixed(0, BigNumber.ROUND_CEIL),
+        .toFixed(0, BigNumber.ROUND_FLOOR),
     )
     .toString();
 
@@ -3541,7 +3756,7 @@ async function getOutputAssetQuantitiesInPips(
 }
 
 export async function getLpToken(
-  exchange: ExchangeInstance,
+  exchange: ExchangeV31Instance,
   baseAssetAddress: string,
   quoteAssetAddress: string,
 ): Promise<LiquidityProviderTokenInstance> {
@@ -3557,7 +3772,7 @@ export async function getLpToken(
 async function removeLiquidityAndExecute(
   depositQuantity: string,
   ownerWallet: string,
-  exchange: ExchangeInstance,
+  exchange: ExchangeV31Instance,
   lpToken: LiquidityProviderTokenInstance,
   token0: TestTokenInstance,
   token1: TestTokenInstance,
@@ -3565,7 +3780,7 @@ async function removeLiquidityAndExecute(
   to = ownerWallet,
   decimals = 18,
 ): Promise<{
-  execution: ExchangeInstance['executeRemoveLiquidity']['arguments'][1];
+  execution: ExchangeV31Instance['executeRemoveLiquidity']['arguments'][1];
 }> {
   const depositQuantityInAssetUnits = decimalToAssetUnits(
     depositQuantity,
@@ -3645,13 +3860,13 @@ async function removeLiquidityAndExecute(
 async function removeLiquidityETHAndExecute(
   depositQuantity: string,
   ownerWallet: string,
-  exchange: ExchangeInstance,
+  exchange: ExchangeV31Instance,
   lpToken: LiquidityProviderTokenInstance,
   token: TestTokenInstance,
   includeFee = false,
   decimals = 18,
 ): Promise<{
-  execution: ExchangeInstance['executeRemoveLiquidity']['arguments'][1];
+  execution: ExchangeV31Instance['executeRemoveLiquidity']['arguments'][1];
 }> {
   const depositQuantityInAssetUnits = decimalToAssetUnits(
     depositQuantity,
@@ -3728,14 +3943,14 @@ async function removeLiquidityETHAndExecute(
 }
 
 async function generateOnChainLiquidityAddition(
-  exchange: ExchangeInstance,
+  exchange: ExchangeV31Instance,
   depositQuantityInAssetUnits: string,
   ownerWallet: string,
   token0: TestTokenInstance,
   token1: TestTokenInstance,
 ): Promise<{
-  addition: ExchangeInstance['executeAddLiquidity']['arguments'][0];
-  execution: ExchangeInstance['executeAddLiquidity']['arguments'][1];
+  addition: ExchangeV31Instance['executeAddLiquidity']['arguments'][0];
+  execution: ExchangeV31Instance['executeAddLiquidity']['arguments'][1];
 }> {
   const depositQuantityInPips = assetUnitsToPips(
     depositQuantityInAssetUnits,
@@ -3786,15 +4001,15 @@ async function generateOnChainLiquidityAddition(
 }
 
 async function generateOnChainLiquidityRemoval(
-  exchange: ExchangeInstance,
+  exchange: ExchangeV31Instance,
   lpToken: LiquidityProviderTokenInstance,
   depositQuantityInAssetUnits: string,
   ownerWallet: string,
   token0: TestTokenInstance,
   token1: TestTokenInstance,
 ): Promise<{
-  removal: ExchangeInstance['executeRemoveLiquidity']['arguments'][0];
-  execution: ExchangeInstance['executeRemoveLiquidity']['arguments'][1];
+  removal: ExchangeV31Instance['executeRemoveLiquidity']['arguments'][0];
+  execution: ExchangeV31Instance['executeRemoveLiquidity']['arguments'][1];
 }> {
   const [
     grossBaseQuantityInPips,
@@ -3852,12 +4067,12 @@ async function generateOnChainLiquidityRemoval(
 async function generateOffChainLiquidityAddition(
   depositQuantityInAssetUnits: string,
   ownerWallet: string,
-  exchange: ExchangeInstance,
+  exchange: ExchangeV31Instance,
   token0: TestTokenInstance,
   token1: TestTokenInstance,
 ): Promise<{
   addition: LiquidityAddition;
-  execution: ExchangeInstance['executeAddLiquidity']['arguments'][1];
+  execution: ExchangeV31Instance['executeAddLiquidity']['arguments'][1];
 }> {
   const depositQuantityInPips = assetUnitsToPips(
     depositQuantityInAssetUnits,
@@ -3911,14 +4126,14 @@ async function generateOffChainLiquidityAddition(
 async function generateOffChainLiquidityRemoval(
   depositQuantityInAssetUnits: string,
   ownerWallet: string,
-  exchange: ExchangeInstance,
+  exchange: ExchangeV31Instance,
   lpToken: LiquidityProviderTokenInstance,
   token0: TestTokenInstance,
   token1: TestTokenInstance,
   skipPairTokenDeposit = false,
 ): Promise<{
   removal: LiquidityRemoval;
-  execution: ExchangeInstance['executeAddLiquidity']['arguments'][1];
+  execution: ExchangeV31Instance['executeAddLiquidity']['arguments'][1];
 }> {
   const depositQuantityInPips = assetUnitsToPips(
     depositQuantityInAssetUnits,

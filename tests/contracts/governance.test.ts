@@ -5,7 +5,7 @@ contract('Governance', (accounts) => {
   const BalanceMigrationSourceMock = artifacts.require(
     'BalanceMigrationSourceMock',
   );
-  const Exchange = artifacts.require('Exchange');
+  const Exchange = artifacts.require('Exchange_v3_1');
   const Governance = artifacts.require('Governance');
   const WETH = artifacts.require('WETH');
 
@@ -100,7 +100,7 @@ contract('Governance', (accounts) => {
         governance,
       } = await deployAndAssociateContracts();
       const newExchange = await Exchange.new(
-        (await BalanceMigrationSourceMock.new()).address,
+        (await BalanceMigrationSourceMock.new(0)).address,
         (await WETH.new()).address,
         nativeAssetSymbol,
       );
@@ -166,7 +166,7 @@ contract('Governance', (accounts) => {
     it('should revert when upgrade already in progress', async () => {
       const { governance } = await deployAndAssociateContracts();
       const newExchange = await Exchange.new(
-        (await BalanceMigrationSourceMock.new()).address,
+        (await BalanceMigrationSourceMock.new(0)).address,
         (await WETH.new()).address,
         nativeAssetSymbol,
       );
@@ -190,7 +190,7 @@ contract('Governance', (accounts) => {
         governance,
       } = await deployAndAssociateContracts();
       const newExchange = await Exchange.new(
-        (await BalanceMigrationSourceMock.new()).address,
+        (await BalanceMigrationSourceMock.new(0)).address,
         (await WETH.new()).address,
         nativeAssetSymbol,
       );
@@ -225,7 +225,7 @@ contract('Governance', (accounts) => {
     it('should work when in progress and addresses match', async () => {
       const { custodian, governance } = await deployAndAssociateContracts();
       const newExchange = await Exchange.new(
-        (await BalanceMigrationSourceMock.new()).address,
+        (await BalanceMigrationSourceMock.new(0)).address,
         (await WETH.new()).address,
         nativeAssetSymbol,
       );
@@ -260,7 +260,7 @@ contract('Governance', (accounts) => {
     it('should revert on address mismatch', async () => {
       const { governance } = await deployAndAssociateContracts();
       const newExchange = await Exchange.new(
-        (await BalanceMigrationSourceMock.new()).address,
+        (await BalanceMigrationSourceMock.new(0)).address,
         (await WETH.new()).address,
         nativeAssetSymbol,
       );
@@ -280,7 +280,7 @@ contract('Governance', (accounts) => {
       const blockDelay = 10;
       const { governance } = await deployAndAssociateContracts(blockDelay);
       const newExchange = await Exchange.new(
-        (await BalanceMigrationSourceMock.new()).address,
+        (await BalanceMigrationSourceMock.new(0)).address,
         (await WETH.new()).address,
         nativeAssetSymbol,
       );

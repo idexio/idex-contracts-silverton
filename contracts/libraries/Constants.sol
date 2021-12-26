@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 
-pragma solidity 0.8.4;
+pragma solidity 0.8.10;
 
 /**
  * @dev See GOVERNANCE.md for descriptions of fixed parameters and fees
@@ -39,5 +39,9 @@ library Constants {
   // decimals places
   uint64 public constant pipPriceMultiplier = 10**8;
 
-  uint8 public constant signatureHashVersion = 3;
+  // To convert double integer pips to a fractional price shift decimal left by the double pip
+  // precision of 16 decimals places
+  uint64 public constant doublePipPriceMultiplier = 10**16;
+
+  uint8 public constant signatureHashVersion = 4;
 }

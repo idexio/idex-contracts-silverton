@@ -10,7 +10,7 @@ contract('Exchange (deposits)', (accounts) => {
   const BalanceMigrationSourceMock = artifacts.require(
     'BalanceMigrationSourceMock',
   );
-  const Exchange = artifacts.require('Exchange');
+  const Exchange = artifacts.require('Exchange_v3_1');
   const NonCompliantToken = artifacts.require('NonCompliantToken');
   const SkimmingToken = artifacts.require('SkimmingTestToken');
   const Token = artifacts.require('TestToken');
@@ -20,7 +20,7 @@ contract('Exchange (deposits)', (accounts) => {
 
   it('should revert when receiving ETH directly', async () => {
     const exchange = await Exchange.new(
-      (await BalanceMigrationSourceMock.new()).address,
+      (await BalanceMigrationSourceMock.new(0)).address,
       (await WETH.new()).address,
       nativeAssetSymbol,
     );
@@ -96,44 +96,48 @@ contract('Exchange (deposits)', (accounts) => {
   });
 
   describe('setDepositIndex', () => {
-    it('revert when called twice', async () => {
+    it('should work', async () => {
       const exchange = await Exchange.new(
-        (await BalanceMigrationSourceMock.new()).address,
+        (await BalanceMigrationSourceMock.new(33)).address,
         (await WETH.new()).address,
         nativeAssetSymbol,
       );
 
-      await exchange.setDepositIndex(1);
+      await exchange.setDepositIndex();
+
+      expect((await exchange._depositIndex()).toString()).to.equal('33');
+    });
+
+    it('should work with no migration source', async () => {
+      const exchange = await Exchange.new(
+        '0x0000000000000000000000000000000000000000',
+        (await WETH.new()).address,
+        nativeAssetSymbol,
+      );
+
+      await exchange.setDepositIndex();
+
+      expect((await exchange._depositIndex()).toString()).to.equal('0');
+    });
+
+    it('revert when called twice', async () => {
+      const exchange = await Exchange.new(
+        (await BalanceMigrationSourceMock.new(0)).address,
+        (await WETH.new()).address,
+        nativeAssetSymbol,
+      );
+
+      await exchange.setDepositIndex();
 
       let error;
       try {
-        await exchange.setDepositIndex(1);
+        await exchange.setDepositIndex();
       } catch (e) {
         error = e;
       }
 
       expect(error).to.not.be.undefined;
       expect(error.message).to.match(/can only be set once/i);
-    });
-
-    it('revert when called with invalid value', async () => {
-      const exchange = await Exchange.new(
-        (await BalanceMigrationSourceMock.new()).address,
-        (await WETH.new()).address,
-        nativeAssetSymbol,
-      );
-
-      let error;
-      try {
-        await exchange.setDepositIndex(
-          BigNumber.from(2).pow(64).sub(1).toString(),
-        );
-      } catch (e) {
-        error = e;
-      }
-
-      expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/invalid deposit index/i);
     });
   });
 
@@ -208,7 +212,7 @@ contract('Exchange (deposits)', (accounts) => {
 
     it('should revert when depositIndex is unset', async () => {
       const exchange = await Exchange.new(
-        (await BalanceMigrationSourceMock.new()).address,
+        (await BalanceMigrationSourceMock.new(0)).address,
         (await WETH.new()).address,
         nativeAssetSymbol,
       );
