@@ -30,7 +30,7 @@ contract('Exchange (exits)', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/wallet already exited/i);
+      expect((error as any).message).to.match(/wallet already exited/i);
     });
   });
 
@@ -68,7 +68,7 @@ contract('Exchange (exits)', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/wallet exit not finalized/i);
+      expect((error as any).message).to.match(/wallet exit not finalized/i);
     });
 
     it('should revert for wallet exit not finalized', async () => {
@@ -83,7 +83,7 @@ contract('Exchange (exits)', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/wallet exit not finalized/i);
+      expect((error as any).message).to.match(/wallet exit not finalized/i);
     });
 
     it('should revert for asset with no balance', async () => {
@@ -97,7 +97,7 @@ contract('Exchange (exits)', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/no balance for asset/i);
+      expect((error as any).message).to.match(/no balance for asset/i);
     });
   });
 
@@ -126,7 +126,7 @@ contract('Exchange (exits)', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/wallet exit not finalized/i);
+      expect((error as any).message).to.match(/wallet exit not finalized/i);
     });
   });
 });

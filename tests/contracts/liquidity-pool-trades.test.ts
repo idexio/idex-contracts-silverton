@@ -20,7 +20,7 @@ import {
 import { deployContractsAndCreateHybridETHPool } from './liquidity-pools.test';
 import { getSignature } from './helpers';
 
-import { ExchangeV31Instance } from '../../types/truffle-contracts/ExchangeV31';
+import { Exchange_v3_1Instance } from '../../types/truffle-contracts/Exchange_v3_1';
 import { TestTokenInstance } from '../../types/truffle-contracts/TestToken';
 
 const token0Symbol = 'DIL';
@@ -122,16 +122,14 @@ contract(
           '0.00000000',
         );
 
-        const {
-          buyOrder: sellOrder,
-          poolTrade,
-        } = await generateOrderAndPoolTrade(
-          token.address,
-          ethAddress,
-          sellWallet,
-          '1111.11111235',
-          '0.00081000',
-        );
+        const { buyOrder: sellOrder, poolTrade } =
+          await generateOrderAndPoolTrade(
+            token.address,
+            ethAddress,
+            sellWallet,
+            '1111.11111235',
+            '0.00081000',
+          );
 
         sellOrder.side = OrderSide.Sell;
         poolTrade.netQuoteQuantity = '1.00000000';
@@ -185,7 +183,9 @@ contract(
           error = e;
         }
         expect(error).to.not.be.undefined;
-        expect(error.message).to.match(/price correction not allowed/i);
+        expect((error as any).message).to.match(
+          /price correction not allowed/i,
+        );
       });
 
       it('should revert for unbalanced input fees', async () => {
@@ -225,7 +225,7 @@ contract(
           error = e;
         }
         expect(error).to.not.be.undefined;
-        expect(error.message).to.match(/pool input fees unbalanced/i);
+        expect((error as any).message).to.match(/pool input fees unbalanced/i);
       });
 
       it('should revert for excessive input fees', async () => {
@@ -266,7 +266,7 @@ contract(
           error = e;
         }
         expect(error).to.not.be.undefined;
-        expect(error.message).to.match(/excessive pool input fee/i);
+        expect((error as any).message).to.match(/excessive pool input fee/i);
       });
 
       it('should revert for base reserve below min', async () => {
@@ -305,7 +305,7 @@ contract(
           error = e;
         }
         expect(error).to.not.be.undefined;
-        expect(error.message).to.match(/base reserves below min/i);
+        expect((error as any).message).to.match(/base reserves below min/i);
       });
 
       it('should revert for quote reserve below min', async () => {
@@ -325,16 +325,14 @@ contract(
         );
         await deposit(exchange, token, sellWallet, '10.00000000', '0.00000000');
 
-        const {
-          buyOrder: sellOrder,
-          poolTrade,
-        } = await generateOrderAndPoolTrade(
-          token.address,
-          ethAddress,
-          sellWallet,
-          '1.00000000',
-          '0.01000000',
-        );
+        const { buyOrder: sellOrder, poolTrade } =
+          await generateOrderAndPoolTrade(
+            token.address,
+            ethAddress,
+            sellWallet,
+            '1.00000000',
+            '0.01000000',
+          );
         sellOrder.side = OrderSide.Sell;
         const sellSignature = await getSignature(
           web3,
@@ -352,7 +350,7 @@ contract(
           error = e;
         }
         expect(error).to.not.be.undefined;
-        expect(error.message).to.match(/quote reserves below min/i);
+        expect((error as any).message).to.match(/quote reserves below min/i);
       });
 
       it('should revert for invalidated nonce', async () => {
@@ -394,7 +392,9 @@ contract(
           error = e;
         }
         expect(error).to.not.be.undefined;
-        expect(error.message).to.match(/order nonce timestamp too low/i);
+        expect((error as any).message).to.match(
+          /order nonce timestamp too low/i,
+        );
       });
 
       it('should revert for exited wallet', async () => {
@@ -433,7 +433,7 @@ contract(
           error = e;
         }
         expect(error).to.not.be.undefined;
-        expect(error.message).to.match(/order wallet exit finalized/i);
+        expect((error as any).message).to.match(/order wallet exit finalized/i);
       });
 
       it('should revert for decreasing constant product', async () => {
@@ -471,7 +471,9 @@ contract(
           error = e;
         }
         expect(error).to.not.be.undefined;
-        expect(error.message).to.match(/constant product cannot decrease/i);
+        expect((error as any).message).to.match(
+          /constant product cannot decrease/i,
+        );
       });
 
       it('should revert for duplicate trade pair', async () => {
@@ -509,22 +511,19 @@ contract(
           error = e;
         }
         expect(error).to.not.be.undefined;
-        expect(error.message).to.match(/assets must be different/i);
+        expect((error as any).message).to.match(/assets must be different/i);
       });
 
       it('should revert for symbol address mismatch', async () => {
         const initialBaseReserve = '10000.00000000';
         const initialQuoteReserve = '10.00000000';
 
-        const {
-          exchange,
-          pair,
-          token,
-        } = await deployContractsAndCreateHybridETHPool(
-          initialBaseReserve,
-          initialQuoteReserve,
-          ownerWallet,
-        );
+        const { exchange, pair, token } =
+          await deployContractsAndCreateHybridETHPool(
+            initialBaseReserve,
+            initialQuoteReserve,
+            ownerWallet,
+          );
         await exchange.setDispatcher(ownerWallet);
 
         const { buyOrder, poolTrade } = await generateOrderAndPoolTrade(
@@ -551,7 +550,7 @@ contract(
           error = e;
         }
         expect(error).to.not.be.undefined;
-        expect(error.message).to.match(/symbol address mismatch/i);
+        expect((error as any).message).to.match(/symbol address mismatch/i);
       });
 
       it('should revert when base quantity is zero', async () => {
@@ -589,7 +588,7 @@ contract(
           error = e;
         }
         expect(error).to.not.be.undefined;
-        expect(error.message).to.match(
+        expect((error as any).message).to.match(
           /base quantity must be greater than zero/i,
         );
       });
@@ -629,7 +628,7 @@ contract(
           error = e;
         }
         expect(error).to.not.be.undefined;
-        expect(error.message).to.match(
+        expect((error as any).message).to.match(
           /quote quantity must be greater than zero/i,
         );
       });
@@ -669,7 +668,9 @@ contract(
           error = e;
         }
         expect(error).to.not.be.undefined;
-        expect(error.message).to.match(/buy order limit price exceeded/i);
+        expect((error as any).message).to.match(
+          /buy order limit price exceeded/i,
+        );
       });
 
       it('should revert when sell limit price exceeded', async () => {
@@ -683,16 +684,14 @@ contract(
         );
         await exchange.setDispatcher(ownerWallet);
 
-        const {
-          buyOrder: sellOrder,
-          poolTrade,
-        } = await generateOrderAndPoolTrade(
-          token.address,
-          ethAddress,
-          sellWallet,
-          '1.00000000',
-          '0.10000000',
-        );
+        const { buyOrder: sellOrder, poolTrade } =
+          await generateOrderAndPoolTrade(
+            token.address,
+            ethAddress,
+            sellWallet,
+            '1.00000000',
+            '0.10000000',
+          );
         sellOrder.side = OrderSide.Sell;
         poolTrade.grossBaseQuantity = '1.50000000';
         const sellSignature = await getSignature(
@@ -711,7 +710,9 @@ contract(
           error = e;
         }
         expect(error).to.not.be.undefined;
-        expect(error.message).to.match(/sell order limit price exceeded/i);
+        expect((error as any).message).to.match(
+          /sell order limit price exceeded/i,
+        );
       });
 
       it('should revert for excessive output adjustment', async () => {
@@ -749,7 +750,9 @@ contract(
           error = e;
         }
         expect(error).to.not.be.undefined;
-        expect(error.message).to.match(/excessive pool output adjustment/i);
+        expect((error as any).message).to.match(
+          /excessive pool output adjustment/i,
+        );
       });
 
       it('should revert for excessive gas fee', async () => {
@@ -787,7 +790,7 @@ contract(
           error = e;
         }
         expect(error).to.not.be.undefined;
-        expect(error.message).to.match(/excessive gas fee/i);
+        expect((error as any).message).to.match(/excessive gas fee/i);
       });
 
       it('should revert when net quote plus taker fee not equal to gross', async () => {
@@ -825,7 +828,7 @@ contract(
           error = e;
         }
         expect(error).to.not.be.undefined;
-        expect(error.message).to.match(/input fees unbalanced/i);
+        expect((error as any).message).to.match(/input fees unbalanced/i);
       });
 
       it('should revert when net base plus taker fee not equal to gross', async () => {
@@ -839,16 +842,14 @@ contract(
         );
         await exchange.setDispatcher(ownerWallet);
 
-        const {
-          buyOrder: sellOrder,
-          poolTrade,
-        } = await generateOrderAndPoolTrade(
-          token.address,
-          ethAddress,
-          sellWallet,
-          '1.00000000',
-          '0.10000000',
-        );
+        const { buyOrder: sellOrder, poolTrade } =
+          await generateOrderAndPoolTrade(
+            token.address,
+            ethAddress,
+            sellWallet,
+            '1.00000000',
+            '0.10000000',
+          );
         sellOrder.side = OrderSide.Sell;
         poolTrade.netBaseQuantity = '0.90000000';
         const sellSignature = await getSignature(
@@ -867,7 +868,7 @@ contract(
           error = e;
         }
         expect(error).to.not.be.undefined;
-        expect(error.message).to.match(/input fees unbalanced/i);
+        expect((error as any).message).to.match(/input fees unbalanced/i);
       });
 
       it('should revert when order signature invalid', async () => {
@@ -905,7 +906,7 @@ contract(
           error = e;
         }
         expect(error).to.not.be.undefined;
-        expect(error.message).to.match(/invalid wallet signature/i);
+        expect((error as any).message).to.match(/invalid wallet signature/i);
       });
     });
 
@@ -1329,7 +1330,7 @@ contract(
           error = e;
         }
         expect(error).to.not.be.undefined;
-        expect(error.message).to.match(
+        expect((error as any).message).to.match(
           /quote out not allowed with price correction/i,
         );
       });
@@ -1373,7 +1374,9 @@ contract(
           error = e;
         }
         expect(error).to.not.be.undefined;
-        expect(error.message).to.match(/price correction not allowed/i);
+        expect((error as any).message).to.match(
+          /price correction not allowed/i,
+        );
       });
 
       it('should revert for excessive maker fee', async () => {
@@ -1415,7 +1418,7 @@ contract(
           error = e;
         }
         expect(error).to.not.be.undefined;
-        expect(error.message).to.match(/excessive maker fee/i);
+        expect((error as any).message).to.match(/excessive maker fee/i);
       });
 
       it('should revert for unbalanced orderbook base fees', async () => {
@@ -1457,7 +1460,9 @@ contract(
           error = e;
         }
         expect(error).to.not.be.undefined;
-        expect(error.message).to.match(/orderbook base fees unbalanced/i);
+        expect((error as any).message).to.match(
+          /orderbook base fees unbalanced/i,
+        );
       });
 
       it('should revert for unbalanced orderbook quote fees', async () => {
@@ -1499,7 +1504,9 @@ contract(
           error = e;
         }
         expect(error).to.not.be.undefined;
-        expect(error.message).to.match(/orderbook quote fees unbalanced/i);
+        expect((error as any).message).to.match(
+          /orderbook quote fees unbalanced/i,
+        );
       });
 
       it('should revert for excessive output adjustment', async () => {
@@ -1542,7 +1549,9 @@ contract(
           error = e;
         }
         expect(error).to.not.be.undefined;
-        expect(error.message).to.match(/excessive pool output adjustment/i);
+        expect((error as any).message).to.match(
+          /excessive pool output adjustment/i,
+        );
       });
 
       it('should revert for excessive taker fee', async () => {
@@ -1586,7 +1595,7 @@ contract(
           error = e;
         }
         expect(error).to.not.be.undefined;
-        expect(error.message).to.match(/excessive taker fee/i);
+        expect((error as any).message).to.match(/excessive taker fee/i);
       });
 
       it('should revert for taker sell order with excessive price correction', async () => {
@@ -1673,7 +1682,7 @@ contract(
           error = e;
         }
         expect(error).to.not.be.undefined;
-        expect(error.message).to.match(/excessive price correction/i);
+        expect((error as any).message).to.match(/excessive price correction/i);
       });
 
       it('should revert for non-zero pool gas fee', async () => {
@@ -1715,7 +1724,7 @@ contract(
           error = e;
         }
         expect(error).to.not.be.undefined;
-        expect(error.message).to.match(/non-zero pool gas fee/i);
+        expect((error as any).message).to.match(/non-zero pool gas fee/i);
       });
 
       it('should revert when pool marginal buy price exceeded', async () => {
@@ -1794,7 +1803,7 @@ contract(
           error = e;
         }
         expect(error).to.not.be.undefined;
-        expect(error.message).to.match(/marginal buy price exceeded/i);
+        expect((error as any).message).to.match(/marginal buy price exceeded/i);
       });
 
       it('should revert when pool marginal sell price exceeded', async () => {
@@ -1849,7 +1858,9 @@ contract(
           error = e;
         }
         expect(error).to.not.be.undefined;
-        expect(error.message).to.match(/marginal sell price exceeded/i);
+        expect((error as any).message).to.match(
+          /marginal sell price exceeded/i,
+        );
       });
 
       it('should revert for exited buy wallet', async () => {
@@ -1878,7 +1889,7 @@ contract(
           error = e;
         }
         expect(error).to.not.be.undefined;
-        expect(error.message).to.match(/buy wallet exit finalized/i);
+        expect((error as any).message).to.match(/buy wallet exit finalized/i);
       });
 
       it('should revert for exited sell wallet', async () => {
@@ -1907,7 +1918,7 @@ contract(
           error = e;
         }
         expect(error).to.not.be.undefined;
-        expect(error.message).to.match(/sell wallet exit finalized/i);
+        expect((error as any).message).to.match(/sell wallet exit finalized/i);
       });
 
       it('should revert for self-trade', async () => {
@@ -1934,7 +1945,7 @@ contract(
           error = e;
         }
         expect(error).to.not.be.undefined;
-        expect(error.message).to.match(/self-trading not allowed/i);
+        expect((error as any).message).to.match(/self-trading not allowed/i);
       });
 
       it('should revert for mismatched trades', async () => {
@@ -1975,14 +1986,14 @@ contract(
           error = e;
         }
         expect(error).to.not.be.undefined;
-        expect(error.message).to.match(/mismatched trade assets/i);
+        expect((error as any).message).to.match(/mismatched trade assets/i);
       });
     });
   },
 );
 
 const deposit = async (
-  exchange: ExchangeV31Instance,
+  exchange: Exchange_v3_1Instance,
   token: TestTokenInstance,
   wallet: string,
   tokenQuantity: string,
@@ -2102,7 +2113,7 @@ const generateHybridTrade = async (
 };
 
 const generateAndExecuteHybridTrade = async (
-  exchange: ExchangeV31Instance,
+  exchange: Exchange_v3_1Instance,
   token: TestTokenInstance,
   buyWallet: string,
   sellWallet: string,

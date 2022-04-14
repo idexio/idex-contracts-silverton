@@ -48,7 +48,7 @@ contract('Exchange (invalidations)', (accounts) => {
       }
 
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/nonce timestamp too high/i);
+      expect((error as any).message).to.match(/nonce timestamp too high/i);
     });
 
     it('should revert on subsequent call with same timestamp', async () => {
@@ -64,7 +64,7 @@ contract('Exchange (invalidations)', (accounts) => {
       }
 
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/nonce timestamp invalidated/i);
+      expect((error as any).message).to.match(/nonce timestamp invalidated/i);
     });
 
     it('should revert on subsequent call before block threshold of previous', async () => {
@@ -80,7 +80,9 @@ contract('Exchange (invalidations)', (accounts) => {
       }
 
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/last invalidation not finalized/i);
+      expect((error as any).message).to.match(
+        /last invalidation not finalized/i,
+      );
     });
 
     it('should revert for non-V1 UUID', async () => {
@@ -94,7 +96,7 @@ contract('Exchange (invalidations)', (accounts) => {
       }
 
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/must be v1 UUID/i);
+      expect((error as any).message).to.match(/must be v1 UUID/i);
     });
   });
 });

@@ -31,7 +31,7 @@ contract('FaucetToken', () => {
       }
 
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/invalid wallet/i);
+      expect((error as any).message).to.match(/invalid wallet/i);
     });
 
     it('should revert after max supply', async () => {
@@ -52,7 +52,7 @@ contract('FaucetToken', () => {
       }
 
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/max supply exceeded/i);
+      expect((error as any).message).to.match(/max supply exceeded/i);
     });
   });
 });

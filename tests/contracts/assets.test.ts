@@ -29,7 +29,7 @@ contract('Exchange (tokens)', () => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(
+      expect((error as any).message).to.match(
         /token cannot have more than 32 decimals/i,
       );
     });
@@ -44,7 +44,7 @@ contract('Exchange (tokens)', () => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/invalid token address/i);
+      expect((error as any).message).to.match(/invalid token address/i);
     });
 
     it('should revert for blank symbol', async () => {
@@ -58,7 +58,7 @@ contract('Exchange (tokens)', () => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/invalid token symbol/i);
+      expect((error as any).message).to.match(/invalid token symbol/i);
     });
 
     it('should revert when already finalized', async () => {
@@ -75,7 +75,7 @@ contract('Exchange (tokens)', () => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/already finalized/i);
+      expect((error as any).message).to.match(/already finalized/i);
     });
   });
 
@@ -105,7 +105,7 @@ contract('Exchange (tokens)', () => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/unknown token/i);
+      expect((error as any).message).to.match(/unknown token/i);
     });
 
     it('should revert when already finalized', async () => {
@@ -122,7 +122,7 @@ contract('Exchange (tokens)', () => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/already finalized/i);
+      expect((error as any).message).to.match(/already finalized/i);
     });
 
     it('should revert when symbols do not match', async () => {
@@ -142,7 +142,7 @@ contract('Exchange (tokens)', () => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/symbols do not match/i);
+      expect((error as any).message).to.match(/symbols do not match/i);
     });
 
     it('should revert when decimals do not match', async () => {
@@ -158,7 +158,7 @@ contract('Exchange (tokens)', () => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/decimals do not match/i);
+      expect((error as any).message).to.match(/decimals do not match/i);
     });
   });
 
@@ -193,7 +193,7 @@ contract('Exchange (tokens)', () => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/not finalized/i);
+      expect((error as any).message).to.match(/not finalized/i);
     });
 
     it('should revert for unconfirmed token', async () => {
@@ -209,7 +209,7 @@ contract('Exchange (tokens)', () => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/not finalized/i);
+      expect((error as any).message).to.match(/not finalized/i);
     });
 
     it('should revert for reserved ETH symbol', async () => {
@@ -226,7 +226,7 @@ contract('Exchange (tokens)', () => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/reserved for native asset/i);
+      expect((error as any).message).to.match(/reserved for native asset/i);
     });
 
     it('should revert for ETH address', async () => {
@@ -243,7 +243,7 @@ contract('Exchange (tokens)', () => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/not finalized/i);
+      expect((error as any).message).to.match(/not finalized/i);
     });
   });
 
@@ -286,7 +286,9 @@ contract('Exchange (tokens)', () => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/no confirmed asset found for symbol/i);
+      expect((error as any).message).to.match(
+        /no confirmed asset found for symbol/i,
+      );
     });
 
     it('should revert when no token registered for symbol prior to timestamp', async () => {
@@ -304,7 +306,9 @@ contract('Exchange (tokens)', () => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/no confirmed asset found for symbol/i);
+      expect((error as any).message).to.match(
+        /no confirmed asset found for symbol/i,
+      );
     });
   });
 
@@ -344,7 +348,7 @@ contract('Exchange (tokens)', () => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/pip quantity overflows uint64/i);
+      expect((error as any).message).to.match(/pip quantity overflows uint64/i);
     });
 
     it('should revert when token has too many decimals', async () => {
@@ -355,7 +359,7 @@ contract('Exchange (tokens)', () => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(
+      expect((error as any).message).to.match(
         /asset cannot have more than 32 decimals/i,
       );
     });
@@ -389,7 +393,7 @@ contract('Exchange (tokens)', () => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(
+      expect((error as any).message).to.match(
         /asset cannot have more than 32 decimals/i,
       );
     });

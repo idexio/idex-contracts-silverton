@@ -55,7 +55,7 @@ contract('Exchange (trades)', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/order symbol address mismatch/i);
+      expect((error as any).message).to.match(/order symbol address mismatch/i);
     });
 
     it('should revert when sell order base asset is mismatched with trade', async () => {
@@ -94,7 +94,7 @@ contract('Exchange (trades)', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/order symbol address mismatch/i);
+      expect((error as any).message).to.match(/order symbol address mismatch/i);
     });
   });
 });

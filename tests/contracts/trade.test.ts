@@ -2,7 +2,7 @@ import BigNumber from 'bignumber.js';
 import { v1 as uuidv1 } from 'uuid';
 
 import type {
-  ExchangeV31Instance,
+  Exchange_v3_1Instance,
   TestTokenInstance,
 } from '../../types/truffle-contracts';
 
@@ -243,7 +243,7 @@ contract('Exchange (trades)', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/pip quantity overflows uint64/i);
+      expect((error as any).message).to.match(/pip quantity overflows uint64/i);
     });
 
     it('should work for matching limit orders with 2 decimal base asset', async () => {
@@ -743,7 +743,7 @@ contract('Exchange (trades)', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/self-trading not allowed/i);
+      expect((error as any).message).to.match(/self-trading not allowed/i);
     });
 
     it('should revert for limit order with quoteOrderQuantity', async () => {
@@ -775,7 +775,7 @@ contract('Exchange (trades)', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(
+      expect((error as any).message).to.match(
         /order quote quantity only valid for market orders/i,
       );
     });
@@ -811,7 +811,7 @@ contract('Exchange (trades)', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/base fees unbalanced/i);
+      expect((error as any).message).to.match(/base fees unbalanced/i);
     });
 
     it('should revert when fill quote net and fee do not sum to gross', async () => {
@@ -845,7 +845,7 @@ contract('Exchange (trades)', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/quote fees unbalanced/i);
+      expect((error as any).message).to.match(/quote fees unbalanced/i);
     });
 
     it('should revert for limit order overfill', async () => {
@@ -893,7 +893,7 @@ contract('Exchange (trades)', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/order overfill/i);
+      expect((error as any).message).to.match(/order overfill/i);
     });
 
     it('should revert for market order overfill on quote terms', async () => {
@@ -944,7 +944,7 @@ contract('Exchange (trades)', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/order overfill/i);
+      expect((error as any).message).to.match(/order overfill/i);
     });
 
     it('should revert when not called by dispatcher', async () => {
@@ -962,7 +962,7 @@ contract('Exchange (trades)', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/caller is not dispatcher/i);
+      expect((error as any).message).to.match(/caller is not dispatcher/i);
     });
 
     it('should revert for exited buy wallet', async () => {
@@ -981,7 +981,7 @@ contract('Exchange (trades)', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/buy wallet exit finalized/i);
+      expect((error as any).message).to.match(/buy wallet exit finalized/i);
     });
 
     it('should revert for exited sell wallet', async () => {
@@ -1000,7 +1000,7 @@ contract('Exchange (trades)', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/sell wallet exit finalized/i);
+      expect((error as any).message).to.match(/sell wallet exit finalized/i);
     });
 
     it('should revert for invalidated buy nonce', async () => {
@@ -1022,7 +1022,9 @@ contract('Exchange (trades)', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/buy order nonce timestamp too low/i);
+      expect((error as any).message).to.match(
+        /buy order nonce timestamp too low/i,
+      );
     });
 
     it('should revert for invalidated sell nonce', async () => {
@@ -1044,7 +1046,9 @@ contract('Exchange (trades)', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/sell order nonce timestamp too low/i);
+      expect((error as any).message).to.match(
+        /sell order nonce timestamp too low/i,
+      );
     });
 
     it('should revert for unconfirmed base asset', async () => {
@@ -1075,7 +1079,9 @@ contract('Exchange (trades)', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/no confirmed asset found for symbol/i);
+      expect((error as any).message).to.match(
+        /no confirmed asset found for symbol/i,
+      );
     });
 
     it('should revert for invalid signatureHashVersion', async () => {
@@ -1106,7 +1112,9 @@ contract('Exchange (trades)', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/signature hash version invalid/i);
+      expect((error as any).message).to.match(
+        /signature hash version invalid/i,
+      );
     });
 
     it('should revert for invalid signature (wrong wallet)', async () => {
@@ -1143,7 +1151,7 @@ contract('Exchange (trades)', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/invalid wallet signature/i);
+      expect((error as any).message).to.match(/invalid wallet signature/i);
     });
 
     it('should revert for invalid signature (quote order quantity switched)', async () => {
@@ -1182,7 +1190,7 @@ contract('Exchange (trades)', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/invalid wallet signature/i);
+      expect((error as any).message).to.match(/invalid wallet signature/i);
     });
 
     it('should revert for excessive taker fee', async () => {
@@ -1213,7 +1221,7 @@ contract('Exchange (trades)', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/excessive taker fee/i);
+      expect((error as any).message).to.match(/excessive taker fee/i);
     });
 
     it('should revert for excessive maker fee', async () => {
@@ -1244,7 +1252,7 @@ contract('Exchange (trades)', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/excessive maker fee/i);
+      expect((error as any).message).to.match(/excessive maker fee/i);
     });
 
     it('should revert for zero base quantity', async () => {
@@ -1275,7 +1283,7 @@ contract('Exchange (trades)', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(
+      expect((error as any).message).to.match(
         /base quantity must be greater than zero/i,
       );
     });
@@ -1308,7 +1316,7 @@ contract('Exchange (trades)', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(
+      expect((error as any).message).to.match(
         /quote quantity must be greater than zero/i,
       );
     });
@@ -1343,7 +1351,9 @@ contract('Exchange (trades)', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/buy order limit price exceeded/i);
+      expect((error as any).message).to.match(
+        /buy order limit price exceeded/i,
+      );
     });
 
     it('should revert when sell limit price exceeded', async () => {
@@ -1376,7 +1386,9 @@ contract('Exchange (trades)', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/sell order limit price exceeded/i);
+      expect((error as any).message).to.match(
+        /sell order limit price exceeded/i,
+      );
     });
 
     it('should revert when base and quote assets are the same', async () => {
@@ -1409,7 +1421,7 @@ contract('Exchange (trades)', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/assets must be different/i);
+      expect((error as any).message).to.match(/assets must be different/i);
     });
 
     it('should revert when maker fee asset not in trade pair', async () => {
@@ -1442,7 +1454,9 @@ contract('Exchange (trades)', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/fee assets mismatch trade pair/i);
+      expect((error as any).message).to.match(
+        /fee assets mismatch trade pair/i,
+      );
     });
 
     it('should revert when taker fee asset not in trade pair', async () => {
@@ -1475,7 +1489,9 @@ contract('Exchange (trades)', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/fee assets mismatch trade pair/i);
+      expect((error as any).message).to.match(
+        /fee assets mismatch trade pair/i,
+      );
     });
 
     it('should revert when maker and taker fee assets are the same', async () => {
@@ -1506,7 +1522,9 @@ contract('Exchange (trades)', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/fee assets mismatch trade pair/i);
+      expect((error as any).message).to.match(
+        /fee assets mismatch trade pair/i,
+      );
     });
 
     it('should revert on double fill', async () => {
@@ -1546,13 +1564,13 @@ contract('Exchange (trades)', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/order double filled/i);
+      expect((error as any).message).to.match(/order double filled/i);
     });
   });
 });
 
 export const deposit = async (
-  exchange: ExchangeV31Instance,
+  exchange: Exchange_v3_1Instance,
   token: TestTokenInstance,
   buyWallet: string,
   sellWallet: string,
@@ -1585,7 +1603,7 @@ export const deposit = async (
 };
 
 export const depositTokenPair = async (
-  exchange: ExchangeV31Instance,
+  exchange: Exchange_v3_1Instance,
   baseToken: TestTokenInstance,
   quoteToken: TestTokenInstance,
   buyWallet: string,
@@ -1629,7 +1647,7 @@ export const depositTokenPair = async (
 };
 
 export const executeOrderBookTrade = async (
-  exchange: ExchangeV31Instance,
+  exchange: Exchange_v3_1Instance,
   buyWallet: string,
   sellWallet: string,
   buyOrder: Order,
@@ -1709,7 +1727,7 @@ export const generateOrdersAndFill = async (
 };
 
 const depositAndTrade = async (
-  exchange: ExchangeV31Instance,
+  exchange: Exchange_v3_1Instance,
   token: TestTokenInstance,
   buyWallet: string,
   sellWallet: string,
@@ -1719,7 +1737,7 @@ const depositAndTrade = async (
 };
 
 const generateAndExecuteTrade = async (
-  exchange: ExchangeV31Instance,
+  exchange: Exchange_v3_1Instance,
   token: TestTokenInstance,
   buyWallet: string,
   sellWallet: string,

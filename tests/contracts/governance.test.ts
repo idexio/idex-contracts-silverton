@@ -31,7 +31,7 @@ contract('Governance', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/invalid wallet address/i);
+      expect((error as any).message).to.match(/invalid wallet address/i);
     });
   });
 
@@ -50,7 +50,7 @@ contract('Governance', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/invalid address/i);
+      expect((error as any).message).to.match(/invalid address/i);
     });
 
     it('should revert for non-contract address', async () => {
@@ -63,7 +63,7 @@ contract('Governance', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/invalid address/i);
+      expect((error as any).message).to.match(/invalid address/i);
     });
 
     it('should revert after first call', async () => {
@@ -76,7 +76,9 @@ contract('Governance', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/custodian can only be set once/i);
+      expect((error as any).message).to.match(
+        /custodian can only be set once/i,
+      );
     });
 
     it('should revert when not called by admin', async () => {
@@ -89,19 +91,21 @@ contract('Governance', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/caller must be admin/i);
+      expect((error as any).message).to.match(/caller must be admin/i);
     });
   });
 
   describe('initiateExchangeUpgrade', () => {
     it('should work for valid contract address', async () => {
-      const {
-        exchange: oldExchange,
-        governance,
-      } = await deployAndAssociateContracts();
+      const { exchange: oldExchange, governance } =
+        await deployAndAssociateContracts();
       const newExchange = await Exchange.new(
-        (await BalanceMigrationSourceMock.new(0)).address,
-        (await WETH.new()).address,
+        (
+          await BalanceMigrationSourceMock.new(0)
+        ).address,
+        (
+          await WETH.new()
+        ).address,
         nativeAssetSymbol,
       );
 
@@ -132,7 +136,7 @@ contract('Governance', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/invalid address/i);
+      expect((error as any).message).to.match(/invalid address/i);
     });
 
     it('should revert for non-contract address', async () => {
@@ -145,7 +149,7 @@ contract('Governance', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/invalid address/i);
+      expect((error as any).message).to.match(/invalid address/i);
     });
 
     it('should revert for same Exchange address', async () => {
@@ -158,7 +162,7 @@ contract('Governance', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(
+      expect((error as any).message).to.match(
         /must be different from current exchange/i,
       );
     });
@@ -166,8 +170,12 @@ contract('Governance', (accounts) => {
     it('should revert when upgrade already in progress', async () => {
       const { governance } = await deployAndAssociateContracts();
       const newExchange = await Exchange.new(
-        (await BalanceMigrationSourceMock.new(0)).address,
-        (await WETH.new()).address,
+        (
+          await BalanceMigrationSourceMock.new(0)
+        ).address,
+        (
+          await WETH.new()
+        ).address,
         nativeAssetSymbol,
       );
       await governance.initiateExchangeUpgrade(newExchange.address);
@@ -179,19 +187,23 @@ contract('Governance', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/exchange upgrade already in progress/i);
+      expect((error as any).message).to.match(
+        /exchange upgrade already in progress/i,
+      );
     });
   });
 
   describe('cancelExchangeUpgrade', () => {
     it('should work when in progress', async () => {
-      const {
-        exchange: oldExchange,
-        governance,
-      } = await deployAndAssociateContracts();
+      const { exchange: oldExchange, governance } =
+        await deployAndAssociateContracts();
       const newExchange = await Exchange.new(
-        (await BalanceMigrationSourceMock.new(0)).address,
-        (await WETH.new()).address,
+        (
+          await BalanceMigrationSourceMock.new(0)
+        ).address,
+        (
+          await WETH.new()
+        ).address,
         nativeAssetSymbol,
       );
 
@@ -217,7 +229,9 @@ contract('Governance', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/no exchange upgrade in progress/i);
+      expect((error as any).message).to.match(
+        /no exchange upgrade in progress/i,
+      );
     });
   });
 
@@ -225,8 +239,12 @@ contract('Governance', (accounts) => {
     it('should work when in progress and addresses match', async () => {
       const { custodian, governance } = await deployAndAssociateContracts();
       const newExchange = await Exchange.new(
-        (await BalanceMigrationSourceMock.new(0)).address,
-        (await WETH.new()).address,
+        (
+          await BalanceMigrationSourceMock.new(0)
+        ).address,
+        (
+          await WETH.new()
+        ).address,
         nativeAssetSymbol,
       );
 
@@ -254,14 +272,20 @@ contract('Governance', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/no exchange upgrade in progress/i);
+      expect((error as any).message).to.match(
+        /no exchange upgrade in progress/i,
+      );
     });
 
     it('should revert on address mismatch', async () => {
       const { governance } = await deployAndAssociateContracts();
       const newExchange = await Exchange.new(
-        (await BalanceMigrationSourceMock.new(0)).address,
-        (await WETH.new()).address,
+        (
+          await BalanceMigrationSourceMock.new(0)
+        ).address,
+        (
+          await WETH.new()
+        ).address,
         nativeAssetSymbol,
       );
       await governance.initiateExchangeUpgrade(newExchange.address);
@@ -273,15 +297,19 @@ contract('Governance', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/address mismatch/i);
+      expect((error as any).message).to.match(/address mismatch/i);
     });
 
     it('should revert when block threshold not reached', async () => {
       const blockDelay = 10;
       const { governance } = await deployAndAssociateContracts(blockDelay);
       const newExchange = await Exchange.new(
-        (await BalanceMigrationSourceMock.new(0)).address,
-        (await WETH.new()).address,
+        (
+          await BalanceMigrationSourceMock.new(0)
+        ).address,
+        (
+          await WETH.new()
+        ).address,
         nativeAssetSymbol,
       );
       await governance.initiateExchangeUpgrade(newExchange.address);
@@ -293,7 +321,9 @@ contract('Governance', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/block threshold not yet reached/i);
+      expect((error as any).message).to.match(
+        /block threshold not yet reached/i,
+      );
     });
   });
 
@@ -333,7 +363,7 @@ contract('Governance', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/invalid address/i);
+      expect((error as any).message).to.match(/invalid address/i);
     });
 
     it('should revert for non-contract address', async () => {
@@ -346,7 +376,7 @@ contract('Governance', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/invalid address/i);
+      expect((error as any).message).to.match(/invalid address/i);
     });
 
     it('should revert for same Governance address', async () => {
@@ -359,7 +389,7 @@ contract('Governance', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(
+      expect((error as any).message).to.match(
         /must be different from current governance/i,
       );
     });
@@ -376,7 +406,9 @@ contract('Governance', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/governance upgrade already in progress/i);
+      expect((error as any).message).to.match(
+        /governance upgrade already in progress/i,
+      );
     });
   });
 
@@ -412,7 +444,9 @@ contract('Governance', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/no governance upgrade in progress/i);
+      expect((error as any).message).to.match(
+        /no governance upgrade in progress/i,
+      );
     });
   });
 
@@ -446,7 +480,9 @@ contract('Governance', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/no governance upgrade in progress/i);
+      expect((error as any).message).to.match(
+        /no governance upgrade in progress/i,
+      );
     });
 
     it('should revert on address mismatch', async () => {
@@ -461,7 +497,7 @@ contract('Governance', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/address mismatch/i);
+      expect((error as any).message).to.match(/address mismatch/i);
     });
 
     it('should revert when called before block threshold reached', async () => {
@@ -476,7 +512,9 @@ contract('Governance', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/block threshold not yet reached/i);
+      expect((error as any).message).to.match(
+        /block threshold not yet reached/i,
+      );
     });
   });
 });

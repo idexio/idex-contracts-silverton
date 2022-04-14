@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { ethers } from 'ethers';
 
-import { ExchangeV31Instance } from '../types/truffle-contracts';
+import { Exchange_v3_1Instance } from '../types/truffle-contracts';
 
 import * as contracts from './contracts';
 
@@ -209,8 +209,8 @@ export const getWithdrawalHash = (withdrawal: Withdrawal): string => {
 export const getAddLiquidityArguments = (
   addition: LiquidityAddition,
   walletSignature: string,
-  execution: ExchangeV31Instance['executeAddLiquidity']['arguments'][1],
-): ExchangeV31Instance['executeAddLiquidity']['arguments'] => {
+  execution: Exchange_v3_1Instance['executeAddLiquidity']['arguments'][1],
+): Exchange_v3_1Instance['executeAddLiquidity']['arguments'] => {
   return [
     {
       signatureHashVersion: addition.signatureHashVersion,
@@ -234,8 +234,8 @@ export const getAddLiquidityArguments = (
 export const getRemoveLiquidityArguments = (
   removal: LiquidityRemoval,
   walletSignature: string,
-  execution: ExchangeV31Instance['executeRemoveLiquidity']['arguments'][1],
-): ExchangeV31Instance['executeRemoveLiquidity']['arguments'] => {
+  execution: Exchange_v3_1Instance['executeRemoveLiquidity']['arguments'][1],
+): Exchange_v3_1Instance['executeRemoveLiquidity']['arguments'] => {
   return [
     {
       signatureHashVersion: removal.signatureHashVersion,
@@ -261,7 +261,7 @@ export const getTradeArguments = (
   sellOrder: Order,
   sellWalletSignature: string,
   trade: Trade,
-): ExchangeV31Instance['executeOrderBookTrade']['arguments'] => {
+): Exchange_v3_1Instance['executeOrderBookTrade']['arguments'] => {
   return [
     orderToArgumentStruct(buyOrder, buyWalletSignature),
     orderToArgumentStruct(sellOrder, sellWalletSignature),
@@ -277,7 +277,7 @@ export const getHybridTradeArguments = (
   trade: Trade,
   poolTrade: PoolTrade,
   takerGasFeeQuantity = '0.00000000',
-): ExchangeV31Instance['executeHybridTrade']['arguments'] => {
+): Exchange_v3_1Instance['executeHybridTrade']['arguments'] => {
   return [
     orderToArgumentStruct(buyOrder, buyWalletSignature),
     orderToArgumentStruct(sellOrder, sellWalletSignature),
@@ -293,7 +293,7 @@ export const getPoolTradeArguments = (
   order: Order,
   walletSignature: string,
   poolTrade: PoolTrade,
-): ExchangeV31Instance['executePoolTrade']['arguments'] => {
+): Exchange_v3_1Instance['executePoolTrade']['arguments'] => {
   return [
     orderToArgumentStruct(order, walletSignature),
     poolTradeToArgumentStruct(poolTrade, order),
@@ -304,7 +304,7 @@ export const getWithdrawArguments = (
   withdrawal: Withdrawal,
   gasFee: string,
   walletSignature: string,
-): ExchangeV31Instance['withdraw']['arguments'] => {
+): Exchange_v3_1Instance['withdraw']['arguments'] => {
   return [
     {
       withdrawalType: withdrawal.asset

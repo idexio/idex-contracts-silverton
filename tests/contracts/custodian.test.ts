@@ -3,7 +3,7 @@ import BigNumber from 'bignumber.js';
 import { ethAddress, nativeAssetSymbol } from '../../lib';
 import {
   CustodianInstance,
-  ExchangeV31Instance,
+  Exchange_v3_1Instance,
   ExchangeWithdrawMockInstance,
   GovernanceInstance,
   GovernanceMockInstance,
@@ -22,12 +22,16 @@ contract('Custodian', (accounts) => {
   const Token = artifacts.require('TestToken');
   const WETH = artifacts.require('WETH');
 
-  let exchange: ExchangeV31Instance;
+  let exchange: Exchange_v3_1Instance;
   let governance: GovernanceInstance;
   beforeEach(async () => {
     exchange = await Exchange.new(
-      (await BalanceMigrationSourceMock.new(0)).address,
-      (await WETH.new()).address,
+      (
+        await BalanceMigrationSourceMock.new(0)
+      ).address,
+      (
+        await WETH.new()
+      ).address,
       nativeAssetSymbol,
     );
     governance = await Governance.new(10);
@@ -46,7 +50,9 @@ contract('Custodian', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/invalid exchange contract address/i);
+      expect((error as any).message).to.match(
+        /invalid exchange contract address/i,
+      );
     });
 
     it('should revert for non-contract exchange address', async () => {
@@ -57,7 +63,9 @@ contract('Custodian', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/invalid exchange contract address/i);
+      expect((error as any).message).to.match(
+        /invalid exchange contract address/i,
+      );
     });
 
     it('should revert for invalid governance address', async () => {
@@ -68,7 +76,9 @@ contract('Custodian', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/invalid governance contract address/i);
+      expect((error as any).message).to.match(
+        /invalid governance contract address/i,
+      );
     });
 
     it('should revert for non-contract governance address', async () => {
@@ -79,7 +89,9 @@ contract('Custodian', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/invalid governance contract address/i);
+      expect((error as any).message).to.match(
+        /invalid governance contract address/i,
+      );
     });
   });
 
@@ -112,7 +124,7 @@ contract('Custodian', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/caller must be exchange/i);
+      expect((error as any).message).to.match(/caller must be exchange/i);
     });
   });
 
@@ -127,8 +139,12 @@ contract('Custodian', (accounts) => {
 
     it('should work when sent from governance address', async () => {
       const newExchange = await Exchange.new(
-        (await BalanceMigrationSourceMock.new(0)).address,
-        (await WETH.new()).address,
+        (
+          await BalanceMigrationSourceMock.new(0)
+        ).address,
+        (
+          await WETH.new()
+        ).address,
         nativeAssetSymbol,
       );
 
@@ -149,7 +165,7 @@ contract('Custodian', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/invalid contract address/i);
+      expect((error as any).message).to.match(/invalid contract address/i);
     });
 
     it('should revert for non-contract address', async () => {
@@ -160,7 +176,7 @@ contract('Custodian', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/invalid contract address/i);
+      expect((error as any).message).to.match(/invalid contract address/i);
     });
 
     it('should revert when not sent from governance address', async () => {
@@ -173,7 +189,7 @@ contract('Custodian', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/caller must be governance/i);
+      expect((error as any).message).to.match(/caller must be governance/i);
     });
   });
 
@@ -206,7 +222,7 @@ contract('Custodian', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/invalid contract address/i);
+      expect((error as any).message).to.match(/invalid contract address/i);
     });
 
     it('should revert for non-contract address', async () => {
@@ -217,7 +233,7 @@ contract('Custodian', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/invalid contract address/i);
+      expect((error as any).message).to.match(/invalid contract address/i);
     });
 
     it('should revert when not sent from governance address', async () => {
@@ -230,7 +246,7 @@ contract('Custodian', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/caller must be governance/i);
+      expect((error as any).message).to.match(/caller must be governance/i);
     });
   });
 
@@ -283,7 +299,7 @@ contract('Custodian', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/ETH transfer failed/i);
+      expect((error as any).message).to.match(/ETH transfer failed/i);
     });
 
     it('should revert withdrawing tokens not deposited', async () => {
@@ -302,7 +318,9 @@ contract('Custodian', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/transfer amount exceeds balance/i);
+      expect((error as any).message).to.match(
+        /transfer amount exceeds balance/i,
+      );
     });
 
     it('should revert when not sent from exchange', async () => {
@@ -320,7 +338,7 @@ contract('Custodian', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/caller must be exchange/i);
+      expect((error as any).message).to.match(/caller must be exchange/i);
     });
   });
 });

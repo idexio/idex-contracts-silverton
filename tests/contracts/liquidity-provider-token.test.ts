@@ -68,7 +68,7 @@ contract('Exchange (liquidity provider token)', ([ownerWallet]) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/revert/i);
+      expect((error as any).message).to.match(/revert/i);
     });
 
     it('should revert when base and quote address are the same', async () => {
@@ -84,7 +84,7 @@ contract('Exchange (liquidity provider token)', ([ownerWallet]) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/assets must be different/i);
+      expect((error as any).message).to.match(/assets must be different/i);
     });
 
     it('should revert when base is not ETH or a contract', async () => {
@@ -100,7 +100,7 @@ contract('Exchange (liquidity provider token)', ([ownerWallet]) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/invalid base asset/i);
+      expect((error as any).message).to.match(/invalid base asset/i);
     });
 
     it('should revert when quote is not ETH or a contract', async () => {
@@ -116,7 +116,7 @@ contract('Exchange (liquidity provider token)', ([ownerWallet]) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/invalid quote asset/i);
+      expect((error as any).message).to.match(/invalid quote asset/i);
     });
   });
 
@@ -141,21 +141,21 @@ contract('Exchange (liquidity provider token)', ([ownerWallet]) => {
       } catch (e) {
         error = e;
       }
-      expect(error.message).to.match(/caller is not exchange/i);
+      expect((error as any).message).to.match(/caller is not exchange/i);
 
       try {
         await lpToken.mint(ownerWallet, 0, 0, 0, ownerWallet);
       } catch (e) {
         error = e;
       }
-      expect(error.message).to.match(/caller is not exchange/i);
+      expect((error as any).message).to.match(/caller is not exchange/i);
 
       try {
         await lpToken.reverseAssets();
       } catch (e) {
         error = e;
       }
-      expect(error.message).to.match(/caller is not exchange/i);
+      expect((error as any).message).to.match(/caller is not exchange/i);
     });
   });
 });

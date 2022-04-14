@@ -1,7 +1,7 @@
 import BigNumber from 'bignumber.js';
 import { v1 as uuidv1 } from 'uuid';
 
-import type { ExchangeV31Instance } from '../../types/truffle-contracts';
+import type { Exchange_v3_1Instance } from '../../types/truffle-contracts';
 
 import {
   ethAddress,
@@ -300,7 +300,7 @@ contract('Exchange (withdrawals)', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/no confirmed asset found/i);
+      expect((error as any).message).to.match(/no confirmed asset found/i);
     });
 
     it('should revert when token skims from transfer', async () => {
@@ -331,7 +331,7 @@ contract('Exchange (withdrawals)', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(
+      expect((error as any).message).to.match(
         / transfer success without expected balance change/i,
       );
 
@@ -371,7 +371,7 @@ contract('Exchange (withdrawals)', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/invalid wallet signature/i);
+      expect((error as any).message).to.match(/invalid wallet signature/i);
     });
 
     it('should revert for exited wallet', async () => {
@@ -401,7 +401,7 @@ contract('Exchange (withdrawals)', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/wallet exited/i);
+      expect((error as any).message).to.match(/wallet exited/i);
     });
 
     it('should revert for excessive fee', async () => {
@@ -431,7 +431,7 @@ contract('Exchange (withdrawals)', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/excessive withdrawal fee/i);
+      expect((error as any).message).to.match(/excessive withdrawal fee/i);
     });
 
     it('should revert for double withdrawal', async () => {
@@ -463,12 +463,12 @@ contract('Exchange (withdrawals)', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/already withdrawn/i);
+      expect((error as any).message).to.match(/already withdrawn/i);
     });
   });
 
   const assertWithdrawnEvent = async (
-    exchange: ExchangeV31Instance,
+    exchange: Exchange_v3_1Instance,
     walletAddress: string,
     assetAddress: string,
     assetSymbol: string,

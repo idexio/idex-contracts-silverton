@@ -20,8 +20,12 @@ contract('Exchange (deposits)', (accounts) => {
 
   it('should revert when receiving ETH directly', async () => {
     const exchange = await Exchange.new(
-      (await BalanceMigrationSourceMock.new(0)).address,
-      (await WETH.new()).address,
+      (
+        await BalanceMigrationSourceMock.new(0)
+      ).address,
+      (
+        await WETH.new()
+      ).address,
       nativeAssetSymbol,
     );
 
@@ -36,14 +40,12 @@ contract('Exchange (deposits)', (accounts) => {
       error = e;
     }
     expect(error).to.not.be.undefined;
-    expect(error.message).to.match(/revert/i);
+    expect((error as any).message).to.match(/revert/i);
   });
 
   it('should migrate balance on deposit', async () => {
-    const {
-      balanceMigrationSource,
-      exchange,
-    } = await deployAndAssociateContracts();
+    const { balanceMigrationSource, exchange } =
+      await deployAndAssociateContracts();
     await balanceMigrationSource.setBalanceInPipsByAddress(
       accounts[0],
       ethAddress,
@@ -98,8 +100,12 @@ contract('Exchange (deposits)', (accounts) => {
   describe('setDepositIndex', () => {
     it('should work', async () => {
       const exchange = await Exchange.new(
-        (await BalanceMigrationSourceMock.new(33)).address,
-        (await WETH.new()).address,
+        (
+          await BalanceMigrationSourceMock.new(33)
+        ).address,
+        (
+          await WETH.new()
+        ).address,
         nativeAssetSymbol,
       );
 
@@ -111,7 +117,9 @@ contract('Exchange (deposits)', (accounts) => {
     it('should work with no migration source', async () => {
       const exchange = await Exchange.new(
         '0x0000000000000000000000000000000000000000',
-        (await WETH.new()).address,
+        (
+          await WETH.new()
+        ).address,
         nativeAssetSymbol,
       );
 
@@ -122,8 +130,12 @@ contract('Exchange (deposits)', (accounts) => {
 
     it('revert when called twice', async () => {
       const exchange = await Exchange.new(
-        (await BalanceMigrationSourceMock.new(0)).address,
-        (await WETH.new()).address,
+        (
+          await BalanceMigrationSourceMock.new(0)
+        ).address,
+        (
+          await WETH.new()
+        ).address,
         nativeAssetSymbol,
       );
 
@@ -137,7 +149,7 @@ contract('Exchange (deposits)', (accounts) => {
       }
 
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/can only be set once/i);
+      expect((error as any).message).to.match(/can only be set once/i);
     });
   });
 
@@ -207,13 +219,17 @@ contract('Exchange (deposits)', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/Quantity is too low/i);
+      expect((error as any).message).to.match(/Quantity is too low/i);
     });
 
     it('should revert when depositIndex is unset', async () => {
       const exchange = await Exchange.new(
-        (await BalanceMigrationSourceMock.new(0)).address,
-        (await WETH.new()).address,
+        (
+          await BalanceMigrationSourceMock.new(0)
+        ).address,
+        (
+          await WETH.new()
+        ).address,
         nativeAssetSymbol,
       );
 
@@ -227,7 +243,7 @@ contract('Exchange (deposits)', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/deposits disabled/i);
+      expect((error as any).message).to.match(/deposits disabled/i);
     });
   });
 
@@ -264,7 +280,7 @@ contract('Exchange (deposits)', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/use depositEther/i);
+      expect((error as any).message).to.match(/use depositEther/i);
     });
 
     it('should revert for exited wallet', async () => {
@@ -280,7 +296,7 @@ contract('Exchange (deposits)', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/wallet exited/i);
+      expect((error as any).message).to.match(/wallet exited/i);
     });
 
     it('should revert when token quantity above wallet balance', async () => {
@@ -297,7 +313,9 @@ contract('Exchange (deposits)', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/transfer amount exceeds balance/i);
+      expect((error as any).message).to.match(
+        /transfer amount exceeds balance/i,
+      );
     });
 
     it('should revert for unknown token', async () => {
@@ -313,7 +331,9 @@ contract('Exchange (deposits)', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/no confirmed asset found for symbol/i);
+      expect((error as any).message).to.match(
+        /no confirmed asset found for symbol/i,
+      );
     });
   });
 
@@ -360,7 +380,7 @@ contract('Exchange (deposits)', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/use depositEther/i);
+      expect((error as any).message).to.match(/use depositEther/i);
     });
 
     it('should revert for unknown token', async () => {
@@ -381,7 +401,9 @@ contract('Exchange (deposits)', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/no confirmed asset found for address/i);
+      expect((error as any).message).to.match(
+        /no confirmed asset found for address/i,
+      );
     });
 
     it('should revert when token skims from transfer', async () => {
@@ -402,7 +424,7 @@ contract('Exchange (deposits)', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(
+      expect((error as any).message).to.match(
         /transferFrom success without expected balance change/i,
       );
     });

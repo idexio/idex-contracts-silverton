@@ -43,7 +43,7 @@ contract('UUID', () => {
       }
 
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/must be v1 uuid/i);
+      expect((error as any).message).to.match(/must be v1 uuid/i);
     });
 
     it('should revert for timestamp before Unix epoch', async () => {
@@ -64,8 +64,8 @@ contract('UUID', () => {
 
       expect(error).to.not.be.undefined;
       // TODO https://github.com/trufflesuite/truffle/issues/3996
-      // expect(error.message).to.match(/subtraction overflow/i);
-      expect(error.message).to.match(/revert/i);
+      // expect((error as any).message).to.match(/subtraction overflow/i);
+      expect((error as any).message).to.match(/revert/i);
     });
   });
 });

@@ -1,7 +1,7 @@
 import type {
   BalanceMigrationSourceMockInstance,
   CustodianInstance,
-  ExchangeV31Instance,
+  Exchange_v3_1Instance,
   FarmInstance,
   GovernanceInstance,
   TestTokenInstance,
@@ -28,7 +28,7 @@ export const deployAndAssociateContracts = async (
 ): Promise<{
   balanceMigrationSource: BalanceMigrationSourceMockInstance;
   custodian: CustodianInstance;
-  exchange: ExchangeV31Instance;
+  exchange: Exchange_v3_1Instance;
   farm: FarmInstance;
   governance: GovernanceInstance;
   weth: WETHInstance;
@@ -76,7 +76,7 @@ export const deployAndAssociateContracts = async (
 };
 
 export const deployAndRegisterToken = async (
-  exchange: ExchangeV31Instance,
+  exchange: Exchange_v3_1Instance,
   tokenSymbol: string,
   decimals = 18,
 ): Promise<TestTokenInstance> => {
@@ -107,7 +107,7 @@ export const getSignature = async (
 
 export const withdraw = async (
   web3: Web3,
-  exchange: ExchangeV31Instance,
+  exchange: Exchange_v3_1Instance,
   withdrawal: Withdrawal,
   wallet: string,
   gasFee = '0.00000000',

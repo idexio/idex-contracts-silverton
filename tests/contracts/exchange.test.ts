@@ -15,8 +15,12 @@ contract('Exchange (tunable parameters)', (accounts) => {
   describe('constructor', () => {
     it('should work', async () => {
       await Exchange.new(
-        (await BalanceMigrationSourceMock.new(0)).address,
-        (await WETH.new()).address,
+        (
+          await BalanceMigrationSourceMock.new(0)
+        ).address,
+        (
+          await WETH.new()
+        ).address,
         nativeAssetSymbol,
       );
     });
@@ -26,7 +30,9 @@ contract('Exchange (tunable parameters)', (accounts) => {
       try {
         await Exchange.new(
           accounts[1],
-          (await WETH.new()).address,
+          (
+            await WETH.new()
+          ).address,
           nativeAssetSymbol,
         );
       } catch (e) {
@@ -34,14 +40,18 @@ contract('Exchange (tunable parameters)', (accounts) => {
       }
 
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/invalid migration source/i);
+      expect((error as any).message).to.match(/invalid migration source/i);
     });
   });
 
   it('should revert when receiving ETH directly', async () => {
     const exchange = await Exchange.new(
-      (await BalanceMigrationSourceMock.new(0)).address,
-      (await WETH.new()).address,
+      (
+        await BalanceMigrationSourceMock.new(0)
+      ).address,
+      (
+        await WETH.new()
+      ).address,
       nativeAssetSymbol,
     );
 
@@ -57,7 +67,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
     }
 
     expect(error).to.not.be.undefined;
-    expect(error.message).to.match(/revert/i);
+    expect((error as any).message).to.match(/revert/i);
   });
 
   describe('loadBalanceInAssetUnitsByAddress', () => {
@@ -72,7 +82,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
       }
 
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/invalid wallet address/i);
+      expect((error as any).message).to.match(/invalid wallet address/i);
     });
   });
 
@@ -88,7 +98,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
       }
 
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/invalid wallet address/i);
+      expect((error as any).message).to.match(/invalid wallet address/i);
     });
   });
 
@@ -104,7 +114,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
       }
 
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/invalid wallet address/i);
+      expect((error as any).message).to.match(/invalid wallet address/i);
     });
   });
 
@@ -123,7 +133,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
       }
 
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/invalid wallet address/i);
+      expect((error as any).message).to.match(/invalid wallet address/i);
     });
   });
 
@@ -142,7 +152,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
       }
 
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/no pool for address pair/i);
+      expect((error as any).message).to.match(/no pool for address pair/i);
     });
   });
 
@@ -178,15 +188,19 @@ contract('Exchange (tunable parameters)', (accounts) => {
       }
 
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/caller is not exchange/i);
+      expect((error as any).message).to.match(/caller is not exchange/i);
     });
   });
 
   describe('setAdmin', async () => {
     it('should work for valid address', async () => {
       const exchange = await Exchange.new(
-        (await BalanceMigrationSourceMock.new(0)).address,
-        (await WETH.new()).address,
+        (
+          await BalanceMigrationSourceMock.new(0)
+        ).address,
+        (
+          await WETH.new()
+        ).address,
         nativeAssetSymbol,
       );
 
@@ -195,8 +209,12 @@ contract('Exchange (tunable parameters)', (accounts) => {
 
     it('should revert for empty address', async () => {
       const exchange = await Exchange.new(
-        (await BalanceMigrationSourceMock.new(0)).address,
-        (await WETH.new()).address,
+        (
+          await BalanceMigrationSourceMock.new(0)
+        ).address,
+        (
+          await WETH.new()
+        ).address,
         nativeAssetSymbol,
       );
 
@@ -208,7 +226,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
       }
 
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/invalid wallet address/i);
+      expect((error as any).message).to.match(/invalid wallet address/i);
     });
 
     it('should revert for setting same address as current', async () => {
@@ -222,13 +240,17 @@ contract('Exchange (tunable parameters)', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/must be different/i);
+      expect((error as any).message).to.match(/must be different/i);
     });
 
     it('should revert when not called by owner', async () => {
       const exchange = await Exchange.new(
-        (await BalanceMigrationSourceMock.new(0)).address,
-        (await WETH.new()).address,
+        (
+          await BalanceMigrationSourceMock.new(0)
+        ).address,
+        (
+          await WETH.new()
+        ).address,
         nativeAssetSymbol,
       );
 
@@ -240,7 +262,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
       }
 
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/caller must be owner/i);
+      expect((error as any).message).to.match(/caller must be owner/i);
     });
   });
 
@@ -259,8 +281,12 @@ contract('Exchange (tunable parameters)', (accounts) => {
 
     it('should revert for empty address', async () => {
       const exchange = await Exchange.new(
-        (await BalanceMigrationSourceMock.new(0)).address,
-        (await WETH.new()).address,
+        (
+          await BalanceMigrationSourceMock.new(0)
+        ).address,
+        (
+          await WETH.new()
+        ).address,
         nativeAssetSymbol,
       );
 
@@ -271,7 +297,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/invalid address/i);
+      expect((error as any).message).to.match(/invalid address/i);
     });
 
     it('should revert after first call', async () => {
@@ -284,7 +310,9 @@ contract('Exchange (tunable parameters)', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/custodian can only be set once/i);
+      expect((error as any).message).to.match(
+        /custodian can only be set once/i,
+      );
     });
   });
 
@@ -314,7 +342,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/greater than max/i);
+      expect((error as any).message).to.match(/greater than max/i);
     });
   });
 
@@ -335,8 +363,12 @@ contract('Exchange (tunable parameters)', (accounts) => {
 
     it('should revert for empty address', async () => {
       const exchange = await Exchange.new(
-        (await BalanceMigrationSourceMock.new(0)).address,
-        (await WETH.new()).address,
+        (
+          await BalanceMigrationSourceMock.new(0)
+        ).address,
+        (
+          await WETH.new()
+        ).address,
         nativeAssetSymbol,
       );
 
@@ -348,7 +380,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
       }
 
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/invalid wallet address/i);
+      expect((error as any).message).to.match(/invalid wallet address/i);
     });
 
     it('should revert for setting same address as current', async () => {
@@ -362,7 +394,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/must be different/i);
+      expect((error as any).message).to.match(/must be different/i);
     });
   });
 
@@ -403,8 +435,12 @@ contract('Exchange (tunable parameters)', (accounts) => {
 
     it('should revert for empty address', async () => {
       const exchange = await Exchange.new(
-        (await BalanceMigrationSourceMock.new(0)).address,
-        (await WETH.new()).address,
+        (
+          await BalanceMigrationSourceMock.new(0)
+        ).address,
+        (
+          await WETH.new()
+        ).address,
         nativeAssetSymbol,
       );
 
@@ -416,7 +452,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
       }
 
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/invalid wallet address/i);
+      expect((error as any).message).to.match(/invalid wallet address/i);
     });
 
     it('should revert for setting same address as current', async () => {
@@ -430,7 +466,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/must be different/i);
+      expect((error as any).message).to.match(/must be different/i);
     });
   });
 
@@ -450,8 +486,12 @@ contract('Exchange (tunable parameters)', (accounts) => {
 
     it('should revert for invalid address', async () => {
       const exchange = await Exchange.new(
-        (await BalanceMigrationSourceMock.new(0)).address,
-        (await WETH.new()).address,
+        (
+          await BalanceMigrationSourceMock.new(0)
+        ).address,
+        (
+          await WETH.new()
+        ).address,
         nativeAssetSymbol,
       );
 
@@ -463,7 +503,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
       }
 
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/invalid address/i);
+      expect((error as any).message).to.match(/invalid address/i);
     });
 
     it('should revert for setting same address as current', async () => {
@@ -477,7 +517,7 @@ contract('Exchange (tunable parameters)', (accounts) => {
         error = e;
       }
       expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/must be different/i);
+      expect((error as any).message).to.match(/must be different/i);
     });
   });
 });

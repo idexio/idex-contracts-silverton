@@ -4,14 +4,14 @@ import * as utils from './utils';
 import BaseContract from './BaseContract';
 
 import {
-  ExchangeV31,
-  ExchangeV31__factory,
+  Exchange_v3_1,
+  Exchange_v3_1__factory,
 } from '../../types/ethers-contracts';
 
-export default class ExchangeContract extends BaseContract<ExchangeV31> {
+export default class ExchangeContract extends BaseContract<Exchange_v3_1> {
   public constructor(address: string, signerWalletPrivateKey?: string) {
     super(
-      ExchangeV31__factory.connect(
+      Exchange_v3_1__factory.connect(
         address,
         signerWalletPrivateKey
           ? new ethers.Wallet(signerWalletPrivateKey, utils.loadProvider())
@@ -21,7 +21,7 @@ export default class ExchangeContract extends BaseContract<ExchangeV31> {
   }
 
   public static async deploy(
-    args: Parameters<ExchangeV31__factory['deploy']>,
+    args: Parameters<Exchange_v3_1__factory['deploy']>,
     libraryAddresses: {
       assetRegistry: string;
       depositing: string;
@@ -34,7 +34,7 @@ export default class ExchangeContract extends BaseContract<ExchangeV31> {
     ownerWalletPrivateKey: string,
   ): Promise<ExchangeContract> {
     const linkLibraryAddresses: ConstructorParameters<
-      typeof ExchangeV31__factory
+      typeof Exchange_v3_1__factory
     >[0] = {
       __AssetRegistry_________________________: libraryAddresses.assetRegistry,
       __Depositing____________________________: libraryAddresses.depositing,
@@ -52,7 +52,7 @@ export default class ExchangeContract extends BaseContract<ExchangeV31> {
       utils.loadProvider(),
     );
 
-    const contract = await new ExchangeV31__factory(
+    const contract = await new Exchange_v3_1__factory(
       linkLibraryAddresses,
       owner,
     ).deploy(...args);
