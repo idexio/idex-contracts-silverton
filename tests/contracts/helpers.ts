@@ -23,7 +23,6 @@ export const minimumTokenQuantity = decimalToAssetUnits(
   18,
 );
 export const deployAndAssociateContracts = async (
-  blockDelay = 0,
   balanceMigrationSourceAddress?: string,
 ): Promise<{
   balanceMigrationSource: BalanceMigrationSourceMockInstance;
@@ -58,11 +57,10 @@ export const deployAndAssociateContracts = async (
       weth.address,
       nativeAssetSymbol,
     ), // Fee wallet is just WETH
-    Governance.new(blockDelay),
+    Governance.new(),
   ]);
   const custodian = await Custodian.new(exchange.address, governance.address);
   await exchange.setCustodian(custodian.address);
-  await governance.setCustodian(custodian.address);
   await exchange.setDepositIndex();
 
   return {

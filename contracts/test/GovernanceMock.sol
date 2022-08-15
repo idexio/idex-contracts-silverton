@@ -18,12 +18,4 @@ contract GovernanceMock {
   function setCustodian(IGovernanceMockCustodian newCustodian) external {
     _custodian = newCustodian;
   }
-
-  function setExchange(address newExchange) external {
-    _custodian.setExchange(newExchange);
-  }
-
-  function setGovernance(address newGovernance) external {
-    _custodian.setGovernance(newGovernance);
-  }
 }

@@ -17,7 +17,7 @@ contract('Exchange (liquidity provider token)', ([ownerWallet]) => {
   let exchangeMock: ExchangeLPTokenMockInstance;
   let governance: GovernanceInstance;
   beforeEach(async () => {
-    governance = await Governance.new(10);
+    governance = await Governance.new();
     exchangeMock = await ExchangeLPTokenMock.new();
     custodian = await Custodian.new(exchangeMock.address, governance.address);
     await exchangeMock.setCustodian(custodian.address);

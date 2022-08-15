@@ -30,7 +30,7 @@ contract('Custodian', (accounts) => {
       (await WETH.new()).address,
       nativeAssetSymbol,
     );
-    governance = await Governance.new(10);
+    governance = await Governance.new();
   });
 
   describe('deploy', () => {
@@ -113,124 +113,6 @@ contract('Custodian', (accounts) => {
       }
       expect(error).to.not.be.undefined;
       expect(error.message).to.match(/caller must be exchange/i);
-    });
-  });
-
-  describe('setExchange', () => {
-    let custodian: CustodianInstance;
-    let governanceMock: GovernanceMockInstance;
-    beforeEach(async () => {
-      governanceMock = await GovernanceMock.new();
-      custodian = await Custodian.new(exchange.address, governanceMock.address);
-      governanceMock.setCustodian(custodian.address);
-    });
-
-    it('should work when sent from governance address', async () => {
-      const newExchange = await Exchange.new(
-        (await BalanceMigrationSourceMock.new(0)).address,
-        (await WETH.new()).address,
-        nativeAssetSymbol,
-      );
-
-      await governanceMock.setExchange(newExchange.address);
-
-      const events = await custodian.getPastEvents('ExchangeChanged', {
-        fromBlock: 0,
-      });
-      expect(events).to.be.an('array');
-      expect(events.length).to.equal(2);
-    });
-
-    it('should revert for invalid address', async () => {
-      let error;
-      try {
-        await governanceMock.setExchange(ethAddress);
-      } catch (e) {
-        error = e;
-      }
-      expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/invalid contract address/i);
-    });
-
-    it('should revert for non-contract address', async () => {
-      let error;
-      try {
-        await governanceMock.setExchange(accounts[0]);
-      } catch (e) {
-        error = e;
-      }
-      expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/invalid contract address/i);
-    });
-
-    it('should revert when not sent from governance address', async () => {
-      let error;
-      try {
-        await custodian.setExchange(ethAddress, {
-          from: accounts[1],
-        });
-      } catch (e) {
-        error = e;
-      }
-      expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/caller must be governance/i);
-    });
-  });
-
-  describe('setGovernance', () => {
-    let custodian: CustodianInstance;
-    let governanceMock: GovernanceMockInstance;
-    beforeEach(async () => {
-      governanceMock = await GovernanceMock.new();
-      custodian = await Custodian.new(exchange.address, governanceMock.address);
-      governanceMock.setCustodian(custodian.address);
-    });
-
-    it('should work when sent from governance address', async () => {
-      const newGovernance = await Governance.new(0);
-
-      await governanceMock.setGovernance(newGovernance.address);
-
-      const events = await custodian.getPastEvents('GovernanceChanged', {
-        fromBlock: 0,
-      });
-      expect(events).to.be.an('array');
-      expect(events.length).to.equal(2);
-    });
-
-    it('should revert for invalid address', async () => {
-      let error;
-      try {
-        await governanceMock.setGovernance(ethAddress);
-      } catch (e) {
-        error = e;
-      }
-      expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/invalid contract address/i);
-    });
-
-    it('should revert for non-contract address', async () => {
-      let error;
-      try {
-        await governanceMock.setGovernance(accounts[0]);
-      } catch (e) {
-        error = e;
-      }
-      expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/invalid contract address/i);
-    });
-
-    it('should revert when not sent from governance address', async () => {
-      let error;
-      try {
-        await custodian.setGovernance(ethAddress, {
-          from: accounts[1],
-        });
-      } catch (e) {
-        error = e;
-      }
-      expect(error).to.not.be.undefined;
-      expect(error.message).to.match(/caller must be governance/i);
     });
   });
 
